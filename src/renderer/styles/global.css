@@ -100,7 +100,7 @@
   padding: 0;
 }
 
-html, body, #root {
+html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -110,6 +110,25 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   user-select: none;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Transparent overlay mode for Desktop Mode & Teaching Overlay */
+html.desktop-transparent-mode,
+html.desktop-transparent-mode body,
+html.desktop-transparent-mode #root,
+body.desktop-transparent-mode,
+body.desktop-transparent-mode #root,
+.desktop-mode-root,
+#root:has(.desktop-mode-root) {
+  background: transparent !important;
+  background-color: transparent !important;
+  pointer-events: none !important;
 }
 
 /* ─── Scrollbars ─────────────────────────────────────────────────────────── */

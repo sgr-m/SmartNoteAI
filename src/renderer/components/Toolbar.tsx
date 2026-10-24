@@ -10,6 +10,7 @@ import { ShapeFlyout } from './ShapeFlyout';
 import { EraserFlyout } from './EraserFlyout';
 import { MenuFlyout } from './MenuFlyout';
 import { isTypingOrInputFocused } from '../utils/keyboardUtils';
+import type { PresentationTool } from './PresentationFloatingToolbar';
 import './Toolbar.css';
 
 interface ToolbarProps {
@@ -26,6 +27,13 @@ interface ToolbarProps {
   onOpenLayersModal?: () => void;
   onOpenDocumentImport?: () => void;
   onOpenExport?: () => void;
+  onActivatePresentationTool?: (tool: PresentationTool) => void;
+  activePresentationTool?: PresentationTool | null;
+  onToggleTimer?: () => void;
+  onScreenshot?: () => void;
+  onDesktop?: () => void;
+  onReturnToBoard?: () => void;
+  isPresentationMode?: boolean;
 }
 
 export function Toolbar({
@@ -42,6 +50,13 @@ export function Toolbar({
   onOpenLayersModal,
   onOpenDocumentImport,
   onOpenExport,
+  onActivatePresentationTool,
+  activePresentationTool,
+  onToggleTimer,
+  onScreenshot,
+  onDesktop,
+  onReturnToBoard,
+  isPresentationMode,
 }: ToolbarProps): React.ReactElement {
   const {
     toolState,
@@ -186,17 +201,72 @@ export function Toolbar({
               onOpenLayers={onOpenLayersModal}
               onOpenDocumentImport={onOpenDocumentImport}
               onOpenExport={onOpenExport}
+              onActivatePresentationTool={onActivatePresentationTool}
+              onToggleTimer={onToggleTimer}
+              onScreenshot={onScreenshot}
+              onDesktop={onDesktop}
             />
           )}
         </div>
 
+        {/* Section 14.1 Desktop button: Access Windows desktop or minimize board without closing lesson */}
         <button
           className="dock-icon-btn"
-          onClick={() => onTogglePresentationMode?.()}
-          title="Presentation Mode / Full Screen Teaching"
-          aria-label="Presentation Mode"
+          onClick={() => onDesktop?.()}
+          title="Desktop: Access Windows desktop without closing lesson (Section 14.1)"
+          aria-label="Show Desktop"
         >
           <div className="monitor-icon-graphic">🖥️</div>
+        </button>
+
+        {/* Full Screen Presentation Mode */}
+        <button
+          className={`dock-icon-btn ${isPresentationMode ? 'active' : ''}`}
+          onClick={() => onTogglePresentationMode?.()}
+          title="Presentation Mode / Full Screen Teaching (F11)"
+          aria-label="Presentation Mode"
+        >
+          <div className="monitor-icon-graphic">⛶</div>
+        </button>
+
+        {/* Presentation Tools: Spotlight */}
+        <button
+          className={`dock-icon-btn ${activePresentationTool === 'spotlight' ? 'active' : ''}`}
+          onClick={() => onActivatePresentationTool?.('spotlight')}
+          title="Spotlight Focus Tool (Section 15)"
+          aria-label="Spotlight"
+        >
+          <div className="monitor-icon-graphic">🔦</div>
+        </button>
+
+        {/* Desktop Annotation Pen & Overlay */}
+        <button
+          className={`dock-icon-btn ${activePresentationTool === 'annotation' ? 'active' : ''}`}
+          onClick={() => onActivatePresentationTool?.('annotation')}
+          title="Desktop Annotation (Section 14.2)"
+          aria-label="Desktop Annotation"
+        >
+          <div className="monitor-icon-graphic">✏️</div>
+        </button>
+
+        {/* Timer & Stopwatch */}
+        <button
+          className="dock-icon-btn"
+          onClick={() => onToggleTimer?.()}
+          title="Timer & Stopwatch (Section 15)"
+          aria-label="Timer"
+        >
+          <div className="monitor-icon-graphic">⏱️</div>
+        </button>
+
+        {/* Screenshot capture */}
+        <button
+          className="dock-icon-btn"
+          onClick={() => onScreenshot?.()}
+          title="Screenshot Capture & Save/Insert (Section 14 & 15)"
+          aria-label="Screenshot"
+        >
+          <div className="monitor-icon-graphic">📸</div>
         </button>
 
         <button

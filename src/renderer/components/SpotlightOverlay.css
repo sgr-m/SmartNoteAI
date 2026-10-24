@@ -1,0 +1,113 @@
+/* SpotlightOverlay.css */
+
+.spotlight-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  cursor: crosshair;
+  user-select: none;
+  touch-action: none;
+}
+
+.spotlight-veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: background 0.2s;
+}
+
+.spotlight-ring {
+  position: absolute;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.35),
+    0 0 40px 12px rgba(255, 220, 80, 0.18),
+    inset 0 0 60px 20px rgba(255, 255, 255, 0.04);
+  border: 2px solid rgba(255, 255, 255, 0.22);
+}
+
+.spotlight-ring.spotlight-rect {
+  border-radius: 10px;
+}
+
+/* ─── Controls pill ──────────────────────────────────────────────────────── */
+.spotlight-controls {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9010;
+  pointer-events: all;
+}
+
+.spotlight-controls-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 20, 40, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 40px;
+  padding: 8px 16px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  color: #e2e8f0;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  white-space: nowrap;
+}
+
+.spotlight-ctrl-label {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.spotlight-ctrl-sep {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 0 4px;
+}
+
+.spotlight-shape-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #e2e8f0;
+  width: 32px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 15px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.spotlight-shape-btn.active {
+  background: rgba(99, 179, 237, 0.25);
+  border-color: #63b3ed;
+  color: #90cdf4;
+}
+
+.spotlight-shape-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.spotlight-slider {
+  width: 90px;
+  accent-color: #63b3ed;
+  cursor: pointer;
+}
+
+.spotlight-close-btn {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 8px;
+  color: #fc8181;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.15s;
+}
+
+.spotlight-close-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+}

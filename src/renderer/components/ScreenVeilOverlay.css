@@ -1,0 +1,136 @@
+/* ScreenVeilOverlay.css */
+
+.veil-container {
+  position: fixed;
+  inset: 0;
+  z-index: 8800;
+  user-select: none;
+  touch-action: none;
+  cursor: ns-resize;
+}
+
+.veil-block {
+  position: absolute;
+  background: #0f172a;
+  pointer-events: none;
+}
+
+.veil-handle-line {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  z-index: 8810;
+}
+
+.veil-handle-line.vert {
+  height: 16px;
+  cursor: ns-resize;
+}
+
+.veil-handle-line.horiz {
+  width: 16px;
+  cursor: ew-resize;
+}
+
+.veil-handle-grip {
+  width: 60px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.veil-handle-line.horiz .veil-handle-grip {
+  width: 6px;
+  height: 60px;
+}
+
+/* ─── Controls ──────────────────────────────────────────────────────────── */
+.veil-controls {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8820;
+  pointer-events: all;
+}
+
+.veil-controls-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 40px;
+  padding: 8px 16px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  color: #e2e8f0;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  white-space: nowrap;
+}
+
+.veil-ctrl-label {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.veil-ctrl-sep {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 0 2px;
+}
+
+.veil-dir-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 8px;
+  color: #cbd5e1;
+  width: 30px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.15s;
+}
+
+.veil-dir-btn.active {
+  background: rgba(99, 179, 237, 0.22);
+  border-color: #63b3ed;
+  color: #90cdf4;
+}
+
+.veil-action-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 8px;
+  color: #cbd5e1;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+
+.veil-action-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.veil-close-btn {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #fc8181;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.15s;
+}
+
+.veil-close-btn:hover {
+  background: rgba(239, 68, 68, 0.28);
+}

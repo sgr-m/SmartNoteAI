@@ -101,10 +101,15 @@ app.whenReady().then(async () => {
   const fileService = new FileService(settings);
   await fileService.ensureDirectories();
 
-  // Register IPC handlers
-  setupIpcHandlers({ db, settings, fileService });
+  // Register IPC handlers with direct mainWindow accessor
+  setupIpcHandlers({ db, settings, fileService, getMainWindow: () => mainWindow });
 
   mainWindow = await createMainWindow();
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    app.quit();
+  });
 
   // macOS: re-create window if dock icon clicked
   app.on('activate', async () => {

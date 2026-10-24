@@ -1,0 +1,124 @@
+/* MagnifierOverlay.css */
+
+.magnifier-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 8700;
+  pointer-events: none;
+}
+
+.magnifier-passthrough {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.magnifier-lens {
+  position: absolute;
+  cursor: grab;
+  pointer-events: all;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 3px rgba(99, 179, 237, 0.6),
+    0 0 0 6px rgba(99, 179, 237, 0.2),
+    0 12px 40px rgba(0, 0, 0, 0.7);
+  background: white;
+}
+
+.magnifier-lens:active {
+  cursor: grabbing;
+}
+
+.magnifier-lens-ring {
+  position: absolute;
+  inset: -3px;
+  border: 3px solid rgba(99, 179, 237, 0.7);
+  pointer-events: none;
+}
+
+.magnifier-viewport {
+  background: white;
+}
+
+.magnifier-scaled-content {
+  background: inherit;
+}
+
+/* Subtle crosshairs */
+.magnifier-crosshair-h {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(99, 179, 237, 0.25);
+  pointer-events: none;
+}
+
+.magnifier-crosshair-v {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(99, 179, 237, 0.25);
+  pointer-events: none;
+}
+
+/* ─── Controls pill ──────────────────────────────────────────────────────── */
+.magnifier-controls {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8710;
+  pointer-events: all;
+}
+
+.magnifier-controls-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 20, 40, 0.93);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 40px;
+  padding: 8px 16px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  color: #e2e8f0;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  white-space: nowrap;
+}
+
+.mag-ctrl-label {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.mag-ctrl-sep {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 0 4px;
+}
+
+.mag-slider {
+  width: 90px;
+  accent-color: #63b3ed;
+  cursor: pointer;
+}
+
+.mag-close-btn {
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.32);
+  border-radius: 8px;
+  color: #fc8181;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.15s;
+}
+
+.mag-close-btn:hover {
+  background: rgba(239, 68, 68, 0.28);
+}

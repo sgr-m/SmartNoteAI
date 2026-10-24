@@ -1,10 +1,12 @@
 /**
  * MenuFlyout — Hierarchical smartboard menu (Reference Image 5)
  * Opens upwards from the left bottom menu button.
+ * Includes File, Import, Export, Print, Teaching/Presentation Mode, Settings, Help, Exit
  */
 
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
+import type { PresentationTool } from './PresentationFloatingToolbar';
 import './MenuFlyout.css';
 
 interface MenuFlyoutProps {
@@ -18,6 +20,10 @@ interface MenuFlyoutProps {
   onOpenLayers?: () => void;
   onOpenDocumentImport?: () => void;
   onOpenExport?: () => void;
+  onActivatePresentationTool?: (tool: PresentationTool) => void;
+  onToggleTimer?: () => void;
+  onScreenshot?: () => void;
+  onDesktop?: () => void;
 }
 
 export function MenuFlyout({
@@ -31,9 +37,13 @@ export function MenuFlyout({
   onOpenLayers,
   onOpenDocumentImport,
   onOpenExport,
+  onActivatePresentationTool,
+  onToggleTimer,
+  onScreenshot,
+  onDesktop,
 }: MenuFlyoutProps): React.ReactElement {
   const { newLesson, openLesson, saveLesson, saveLessonAs } = useAppContext();
-  const [activeTab, setActiveTab] = useState<'file' | 'import' | 'export' | 'settings' | 'help' | 'mode'>('file');
+  const [activeTab, setActiveTab] = useState<'file' | 'mode' | 'import' | 'export' | 'settings' | 'help'>('file');
 
   const handleAction = (action: () => void) => {
     action();
@@ -52,6 +62,17 @@ export function MenuFlyout({
             <div className="menu-btn-content">
               <span className="menu-btn-icon">📁</span>
               <span className="menu-btn-text">File</span>
+            </div>
+            <span className="menu-arrow">►</span>
+          </button>
+
+          <button
+            className={`menu-category-btn ${activeTab === 'mode' ? 'active' : ''}`}
+            onClick={() => setActiveTab('mode')}
+          >
+            <div className="menu-btn-content">
+              <span className="menu-btn-icon">🎭</span>
+              <span className="menu-btn-text">Teaching</span>
             </div>
             <span className="menu-arrow">►</span>
           </button>
@@ -112,23 +133,6 @@ export function MenuFlyout({
           </button>
 
           <button
-            className="menu-category-btn"
-            onClick={() => {
-              if (document.fullscreenElement) {
-                document.exitFullscreen().catch(console.error);
-              } else {
-                document.documentElement.requestFullscreen().catch(console.error);
-              }
-              onClose();
-            }}
-          >
-            <div className="menu-btn-content">
-              <span className="menu-btn-icon">🖥️</span>
-              <span className="menu-btn-text">Mode</span>
-            </div>
-          </button>
-
-          <button
             className="menu-category-btn exit-btn"
             onClick={() => {
               if (window.confirm('Save and exit SmartBoard Studio?')) {
@@ -148,38 +152,110 @@ export function MenuFlyout({
           {activeTab === 'file' && (
             <div className="submenu-grid">
               <button className="submenu-tile-btn" onClick={() => handleAction(newLesson)}>
-                <div className="submenu-icon-box">📁<span className="badge-new">NEW</span></div>
-                <span className="submenu-label">New</span>
+                <div className="submenu-icon-box">📄</div>
+                <span className="submenu-label">New Lesson</span>
               </button>
-
               <button className="submenu-tile-btn" onClick={() => handleAction(openLesson)}>
                 <div className="submenu-icon-box">📂</div>
-                <span className="submenu-label">Open</span>
+                <span className="submenu-label">Open...</span>
               </button>
-
               <button className="submenu-tile-btn" onClick={() => handleAction(saveLesson)}>
                 <div className="submenu-icon-box">💾</div>
                 <span className="submenu-label">Save</span>
               </button>
-
               <button className="submenu-tile-btn" onClick={() => handleAction(saveLessonAs)}>
-                <div className="submenu-icon-box">💾💾</div>
-                <span className="submenu-label">Save as</span>
+                <div className="submenu-icon-box">📑</div>
+                <span className="submenu-label">Save As...</span>
               </button>
-
-              <button className="submenu-tile-btn" onClick={() => handleAction(() => onOpenRecentLessons?.())}>
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(() => onOpenRecentLessons?.())}
+              >
                 <div className="submenu-icon-box">🕒</div>
                 <span className="submenu-label">Recent</span>
               </button>
-
-              <button className="submenu-tile-btn" onClick={() => handleAction(() => onOpenBackground?.())}>
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(() => onOpenBackground?.())}
+              >
                 <div className="submenu-icon-box">🎨</div>
                 <span className="submenu-label">Background</span>
               </button>
-
-              <button className="submenu-tile-btn" onClick={() => handleAction(() => onOpenLayers?.())}>
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(() => onOpenLayers?.())}
+              >
                 <div className="submenu-icon-box">📑</div>
                 <span className="submenu-label">Layers</span>
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'mode' && (
+            <div className="submenu-grid">
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(() => onTogglePresentationMode?.())}
+                title="Full Screen Teaching Mode (F11)"
+              >
+                <div className="submenu-icon-box">⛶</div>
+                <span className="submenu-label">Full Screen</span>
+              </button>
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(() => onActivatePresentationTool?.('spotlight'))}
+                title="Spotlight focus tool"
+              >
+                <div className="submenu-icon-box">🔦</div>
+                <span className="submenu-label">Spotlight</span>
+              </button>
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(() => onActivatePresentationTool?.('veil'))}
+                title="Screen veil cover & progressive reveal"
+              >
+                <div className="submenu-icon-box">🪟</div>
+                <span className="submenu-label">Screen Veil</span>
+              </button>
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(() => onActivatePresentationTool?.('magnifier'))}
+                title="Magnifier lens"
+              >
+                <div className="submenu-icon-box">🔍</div>
+                <span className="submenu-label">Magnifier</span>
+              </button>
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(() => onActivatePresentationTool?.('annotation'))}
+                title="Desktop annotation overlay"
+              >
+                <div className="submenu-icon-box">✏️</div>
+                <span className="submenu-label">Annotate</span>
+              </button>
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(() => onToggleTimer?.())}
+                title="Floating timer and stopwatch"
+              >
+                <div className="submenu-icon-box">⏱️</div>
+                <span className="submenu-label">Timer</span>
+              </button>
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(() => onScreenshot?.())}
+                title="Screenshot capture & board insert"
+              >
+                <div className="submenu-icon-box">📸</div>
+                <span className="submenu-label">Screenshot</span>
+              </button>
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(() => onDesktop?.())}
+                title="Show Windows desktop (minimize board)"
+              >
+                <div className="submenu-icon-box">🖥️</div>
+                <span className="submenu-label">Desktop</span>
               </button>
             </div>
           )}
@@ -260,7 +336,8 @@ export function MenuFlyout({
                 <li><b>Ctrl+Z</b> — Undo</li>
                 <li><b>Ctrl+Shift+Z</b> — Redo</li>
                 <li><b>Ctrl+S</b> — Save</li>
-                <li><b>F11</b> — Full Screen</li>
+                <li><b>F11</b> — Full Screen Teaching</li>
+                <li><b>Esc</b> — Close overlays / Fullscreen</li>
               </ul>
             </div>
           )}

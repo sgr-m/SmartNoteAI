@@ -35,6 +35,21 @@ const ALLOWED_INVOKE = new Set([
   'window:isMaximized',
   'window:setFullScreen',
   'window:isFullScreen',
+  'window:showDesktop',
+  'window:restore',
+  'screen:getAllDisplays',
+  'screen:getPrimaryDisplay',
+  'screenshot:captureScreen',
+  'screenshot:captureWindow',
+  'file:writeBinary',
+  'clipboard:writeImage',
+  'window:setIgnoreMouseEvents',
+  'desktop:insertImage',
+  'annotation:open',
+  'annotation:close',
+  'annotation:setClickThrough',
+  'annotation:clear',
+  'app:quit',
 ]);
 
 // Whitelist of allowed channels the renderer may listen on (from main)
@@ -59,6 +74,10 @@ const ALLOWED_LISTEN = new Set([
   'menu:tool:desktopannotation',
   'menu:tool:spotlight',
   'app:update-available',
+  'annotation:closed',
+  'annotation:doClear',
+  'desktop:doInsertImage',
+  'desktop:resetMode',
 ]);
 
 // The API surface exposed to the renderer via window.electronAPI

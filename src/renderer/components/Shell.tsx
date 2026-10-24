@@ -1,9 +1,10 @@
 /**
  * Shell — Top-level application layout with bottom smartboard dock
  * Section 4.1 & 4.2 Main Sections & Presentation Workspace
+ * Section 14 & 15: Milestone 4 — Presentations and desktop tools
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { TitleBar } from './TitleBar';
 import { Toolbar } from './Toolbar';
 import { WhiteboardCanvas } from './WhiteboardCanvas';
@@ -23,6 +24,16 @@ import { LessonMetadataModal } from './LessonMetadataModal';
 import { CrashRecoveryBanner } from './CrashRecoveryBanner';
 import { DocumentImportModal } from './DocumentImportModal';
 import { ExportModal } from './ExportModal';
+// ─── Milestone 4 — Presentation Tools ──────────────────────────────────
+import { SpotlightOverlay } from './SpotlightOverlay';
+import { ScreenVeilOverlay } from './ScreenVeilOverlay';
+import { MagnifierOverlay } from './MagnifierOverlay';
+import { DesktopAnnotationOverlay } from './DesktopAnnotationOverlay';
+import { FloatingTimerWidget } from './FloatingTimerWidget';
+import { ScreenshotModal } from './ScreenshotModal';
+import { AreaScreenshotOverlay } from './AreaScreenshotOverlay';
+import { PresentationFloatingToolbar } from './PresentationFloatingToolbar';
+import type { PresentationTool } from './PresentationFloatingToolbar';
 import { createImageObject, sanitizeSvg } from '../services/documentImportService';
 import { useAppContext } from '../context/AppContext';
 import './Shell.css';
@@ -51,6 +62,49 @@ export function Shell(): React.ReactElement {
   // Presentation Mode (Full-screen teaching)
   const [isPresentationMode, setIsPresentationMode] = useState(false);
 
+  // ─── Milestone 4: Presentation Tools State ─────────────────────────────────────
+  const [activePresentationTool, setActivePresentationTool] = useState<PresentationTool | null>(null);
+  const [showFloatingToolbar, setShowFloatingToolbar] = useState(false);
+  const [showTimer, setShowTimer] = useState(false);
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const [showAreaScreenshot, setShowAreaScreenshot] = useState(false);
+  const [initialScreenshotCapture, setInitialScreenshotCapture] = useState<string | null>(null);
+
+  const deactivatePresentationTool = useCallback(() => {
+    setActivePresentationTool(null);
+  }, []);
+
+  const activatePresentationTool = useCallback((tool: PresentationTool) => {
+    setActivePresentationTool((prev) => (prev === tool ? null : tool));
+  }, []);
+
+  const handleDesktop = useCallback(async () => {
+    if (window.electronAPI) {
+      await window.electronAPI.invoke('window:showDesktop');
+    } else {
+      window.blur();
+    }
+  }, []);
+
+  const handleReturnToBoard = useCallback(async () => {
+    if (window.electronAPI) {
+      await window.electronAPI.invoke('window:restore');
+    } else {
+      window.focus();
+    }
+  }, []);
+
+  const handleScreenshot = useCallback(() => {
+    setShowScreenshotModal(true);
+  }, []);
+
+  // Show floating toolbar whenever entering presentation mode
+  useEffect(() => {
+    if (isPresentationMode) {
+      setShowFloatingToolbar(true);
+    }
+  }, [isPresentationMode]);
+
   const togglePresentationMode = async (force?: boolean) => {
     const next = force !== undefined ? force : !isPresentationMode;
     setIsPresentationMode(next);
@@ -73,6 +127,11 @@ export function Shell(): React.ReactElement {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // Dismiss active presentation tool first
+        if (activePresentationTool) {
+          setActivePresentationTool(null);
+          return;
+        }
         if (showPagePanel) {
           setShowPagePanel(false);
         } else if (isPresentationMode) {
@@ -89,11 +148,34 @@ export function Shell(): React.ReactElement {
       togglePresentationMode();
     });
 
+    const unsubAnnotation = window.electronAPI?.on('menu:tool:desktopannotation', () => {
+      setActivePresentationTool((prev) => prev === 'annotation' ? null : 'annotation');
+    });
+
+    const unsubSpotlight = window.electronAPI?.on('menu:tool:spotlight', () => {
+      setActivePresentationTool((prev) => prev === 'spotlight' ? null : 'spotlight');
+    });
+
+    const unsubDesktopInsert = window.electronAPI?.on('desktop:doInsertImage', (...args: unknown[]) => {
+      const dataUrl = args[0] as string;
+      if (!dataUrl) return;
+      const img = new Image();
+      img.onload = () => {
+        const imgObj = createImageObject(dataUrl, `Desktop_Snip_${Date.now()}.png`, 160, 160, 800, 600, img.width || 800, img.height || 600);
+        docDispatch({ type: 'ADD_OBJECT', pageIndex: docState.currentPageIndex, object: imgObj });
+        setToastMessage?.('Inserted desktop screenshot onto current page!');
+      };
+      img.src = dataUrl;
+    });
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       unsubMenu?.();
+      unsubAnnotation?.();
+      unsubSpotlight?.();
+      unsubDesktopInsert?.();
     };
-  }, [isPresentationMode, showPagePanel]);
+  }, [isPresentationMode, showPagePanel, activePresentationTool, docState.currentPageIndex, docDispatch, setToastMessage]);
 
   // Drag and drop from Windows File Explorer (Section 11 & 13)
   const handleDragOver = (e: React.DragEvent) => {
@@ -260,7 +342,69 @@ export function Shell(): React.ReactElement {
               setShowDocumentImport(true);
             }}
             onOpenExport={() => setShowExportModal(true)}
+            onActivatePresentationTool={activatePresentationTool}
+            activePresentationTool={activePresentationTool}
+            onToggleTimer={() => setShowTimer((t) => !t)}
+            onScreenshot={handleScreenshot}
+            onDesktop={handleDesktop}
+            onReturnToBoard={handleReturnToBoard}
+            isPresentationMode={isPresentationMode}
           />
+
+          {/* ─── Milestone 4: Presentation Overlays ───────────────────────────── */}
+
+          {/* Spotlight */}
+          {activePresentationTool === 'spotlight' && (
+            <SpotlightOverlay onClose={deactivatePresentationTool} />
+          )}
+
+          {/* Screen Veil */}
+          {activePresentationTool === 'veil' && (
+            <ScreenVeilOverlay onClose={deactivatePresentationTool} />
+          )}
+
+          {/* Magnifier */}
+          {activePresentationTool === 'magnifier' && (
+            <MagnifierOverlay onClose={deactivatePresentationTool} />
+          )}
+
+          {/* Desktop Annotation */}
+          {activePresentationTool === 'annotation' && (
+            <DesktopAnnotationOverlay onClose={deactivatePresentationTool} />
+          )}
+
+          {/* Floating Timer Widget */}
+          {showTimer && (
+            <FloatingTimerWidget onClose={() => setShowTimer(false)} />
+          )}
+
+          {/* Floating Presentation Toolbar (always available, auto-hides) */}
+          {showFloatingToolbar && (
+            <PresentationFloatingToolbar
+              activeTool={activePresentationTool}
+              onActivateTool={activatePresentationTool}
+              onDeactivateTool={deactivatePresentationTool}
+              onDesktop={handleDesktop}
+              onReturnToBoard={handleReturnToBoard}
+              onScreenshot={handleScreenshot}
+              onTogglePresentationMode={() => togglePresentationMode()}
+              isPresentationMode={isPresentationMode}
+              timerVisible={showTimer}
+              onToggleTimer={() => setShowTimer((t) => !t)}
+              onAreaScreenshot={() => setShowAreaScreenshot(true)}
+            />
+          )}
+
+          {/* Floating toolbar trigger tab (when not in pres mode) */}
+          {!showFloatingToolbar && (
+            <button
+              className="shell-pres-toolbar-toggle"
+              onClick={() => setShowFloatingToolbar(true)}
+              title="Show Presentation Tools"
+            >
+              🎭
+            </button>
+          )}
         </div>
       </div>
 
@@ -286,6 +430,30 @@ export function Shell(): React.ReactElement {
         />
       )}
       {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} />}
+
+      {/* Milestone 4: Interactive Area Snip Tool */}
+      {showAreaScreenshot && (
+        <AreaScreenshotOverlay
+          onCapture={(croppedUrl) => {
+            setShowAreaScreenshot(false);
+            setInitialScreenshotCapture(croppedUrl);
+            setShowScreenshotModal(true);
+          }}
+          onClose={() => setShowAreaScreenshot(false)}
+        />
+      )}
+
+      {/* Milestone 4: Screenshot Modal */}
+      {showScreenshotModal && (
+        <ScreenshotModal
+          initialCapture={initialScreenshotCapture}
+          onClose={() => {
+            setShowScreenshotModal(false);
+            setInitialScreenshotCapture(null);
+          }}
+        />
+      )}
     </div>
   );
 }
+

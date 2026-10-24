@@ -1,0 +1,272 @@
+/* FloatingTimerWidget.css */
+
+.timer-widget {
+  position: fixed;
+  z-index: 9200;
+  width: 220px;
+  background: rgba(10, 15, 38, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 0 0 14px;
+  backdrop-filter: blur(24px);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  font-family: 'Inter', sans-serif;
+  color: #e2e8f0;
+  user-select: none;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.timer-widget.time-up {
+  border-color: rgba(239, 68, 68, 0.55);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.7),
+    0 0 30px rgba(239, 68, 68, 0.35);
+  animation: timerFlash 0.6s ease-in-out 3;
+}
+
+@keyframes timerFlash {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.55); }
+  50% { border-color: rgba(239, 68, 68, 1); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 50px rgba(239, 68, 68, 0.6); }
+}
+
+/* ─── Drag handle ────────────────────────────────────────────────────────── */
+.timer-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+  cursor: grab;
+  border-radius: 20px 20px 0 0;
+}
+
+.timer-drag-handle:active {
+  cursor: grabbing;
+}
+
+.timer-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+}
+
+.timer-close-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.timer-close-btn:hover {
+  color: #ef4444;
+}
+
+/* ─── Mode tabs ──────────────────────────────────────────────────────────── */
+.timer-mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 12px 12px;
+}
+
+.timer-tab {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  color: #64748b;
+  font-size: 11px;
+  padding: 5px 0;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.timer-tab.active {
+  background: rgba(99, 179, 237, 0.18);
+  border-color: rgba(99, 179, 237, 0.4);
+  color: #90cdf4;
+}
+
+/* ─── Ring display ───────────────────────────────────────────────────────── */
+.timer-display {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px;
+  width: 130px;
+  height: 130px;
+}
+
+.timer-ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.timer-ring-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 8;
+}
+
+.timer-ring-fill {
+  fill: none;
+  stroke: #63b3ed;
+  stroke-width: 8;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.8s linear, stroke 0.3s;
+}
+
+.timer-time-text {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.timer-digits {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  color: #f1f5f9;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.3s;
+}
+
+.timer-digits.done {
+  color: #ef4444;
+}
+
+.timer-done-label {
+  font-size: 11px;
+  color: #ef4444;
+  font-weight: 600;
+  animation: donePulse 0.8s ease-in-out infinite;
+}
+
+@keyframes donePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ─── Input row ──────────────────────────────────────────────────────────── */
+.timer-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0 12px 8px;
+}
+
+.timer-input {
+  width: 50px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 4px 4px;
+  font-family: 'Inter', sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-input::-webkit-inner-spin-button { opacity: 0; }
+.timer-input:focus {
+  outline: none;
+  border-color: #63b3ed;
+}
+
+.timer-colon {
+  font-size: 22px;
+  font-weight: 700;
+  color: #475569;
+}
+
+/* ─── Presets ────────────────────────────────────────────────────────────── */
+.timer-presets {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 0 10px 10px;
+}
+
+.timer-preset-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  color: #64748b;
+  font-size: 11px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.timer-preset-chip:hover {
+  background: rgba(99, 179, 237, 0.15);
+  color: #90cdf4;
+}
+
+/* ─── Actions ────────────────────────────────────────────────────────────── */
+.timer-actions {
+  display: flex;
+  gap: 6px;
+  margin: 0 12px;
+}
+
+.timer-action-btn {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.timer-action-btn:active {
+  transform: scale(0.97);
+}
+
+.timer-action-btn.start {
+  background: rgba(52, 211, 153, 0.2);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  color: #6ee7b7;
+}
+
+.timer-action-btn.start:hover {
+  background: rgba(52, 211, 153, 0.32);
+}
+
+.timer-action-btn.pause {
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fcd34d;
+}
+
+.timer-action-btn.pause:hover {
+  background: rgba(251, 191, 36, 0.25);
+}
+
+.timer-action-btn.reset {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: #64748b;
+}
+
+.timer-action-btn.reset:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+}
