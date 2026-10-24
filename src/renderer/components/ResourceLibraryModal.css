@@ -300,16 +300,34 @@
 }
 
 .folder-item-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 5px 10px;
   font-size: 12px;
   color: #94a3b8;
   border-radius: 4px;
   cursor: pointer;
+  transition: all 0.12s ease;
 }
 
 .folder-item-chip:hover {
   background: rgba(255, 255, 255, 0.04);
   color: #e2e8f0;
+}
+
+.folder-item-chip.active {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.folder-item-count {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 10px;
+  color: #94a3b8;
 }
 
 /* Main Area */
@@ -482,6 +500,18 @@
   text-transform: uppercase;
   color: #64748b;
   font-weight: 600;
+}
+
+.res-folder-tag {
+  font-size: 10px;
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  padding: 2px 6px;
+  border-radius: 4px;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .btn-insert-now {

@@ -86,6 +86,10 @@ export function convertDocumentPagesToSmartboardPages(
     const pageId = uuidv4();
     const title = `${options.titlePrefix || 'Imported'} (Page ${ip.pageNumber})`;
 
+    // SmartBoard standard presentation canvas is 1920 x 1080
+    const canvasW = 1920;
+    const canvasH = 1080;
+
     if (options.asBackground) {
       const background: PageBackground = {
         type: 'image',
@@ -95,8 +99,8 @@ export function convertDocumentPagesToSmartboardPages(
       return {
         id: pageId,
         title,
-        width: ip.width || 1920,
-        height: ip.height || 1080,
+        width: canvasW,
+        height: canvasH,
         background,
         layers: [
           { id: 'background', name: 'Background', visible: true, locked: true, opacity: 1, order: 0 },
@@ -108,22 +112,30 @@ export function convertDocumentPagesToSmartboardPages(
         objects: [],
       };
     } else {
-      // Import as canvas ImageObject on imported-media layer
+      // Import as canvas ImageObject on imported-media layer, fitted and centered inside 1920x1080
+      const ipW = ip.width || canvasW;
+      const ipH = ip.height || canvasH;
+      const fitScale = Math.min(canvasW / ipW, canvasH / ipH, 1);
+      const fitW = Math.round(ipW * fitScale);
+      const fitH = Math.round(ipH * fitScale);
+      const posX = Math.round((canvasW - fitW) / 2);
+      const posY = Math.round((canvasH - fitH) / 2);
+
       const imgObj = createImageObject(
         ip.fullDataUrl,
         title,
-        50,
-        50,
-        ip.width || 1920,
-        ip.height || 1080,
-        ip.width || 1920,
-        ip.height || 1080
+        posX,
+        posY,
+        fitW,
+        fitH,
+        ipW,
+        ipH
       );
       return {
         id: pageId,
         title,
-        width: ip.width || 1920,
-        height: ip.height || 1080,
+        width: canvasW,
+        height: canvasH,
         background: { type: 'blank', color: '#1a1a2e' },
         layers: [
           { id: 'background', name: 'Background', visible: true, locked: true, opacity: 1, order: 0 },

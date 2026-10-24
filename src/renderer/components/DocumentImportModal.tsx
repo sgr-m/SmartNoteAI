@@ -9,12 +9,15 @@ import {
 } from '../services/documentImportService';
 import './DocumentImportModal.css';
 
-// Configure PDF.js worker
-if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
+import * as pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs';
+
+// Configure PDF.js worker locally (100% offline, zero network or external CDN dependencies)
+if (typeof window !== 'undefined') {
   try {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || '4.10.38'}/pdf.worker.min.mjs`;
+    (window as any).pdfjsWorker = pdfjsWorker;
   } catch {}
 }
+
 
 interface DocumentImportModalProps {
   onClose: () => void;
@@ -65,36 +68,73 @@ export function DocumentImportModal({ onClose, initialFile }: DocumentImportModa
         const loadedPages: ImportedDocumentPage[] = [];
         const initialSelected = new Set<number>();
 
+        // Detect current display resolution (read screen size first)
+        const screenW = typeof window !== 'undefined' && window.screen
+          ? Math.round((window.screen.width || 1920) * (window.devicePixelRatio || 1))
+          : 1920;
+        const screenH = typeof window !== 'undefined' && window.screen
+          ? Math.round((window.screen.height || 1080) * (window.devicePixelRatio || 1))
+          : 1080;
+
+        // If resolution is 4K, convert to 4K (3840x2160 max). If 1920x1080, convert to 1920x1080 max.
+        const is4K = screenW >= 3000 || screenH >= 1700;
+        const targetDisplayW = is4K ? 3840 : 1920;
+        const targetDisplayH = is4K ? 2160 : 1080;
+
         for (let i = 1; i <= total; i++) {
           setLoadingProgress(Math.round(10 + (i / total) * 80));
-          const page = await pdfDoc.getPage(i);
-          const viewport = page.getViewport({ scale: 1.5 });
-          const thumbViewport = page.getViewport({ scale: 0.3 });
+          try {
+            const page = await pdfDoc.getPage(i);
+            // Calculate scale to match current display resolution so it fits perfectly without pixelation
+            const baseViewport = page.getViewport({ scale: 1.0 });
+            const scaleX = targetDisplayW / baseViewport.width;
+            const scaleY = targetDisplayH / baseViewport.height;
+            const fitScale = Math.min(scaleX, scaleY);
+            const displayScale = Math.max(1.0, Math.min(is4K ? 4.0 : 2.5, fitScale));
+            const viewport = page.getViewport({ scale: displayScale });
+            const thumbViewport = page.getViewport({ scale: 0.3 });
 
-          // Render high-res for slide
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          await page.render({ canvasContext: ctx!, viewport }).promise;
-          const fullDataUrl = canvas.toDataURL('image/png');
+            // Render high-res matching current display for slide
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = Math.max(1, Math.round(viewport.width));
+            canvas.height = Math.max(1, Math.round(viewport.height));
+            if (ctx) {
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              await page.render({ canvasContext: ctx, viewport }).promise;
+            }
+            const fullDataUrl = canvas.toDataURL('image/png');
 
-          // Render thumbnail
-          const thumbCanvas = document.createElement('canvas');
-          const thumbCtx = thumbCanvas.getContext('2d');
-          thumbCanvas.width = thumbViewport.width;
-          thumbCanvas.height = thumbViewport.height;
-          await page.render({ canvasContext: thumbCtx!, viewport: thumbViewport }).promise;
-          const thumbnailDataUrl = thumbCanvas.toDataURL('image/png');
+            // Render thumbnail
+            const thumbCanvas = document.createElement('canvas');
+            const thumbCtx = thumbCanvas.getContext('2d');
+            thumbCanvas.width = Math.max(1, Math.round(thumbViewport.width));
+            thumbCanvas.height = Math.max(1, Math.round(thumbViewport.height));
+            if (thumbCtx) {
+              await page.render({ canvasContext: thumbCtx, viewport: thumbViewport }).promise;
+            }
+            const thumbnailDataUrl = thumbCanvas.toDataURL('image/png');
 
-          loadedPages.push({
-            pageNumber: i,
-            thumbnailDataUrl,
-            fullDataUrl,
-            width: Math.round(viewport.width),
-            height: Math.round(viewport.height),
-          });
-          initialSelected.add(i);
+            loadedPages.push({
+              pageNumber: i,
+              thumbnailDataUrl,
+              fullDataUrl,
+              width: Math.round(viewport.width),
+              height: Math.round(viewport.height),
+            });
+            initialSelected.add(i);
+          } catch (pageErr) {
+            console.warn(`Could not render PDF page ${i}:`, pageErr);
+          }
+        }
+
+        try {
+          await pdfDoc.destroy();
+        } catch {}
+
+        if (loadedPages.length === 0) {
+          throw new Error('No readable pages found in this PDF document.');
         }
 
         setPages(loadedPages);
@@ -205,15 +245,22 @@ export function DocumentImportModal({ onClose, initialFile }: DocumentImportModa
     if (pagesToImport.length === 0) return;
 
     if (fileType === 'image' && !importAsBackground) {
-      // Place image directly onto current page
+      // Place image directly onto current page, scaled to fit within presentation view
       const first = pagesToImport[0];
+      const maxW = 1280;
+      const maxH = 720;
+      const imgScale = Math.min(maxW / (first.width || maxW), maxH / (first.height || maxH), 1);
+      const placedW = Math.round((first.width || maxW) * imgScale);
+      const placedH = Math.round((first.height || maxH) * imgScale);
+      const placedX = Math.round((1920 - placedW) / 2);
+      const placedY = Math.round((1080 - placedH) / 2);
       const imgObj = createImageObject(
         first.fullDataUrl,
         fileName,
-        150,
-        150,
-        800,
-        600,
+        placedX,
+        placedY,
+        placedW,
+        placedH,
         first.width,
         first.height
       );

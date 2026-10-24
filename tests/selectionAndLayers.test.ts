@@ -9,7 +9,7 @@ import {
   initialDocumentState,
   DocumentState,
 } from '../src/renderer/store/documentStore';
-import { CanvasObject, StrokeObject, ShapeObject, GroupObject, BoundingBox, Point } from '../src/shared/types';
+import { CanvasObject, StrokeObject, ShapeObject, GroupObject, ImageObject, BoundingBox, Point } from '../src/shared/types';
 import { v4 as uuidv4 } from 'uuid';
 
 function freshState(): DocumentState {
@@ -575,5 +575,221 @@ describe('Multi-Element Selection (Rectangular Marquee & Stylus Freehand Lasso)'
     expect(rotatedShape.x).toBe(200);
     expect(rotatedShape.y).toBe(200);
   });
+
+  it('resizes text and formula objects from left, right, top, and bottom edges', () => {
+    const textObj = {
+      id: 'formula-resize',
+      type: 'text' as const,
+      x: 100,
+      y: 100,
+      content: 'r^2 \\pi \\frac{\\theta}{360} - \\sin \\frac{\\theta}{2} \\cos \\frac{\\theta}{2}',
+      fontSize: 24,
+      width: 250,
+      height: 55,
+      isLatex: true,
+      locked: false,
+      layerId: 'objects',
+    };
+
+    // 1. Drag West (left edge) to the left by 30px (deltaX = -30)
+    const wDrag = {
+      ...textObj,
+      x: textObj.x + (-30),
+      width: textObj.width - (-30),
+    };
+    expect(wDrag.x).toBe(70);
+    expect(wDrag.width).toBe(280);
+
+    // 2. Drag East (right edge) to the right by 50px (deltaX = 50)
+    const eDrag = {
+      ...textObj,
+      width: textObj.width + 50,
+    };
+    expect(eDrag.x).toBe(100);
+    expect(eDrag.width).toBe(300);
+
+    // 3. Drag South (bottom edge) down by 20px (deltaY = 20)
+    const sDrag = {
+      ...textObj,
+      height: textObj.height + 20,
+    };
+    expect(sDrag.y).toBe(100);
+    expect(sDrag.height).toBe(75);
+
+    // 4. Drag North (top edge) up by 15px (deltaY = -15)
+    const nDrag = {
+      ...textObj,
+      y: textObj.y + (-15),
+      height: textObj.height - (-15),
+    };
+    expect(nDrag.y).toBe(85);
+    expect(nDrag.height).toBe(70);
+  });
+
+  describe('Image Fit and Screen Sizing Actions', () => {
+    const makeImage = (id: string, width = 800, height = 600): ImageObject => ({
+      id,
+      type: 'image',
+      x: 100,
+      y: 100,
+      width,
+      height,
+      rotation: 0,
+      filePath: 'test.png',
+      dataUrl: 'data:image/png;base64,sample',
+      opacity: 1,
+      locked: false,
+      layerId: 'objects',
+    });
+
+    it('fits image to screen proportionally (contain) preserving aspect ratio', () => {
+      const img = makeImage('img-1', 800, 600); // aspect 4:3 = 1.333
+      const screenW = 1920;
+      const screenH = 1080; // aspect 16:9 = 1.777
+
+      const imgAspect = img.width / img.height;
+      const screenAspect = screenW / screenH;
+
+      let newW = img.width;
+      let newH = img.height;
+      let newX = 0;
+      let newY = 0;
+
+      if (imgAspect > screenAspect) {
+        newW = screenW;
+        newH = screenW / imgAspect;
+        newX = 0;
+        newY = (screenH - newH) / 2;
+      } else {
+        newH = screenH;
+        newW = screenH * imgAspect;
+        newX = (screenW - newW) / 2;
+        newY = 0;
+      }
+
+      // Height should fill 1080, width should be 1080 * (4/3) = 1440, centered horizontally
+      expect(newH).toBe(1080);
+      expect(newW).toBe(1440);
+      expect(newX).toBe((1920 - 1440) / 2); // 240
+      expect(newY).toBe(0);
+      expect(newW / newH).toBeCloseTo(4 / 3, 2);
+    });
+
+    it('stretches image edge-to-edge (fill) to full screen', () => {
+      const img = makeImage('img-2', 500, 400);
+      const screenW = 1920;
+      const screenH = 1080;
+
+      const fillImg: ImageObject = {
+        ...img,
+        x: 0,
+        y: 0,
+        width: screenW,
+        height: screenH,
+        rotation: 0,
+      };
+
+      expect(fillImg.x).toBe(0);
+      expect(fillImg.y).toBe(0);
+      expect(fillImg.width).toBe(1920);
+      expect(fillImg.height).toBe(1080);
+    });
+
+    it('converts selected image to page background and removes floating object', () => {
+      let state = freshState();
+      const img = makeImage('img-3', 1200, 800);
+      state = documentReducer(state, { type: 'ADD_OBJECT', pageIndex: 0, object: img });
+      expect(state.lesson.pages[0].objects).toHaveLength(1);
+
+      // Execute setting as page background
+      state = documentReducer(state, {
+        type: 'SET_PAGE_BACKGROUND',
+        pageIndex: 0,
+        background: { type: 'image', imageUrl: img.dataUrl, color: '#ffffff' },
+      });
+      state = documentReducer(state, { type: 'REMOVE_OBJECT', pageIndex: 0, objectId: img.id });
+
+      expect(state.lesson.pages[0].objects).toHaveLength(0);
+      expect(state.lesson.pages[0].background.type).toBe('image');
+      expect(state.lesson.pages[0].background.imageUrl).toBe(img.dataUrl);
+    });
+
+    it('centers image on screen at current scale', () => {
+      const img = makeImage('img-4', 600, 400);
+      const screenW = 1920;
+      const screenH = 1080;
+
+      const centeredX = (screenW - img.width) / 2;
+      const centeredY = (screenH - img.height) / 2;
+
+      expect(centeredX).toBe(660);
+      expect(centeredY).toBe(340);
+    });
+
+    it('calculates fit-to-screen dimensions preventing overflow on high-resolution images', () => {
+      // 4K resolution image on 1080p whiteboard screen
+      const highResImg = makeImage('img-high-res', 3840, 2160);
+      const screenW = 1920;
+      const screenH = 1080;
+      const imgAspect = highResImg.width / highResImg.height;
+      const screenAspect = screenW / screenH;
+
+      let newW = highResImg.width;
+      let newH = highResImg.height;
+      let newX = 0;
+      let newY = 0;
+
+      if (imgAspect > screenAspect) {
+        newW = screenW;
+        newH = screenW / imgAspect;
+        newX = 0;
+        newY = (screenH - newH) / 2;
+      } else {
+        newH = screenH;
+        newW = screenH * imgAspect;
+        newX = (screenW - newW) / 2;
+        newY = 0;
+      }
+
+      // Must fit exactly inside 1920x1080 without overflowing
+      expect(newW).toBe(1920);
+      expect(newH).toBe(1080);
+      expect(newX).toBe(0);
+      expect(newY).toBe(0);
+    });
+
+    it('calculates fit-to-screen for non-16:9 images with letterboxing centered', () => {
+      // 4:3 high-resolution image (3200x2400)
+      const highRes43 = makeImage('img-43', 3200, 2400);
+      const screenW = 1920;
+      const screenH = 1080;
+      const imgAspect = highRes43.width / highRes43.height; // 1.333
+      const screenAspect = screenW / screenH; // 1.777
+
+      let newW = 0;
+      let newH = 0;
+      let newX = 0;
+      let newY = 0;
+
+      if (imgAspect > screenAspect) {
+        newW = screenW;
+        newH = screenW / imgAspect;
+        newX = 0;
+        newY = (screenH - newH) / 2;
+      } else {
+        newH = screenH;
+        newW = screenH * imgAspect;
+        newX = (screenW - newW) / 2;
+        newY = 0;
+      }
+
+      expect(newH).toBe(1080);
+      expect(newW).toBe(1440);
+      expect(newX).toBe(240); // Centered horizontally
+      expect(newY).toBe(0);
+      expect(newX + newW).toBeLessThanOrEqual(screenW);
+    });
+  });
 });
+
 

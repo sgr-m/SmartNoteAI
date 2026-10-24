@@ -28,6 +28,8 @@ import {
   Layer,
 } from '../../shared/types';
 import { v4 as uuidv4 } from 'uuid';
+import { isLatexSyntax, getCachedLatexImage, measureLatexSize } from '../services/latexService';
+
 
 export interface ShapeStyle {
   shapeType: ShapeType;
@@ -125,6 +127,7 @@ export class DrawingEngine {
 
   // Cached committed objects for hit testing and erasing
   private committedObjects: CanvasObject[] = [];
+  private locallyCommittedIds = new Set<string>();
 
   // Configuration
   private currentStyle: StrokeStyle;
@@ -141,13 +144,14 @@ export class DrawingEngine {
   private zoom = 1.0;
   private panX = 0;
   private panY = 0;
-  private devicePixelRatio = window.devicePixelRatio || 1;
+  private devicePixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
 
   // Callbacks
   private callbacks: DrawingEngineCallbacks;
   private rafHandle: number | null = null;
   private committedRafHandle: number | null = null;
   private lastErasePos: Point | null = null;
+  private imageCache = new Map<string, HTMLImageElement>();
 
   constructor(options: {
     committedCanvas: HTMLCanvasElement;
@@ -197,7 +201,7 @@ export class DrawingEngine {
     this.setupEventListeners();
 
     // Immediately size canvases to client/window with hardware DPR resolution
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const dpr = Math.max(1, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1);
     this.devicePixelRatio = dpr;
     const initialW = this.activeCanvas.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 1920);
     const initialH = this.activeCanvas.clientHeight || (typeof window !== 'undefined' ? window.innerHeight : 1080);
@@ -283,9 +287,10 @@ export class DrawingEngine {
           this.callbacks.onSelectObject?.(null);
           this.clearActiveCanvas();
         }
+        const snappedPt = this.snapPointToRulerIfNear(docPt);
         this.activeStroke = {
           id: uuidv4(),
-          points: [docPt],
+          points: [snappedPt],
           style: { ...this.currentStyle },
           layerId: this.currentLayerId,
         };
@@ -302,10 +307,11 @@ export class DrawingEngine {
           this.clearActiveCanvas();
         }
         const shapeType = this.activeTool === 'line' ? 'line' : this.currentShapeStyle.shapeType;
+        const originPt = shapeType === 'line' ? this.snapPointToRulerIfNear(docPt) : docPt;
         if (shapeType === 'recognition') {
           this.recognitionPoints = [docPt];
         } else {
-          this.shapeOrigin = docPt;
+          this.shapeOrigin = originPt;
         }
         this.requestActiveRender();
         break;
@@ -323,7 +329,8 @@ export class DrawingEngine {
           newStrokes: new Map(),
           originalObjects: new Map(),
         };
-        this.eraseAtPoint(docPt);
+        this.lastErasePos = docPt;
+        this.eraseAtPoint(docPt, docPt);
         this.requestActiveRender();
         break;
       }
@@ -461,7 +468,9 @@ export class DrawingEngine {
         if (!this.activeStroke) return;
         const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
         for (const ce of events) {
-          const pt = this.eventToDocPoint(ce);
+          const rawPt = this.eventToDocPoint(ce);
+          const pt = this.snapPointToRulerIfNear(rawPt);
+          const isSnapped = pt.x !== rawPt.x || pt.y !== rawPt.y;
           const pts = this.activeStroke.points;
           const last = pts[pts.length - 1];
           if (!last) {
@@ -480,10 +489,11 @@ export class DrawingEngine {
               tiltY: pt.tiltY,
               timestamp: pt.timestamp,
             };
-            pts.push(smoothedPt);
+            pts.push(isSnapped ? pt : smoothedPt);
           }
         }
-        this.requestActiveRender();
+        // Immediate active rendering gives 0ms latency - ink appears right at pen tip without lagging
+        this.renderActiveLayer();
         break;
       }
 
@@ -506,8 +516,9 @@ export class DrawingEngine {
 
       case 'eraser': {
         if (this.isPointerDown) {
-          if (!this.lastErasePos || distSq(docPt, this.lastErasePos) >= 9) {
-            this.eraseAtPoint(docPt);
+          const prev = this.lastErasePos || docPt;
+          if (!this.lastErasePos || distSq(docPt, this.lastErasePos) >= 4) {
+            this.eraseAtPoint(docPt, prev);
             this.lastErasePos = docPt;
           }
         }
@@ -517,6 +528,7 @@ export class DrawingEngine {
 
       case 'select': {
         if (this.isDraggingObject && this.draggedObjectInitial) {
+          this.currentPointerPos = docPt;
           const deltaX = docPt.x - this.dragStartDocPoint.x;
           const deltaY = docPt.y - this.dragStartDocPoint.y;
           this.renderDraggedObject(this.draggedObjectInitial, deltaX, deltaY);
@@ -601,7 +613,8 @@ export class DrawingEngine {
           this.recognitionPoints = [];
           this.clearActiveCanvas();
         } else if (this.shapeOrigin && this.currentPointerPos) {
-          this.finalizeShape(this.shapeOrigin, this.currentPointerPos);
+          const finalPt = shapeType === 'line' ? this.snapPointToRulerIfNear(this.currentPointerPos) : this.currentPointerPos;
+          this.finalizeShape(this.shapeOrigin, finalPt);
           this.shapeOrigin = null;
           this.clearActiveCanvas();
         }
@@ -851,7 +864,8 @@ export class DrawingEngine {
     // Standard shape preview
     else if (this.shapeOrigin && this.currentPointerPos) {
       const shapeType = this.activeTool === 'line' ? 'line' : this.currentShapeStyle.shapeType;
-      this.drawShapePreview(ctx, this.shapeOrigin, this.currentPointerPos, shapeType);
+      const previewPt = shapeType === 'line' ? this.snapPointToRulerIfNear(this.currentPointerPos) : this.currentPointerPos;
+      this.drawShapePreview(ctx, this.shapeOrigin, previewPt, shapeType);
     }
 
     // 4. Draw eraser circle indicator
@@ -877,6 +891,16 @@ export class DrawingEngine {
       );
       this.renderObject(ctx, resized);
       this.drawSelectionOutline(ctx, this.getObjectBoundingBox(resized), resized);
+    }
+
+    // 5b. Draw dragging preview (CRITICAL: prevents dragged image or object from disappearing)
+    if (this.isDraggingObject && this.draggedObjectInitial) {
+      const curPt = this.currentPointerPos || this.dragStartDocPoint;
+      const deltaX = curPt.x - this.dragStartDocPoint.x;
+      const deltaY = curPt.y - this.dragStartDocPoint.y;
+      const updated = this.applyDeltaToObject(this.draggedObjectInitial, deltaX, deltaY);
+      this.renderObject(ctx, updated);
+      this.drawSelectionOutline(ctx, this.getObjectBoundingBox(updated), updated);
     }
 
     // 6. Draw rectangular marquee selection preview (Mouse)
@@ -939,54 +963,6 @@ export class DrawingEngine {
       }
     }
 
-    // 9. Draw live precision writing pointer while writing
-    if (
-      this.isPointerDown &&
-      (this.activeTool === 'pen' || this.activeTool === 'highlighter' || this.activeTool === 'shape' || this.activeTool === 'line') &&
-      this.currentPointerPos
-    ) {
-      this.drawWritingPointer(ctx, this.currentPointerPos);
-    }
-  }
-
-  private drawWritingPointer(ctx: CanvasRenderingContext2D, pos: Point): void {
-    const s = this.zoom * this.devicePixelRatio;
-    const px = (pos.x + this.panX) * s;
-    const py = (pos.y + this.panY) * s;
-
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = 4 * this.devicePixelRatio;
-    ctx.shadowOffsetY = 1.5 * this.devicePixelRatio;
-
-    // Classic Windows-style precision arrow with tip directly at drawing coordinates (px, py)
-    ctx.beginPath();
-    ctx.moveTo(px, py);
-    ctx.lineTo(px, py + 16 * this.devicePixelRatio);
-    ctx.lineTo(px + 4.2 * this.devicePixelRatio, py + 12 * this.devicePixelRatio);
-    ctx.lineTo(px + 7.5 * this.devicePixelRatio, py + 19 * this.devicePixelRatio);
-    ctx.lineTo(px + 10 * this.devicePixelRatio, py + 18 * this.devicePixelRatio);
-    ctx.lineTo(px + 6.8 * this.devicePixelRatio, py + 11.2 * this.devicePixelRatio);
-    ctx.lineTo(px + 12 * this.devicePixelRatio, py + 11.2 * this.devicePixelRatio);
-    ctx.closePath();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1.5 * this.devicePixelRatio;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-
-    // Central precision ink dot showing current drawing color
-    ctx.beginPath();
-    ctx.arc(px, py, 2.5 * this.devicePixelRatio, 0, Math.PI * 2);
-    ctx.fillStyle = this.currentStyle.color || '#3b82f6';
-    ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1 * this.devicePixelRatio;
-    ctx.stroke();
-
-    ctx.restore();
   }
 
   // ─── Laser Animation Loop ─────────────────────────────────────────────────
@@ -1396,6 +1372,7 @@ export class DrawingEngine {
     // Immediately render to committed canvas to guarantee zero-flicker persistence
     this.renderObject(this.committedCtx, shapeObj);
     this.committedObjects.push(shapeObj);
+    this.locallyCommittedIds.add(shapeObj.id);
 
     this.callbacks.onShapeComplete?.(shapeObj);
     this.selectedObjectId = shapeObj.id;
@@ -1433,6 +1410,7 @@ export class DrawingEngine {
     // Immediately render to committed canvas to guarantee zero-flicker persistence
     this.renderObject(this.committedCtx, shapeObj);
     this.committedObjects.push(shapeObj);
+    this.locallyCommittedIds.add(shapeObj.id);
 
     this.callbacks.onShapeComplete?.(shapeObj);
     this.selectedObjectId = shapeObj.id;
@@ -1458,9 +1436,37 @@ export class DrawingEngine {
     ctx.restore();
   }
 
-  private eraseAtPoint(pos: Point): void {
+  private eraseAtPoint(pos: Point, prevPos?: Point): void {
     const r = this.eraserRadius;
     const session = this.eraseSession;
+    const fromPt = prevPos || pos;
+
+    // Fast GPU visual erase directly on committedCtx with zero latency
+    const s = this.zoom * this.devicePixelRatio;
+    const p1 = { x: (fromPt.x + this.panX) * s, y: (fromPt.y + this.panY) * s };
+    const p2 = { x: (pos.x + this.panX) * s, y: (pos.y + this.panY) * s };
+    const rScreen = r * s;
+
+    this.committedCtx.save();
+    this.committedCtx.globalCompositeOperation = 'destination-out';
+    this.committedCtx.beginPath();
+    this.committedCtx.arc(p2.x, p2.y, rScreen, 0, Math.PI * 2);
+    this.committedCtx.fill();
+    if (distSq(p1, p2) > 0.5) {
+      this.committedCtx.beginPath();
+      this.committedCtx.lineWidth = rScreen * 2;
+      this.committedCtx.lineCap = 'round';
+      this.committedCtx.moveTo(p1.x, p1.y);
+      this.committedCtx.lineTo(p2.x, p2.y);
+      this.committedCtx.stroke();
+    }
+    this.committedCtx.restore();
+
+    // Fast swept bounding box pre-rejection in document coordinates
+    const sweepMinX = Math.min(fromPt.x, pos.x) - r - 20;
+    const sweepMaxX = Math.max(fromPt.x, pos.x) + r + 20;
+    const sweepMinY = Math.min(fromPt.y, pos.y) - r - 20;
+    const sweepMaxY = Math.max(fromPt.y, pos.y) + r + 20;
 
     if (this.eraserMode === 'stroke' || this.eraserMode === 'area') {
       const modifiedObjects: CanvasObject[] = [];
@@ -1474,9 +1480,18 @@ export class DrawingEngine {
           continue;
         }
 
+        const bbox = obj.type === 'stroke'
+          ? (obj as StrokeObject).bbox || this.computeBBox((obj as StrokeObject).points, (obj as StrokeObject).style.width)
+          : this.getObjectBoundingBox(obj);
+
+        if (bbox.x + bbox.width < sweepMinX || bbox.x > sweepMaxX || bbox.y + bbox.height < sweepMinY || bbox.y > sweepMaxY) {
+          modifiedObjects.push(obj);
+          continue;
+        }
+
         if (obj.type === 'stroke') {
           const stroke = obj as StrokeObject;
-          if (!this.strokeIntersectsCircle(stroke, pos, r)) {
+          if (!this.strokeIntersectsCircle(stroke, pos, r) && !this.strokeIntersectsCircle(stroke, fromPt, r)) {
             modifiedObjects.push(stroke);
             continue;
           }
@@ -1490,18 +1505,18 @@ export class DrawingEngine {
 
           for (let j = 0; j < stroke.points.length; j++) {
             const pt = stroke.points[j];
-            const isErased = distSq(pt, pos) <= threshSq;
+            const isErased = distSq(pt, pos) <= threshSq || distSq(pt, fromPt) <= threshSq || distToSegmentSquared(pt, fromPt, pos) <= threshSq;
 
             if (!isErased) {
               currentSeg.push(pt);
             } else {
-              if (currentSeg.length >= 2) {
+              if (currentSeg.length >= 1) {
                 subSegments.push(currentSeg);
               }
               currentSeg = [];
             }
           }
-          if (currentSeg.length >= 2) {
+          if (currentSeg.length >= 1) {
             subSegments.push(currentSeg);
           }
 
@@ -1534,7 +1549,7 @@ export class DrawingEngine {
             modifiedObjects.push(sp);
           }
         } else if (this.eraserMode === 'area') {
-          if (this.objectIntersectsCircle(obj, pos, r)) {
+          if (this.objectIntersectsCircle(obj, pos, r) || this.objectIntersectsCircle(obj, fromPt, r)) {
             didModify = true;
             if (session) {
               session.originalObjects.set(obj.id, obj);
@@ -1550,7 +1565,7 @@ export class DrawingEngine {
 
       if (didModify) {
         this.committedObjects = modifiedObjects;
-        this.requestCommittedRender();
+        this.locallyCommittedIds.clear();
       }
       return;
     }
@@ -1567,10 +1582,19 @@ export class DrawingEngine {
         continue;
       }
 
+      const bbox = obj.type === 'stroke'
+        ? (obj as StrokeObject).bbox || this.computeBBox((obj as StrokeObject).points, (obj as StrokeObject).style.width)
+        : this.getObjectBoundingBox(obj);
+
+      if (bbox.x + bbox.width < sweepMinX || bbox.x > sweepMaxX || bbox.y + bbox.height < sweepMinY || bbox.y > sweepMaxY) {
+        remainingObjects.push(obj);
+        continue;
+      }
+
       const intersects =
         obj.type === 'stroke'
-          ? this.strokeIntersectsCircle(obj as StrokeObject, pos, r)
-          : this.objectIntersectsCircle(obj, pos, r);
+          ? (this.strokeIntersectsCircle(obj as StrokeObject, pos, r) || this.strokeIntersectsCircle(obj as StrokeObject, fromPt, r))
+          : (this.objectIntersectsCircle(obj, pos, r) || this.objectIntersectsCircle(obj, fromPt, r));
 
       if (intersects) {
         didRemove = true;
@@ -1586,6 +1610,7 @@ export class DrawingEngine {
 
     if (didRemove) {
       this.committedObjects = remainingObjects;
+      this.locallyCommittedIds.clear();
       this.requestCommittedRender();
       if (!session && removedIds.length > 0) {
         this.callbacks.onEraseObjects?.(removedIds);
@@ -1699,8 +1724,22 @@ export class DrawingEngine {
     }
     if (obj.type === 'text') {
       const t = obj as TextObject;
-      const tw = t.width || 200;
-      const th = t.height || 40;
+      const isLatex = t.isLatex || isLatexSyntax(t.content);
+
+      let tw = t.width;
+      let th = t.height;
+
+      if (!tw || !th) {
+        if (isLatex) {
+          const m = measureLatexSize(t.content, t.fontSize || 24);
+          tw = tw || m.width;
+          th = th || m.height;
+        } else {
+          tw = tw || 200;
+          th = th || 40;
+        }
+      }
+
       if (t.rotation && t.rotation % 360 !== 0) {
         const rad = (t.rotation * Math.PI) / 180;
         const cos = Math.abs(Math.cos(rad));
@@ -1712,8 +1751,8 @@ export class DrawingEngine {
         return {
           x: cx - w / 2,
           y: cy - h / 2,
-          width: Math.max(60, w),
-          height: Math.max(30, h),
+          width: Math.max(40, w),
+          height: Math.max(24, h),
         };
       }
       return { x: t.x, y: t.y, width: tw, height: th };
@@ -2018,6 +2057,23 @@ export class DrawingEngine {
       };
     }
 
+    if (obj.type === 'image') {
+      const img = obj as ImageObject;
+      const cos = Math.cos(deltaAngle);
+      const sin = Math.sin(deltaAngle);
+      const icx = img.x + img.width / 2;
+      const icy = img.y + img.height / 2;
+      const newIcx = cx + (icx - cx) * cos - (icy - cy) * sin;
+      const newIcy = cy + (icx - cx) * sin + (icy - cy) * cos;
+      const newRot = Math.round(((img.rotation || 0) + deltaDeg) % 360);
+      return {
+        ...img,
+        x: newIcx - img.width / 2,
+        y: newIcy - img.height / 2,
+        rotation: (newRot + 360) % 360,
+      };
+    }
+
     if (obj.type === 'group') {
       const g = obj as GroupObject;
       const rotatedChildren = g.objects.map((child) =>
@@ -2160,9 +2216,129 @@ export class DrawingEngine {
       const t = obj as TextObject;
       let width = t.width || 200;
       let height = t.height || 40;
-      if (handle === 'se' || handle === 'e') width += deltaX;
-      if (handle === 'se' || handle === 's') height += deltaY;
-      return { ...t, width: Math.max(60, width), height: Math.max(30, height) };
+      let x = t.x;
+      let y = t.y;
+
+      switch (handle) {
+        case 'se':
+          width += deltaX;
+          height += deltaY;
+          break;
+        case 'e':
+          width += deltaX;
+          break;
+        case 's':
+          height += deltaY;
+          break;
+        case 'ne':
+          y += deltaY;
+          width += deltaX;
+          height -= deltaY;
+          break;
+        case 'n':
+          y += deltaY;
+          height -= deltaY;
+          break;
+        case 'nw':
+          x += deltaX;
+          y += deltaY;
+          width -= deltaX;
+          height -= deltaY;
+          break;
+        case 'w':
+          x += deltaX;
+          width -= deltaX;
+          break;
+        case 'sw':
+          x += deltaX;
+          width -= deltaX;
+          height += deltaY;
+          break;
+      }
+
+      const minW = 40;
+      const minH = 24;
+      if (width < minW) {
+        if (handle === 'w' || handle === 'nw' || handle === 'sw') {
+          x -= (minW - width);
+        }
+        width = minW;
+      }
+      if (height < minH) {
+        if (handle === 'n' || handle === 'nw' || handle === 'ne') {
+          y -= (minH - height);
+        }
+        height = minH;
+      }
+
+      return { ...t, x, y, width, height };
+    }
+
+    if (obj.type === 'image') {
+      const img = obj as ImageObject;
+      let width = img.width;
+      let height = img.height;
+      let x = img.x;
+      let y = img.y;
+
+      switch (handle) {
+        case 'se':
+          width += deltaX;
+          height += deltaY;
+          break;
+        case 'e':
+          width += deltaX;
+          break;
+        case 's':
+          height += deltaY;
+          break;
+        case 'ne':
+          y += deltaY;
+          width += deltaX;
+          height -= deltaY;
+          break;
+        case 'n':
+          y += deltaY;
+          height -= deltaY;
+          break;
+        case 'nw':
+          x += deltaX;
+          y += deltaY;
+          width -= deltaX;
+          height -= deltaY;
+          break;
+        case 'w':
+          x += deltaX;
+          width -= deltaX;
+          break;
+        case 'sw':
+          x += deltaX;
+          width -= deltaX;
+          height += deltaY;
+          break;
+      }
+
+      const minSize = 20;
+      if (width < minSize) {
+        if (handle === 'w' || handle === 'nw' || handle === 'sw') {
+          x -= (minSize - width);
+        }
+        width = minSize;
+      }
+      if (height < minSize) {
+        if (handle === 'n' || handle === 'nw' || handle === 'ne') {
+          y -= (minSize - height);
+        }
+        height = minSize;
+      }
+
+      return {
+        ...img,
+        x,
+        y,
+        width: Math.round(width),
+        height: Math.round(height),
+      };
     }
 
     if (obj.type === 'stroke') {
@@ -2553,6 +2729,7 @@ export class DrawingEngine {
     // Immediately commit to local committedCtx and committedObjects
     this.renderObject(this.committedCtx, strokeObj);
     this.committedObjects.push(strokeObj);
+    this.locallyCommittedIds.add(strokeObj.id);
 
     this.callbacks.onStrokeComplete?.(strokeObj);
   }
@@ -2578,10 +2755,9 @@ export class DrawingEngine {
   public redrawCommitted(
     objects: CanvasObject[],
     selectedId?: string | null,
-    selectedObj?: CanvasObject | null
+    selectedObj?: CanvasObject | null,
+    forceRedraw = false
   ): void {
-    this.committedObjects = objects;
-
     if (selectedObj !== undefined) {
       if (selectedObj && selectedObj.type === 'group') {
         this.selectedGroupObject = selectedObj as GroupObject;
@@ -2599,6 +2775,30 @@ export class DrawingEngine {
         this.selectedGroupObject = null;
       }
     }
+
+    // High performance writing fast-path:
+    // If incoming objects array contains strokes/shapes confirmed by the document store that
+    // were ALREADY incrementally painted by DrawingEngine into committedCtx, do NOT clearRect!
+    if (
+      !forceRedraw &&
+      !this.isDraggingObject &&
+      !this.isResizingObject &&
+      this.locallyCommittedIds.size > 0 &&
+      objects.length >= this.committedObjects.length
+    ) {
+      const incomingLast = objects[objects.length - 1];
+      if (incomingLast && this.locallyCommittedIds.has(incomingLast.id)) {
+        for (const obj of objects) {
+          this.locallyCommittedIds.delete(obj.id);
+        }
+        this.committedObjects = objects;
+        this.updateSelectionOutlineIfActive();
+        return;
+      }
+    }
+
+    this.locallyCommittedIds.clear();
+    this.committedObjects = objects;
 
     const { width, height } = this.committedCanvas;
     this.committedCtx.clearRect(0, 0, width, height);
@@ -2634,6 +2834,10 @@ export class DrawingEngine {
       }
     }
 
+    this.updateSelectionOutlineIfActive();
+  }
+
+  private updateSelectionOutlineIfActive(): void {
     if (this.activeTool === 'select' && this.selectedObjectId && !this.isDraggingObject && !this.isResizingObject) {
       if (this.selectedGroupObject && this.selectedGroupObject.id === this.selectedObjectId) {
         this.clearActiveCanvas();
@@ -2643,7 +2847,7 @@ export class DrawingEngine {
           this.selectedGroupObject
         );
       } else {
-        const selected = objects.find((o) => o.id === this.selectedObjectId);
+        const selected = this.committedObjects.find((o) => o.id === this.selectedObjectId);
         if (selected) {
           this.clearActiveCanvas();
           this.drawSelectionOutline(this.activeCtx, this.getObjectBoundingBox(selected), selected);
@@ -2662,6 +2866,9 @@ export class DrawingEngine {
         break;
       case 'text':
         this.renderText(ctx, obj as TextObject);
+        break;
+      case 'image':
+        this.renderImage(ctx, obj as ImageObject);
         break;
       case 'group':
         for (const child of (obj as GroupObject).objects) {
@@ -2820,9 +3027,624 @@ export class DrawingEngine {
         ctx.lineTo(x + w, y + h);
         ctx.stroke();
         break;
+
+      case 'cartesianAxes':
+        ctx.globalAlpha = 1;
+        this.renderCartesianAxes(ctx, shape, x, y, w, h);
+        break;
+
+      case 'ruler':
+        ctx.globalAlpha = 1;
+        this.renderRuler(ctx, shape, x, y, w, h);
+        break;
+
+      case 'protractor':
+        ctx.globalAlpha = 1;
+        this.renderProtractor(ctx, shape, x, y, w, h);
+        break;
+
+      case 'compass':
+        ctx.globalAlpha = 1;
+        this.renderCompass(ctx, shape, x, y, w, h);
+        break;
     }
     ctx.restore();
   }
+
+  /**
+   * 1. Cartesian Coordinate Board with Points, Grid Lines, Origin (0,0), Arrows & Numbered Ticks
+   */
+  private renderCartesianAxes(
+    ctx: CanvasRenderingContext2D,
+    shape: ShapeObject,
+    x: number,
+    y: number,
+    w: number,
+    h: number
+  ): void {
+    const strokeColor = shape.strokeColor || '#38bdf8';
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    const dpr = this.devicePixelRatio;
+
+    ctx.save();
+    ctx.globalAlpha = 1;
+
+    // 0. Frosted Slate Cartesian Board Panel Background
+    const boardRadius = 14 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, boardRadius);
+    ctx.fillStyle =
+      shape.fillColor && shape.fillColor !== 'transparent'
+        ? shape.fillColor
+        : 'rgba(15, 23, 42, 0.92)';
+    ctx.fill();
+
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 2 * dpr;
+    ctx.stroke();
+
+    // Board Header Title Badge
+    const tagFont = Math.max(10, Math.round(12 * dpr));
+    ctx.font = `600 ${tagFont}px Inter, sans-serif`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('📈 Cartesian Coordinate Plane (X-Y)', x + 16 * dpr, y + 14 * dpr);
+
+    // 1. Grid Mesh Lines (Subtle coordinate square grid)
+    const steps = 5;
+    const stepX = (w * 0.40) / steps;
+    const stepY = (h * 0.40) / steps;
+
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.20)';
+    ctx.lineWidth = 1 * dpr;
+    ctx.setLineDash([3 * dpr, 3 * dpr]);
+
+    for (let i = -steps; i <= steps; i++) {
+      if (i === 0) continue;
+      // Vertical grid lines
+      const gx = cx + i * stepX;
+      ctx.beginPath();
+      ctx.moveTo(gx, cy - steps * stepY);
+      ctx.lineTo(gx, cy + steps * stepY);
+      ctx.stroke();
+
+      // Horizontal grid lines
+      const gy = cy - i * stepY;
+      ctx.beginPath();
+      ctx.moveTo(cx - steps * stepX, gy);
+      ctx.lineTo(cx + steps * stepX, gy);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // 2. Coordinate Point Dots (at all grid intersections)
+    ctx.fillStyle = '#38bdf8';
+    for (let i = -steps; i <= steps; i++) {
+      for (let j = -steps; j <= steps; j++) {
+        if (i === 0 && j === 0) continue;
+        const px = cx + i * stepX;
+        const py = cy - j * stepY;
+        ctx.beginPath();
+        ctx.arc(px, py, 2.2 * dpr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 3. Main Axes with Directional Arrowheads
+    ctx.strokeStyle = strokeColor;
+    ctx.fillStyle = strokeColor;
+    ctx.lineWidth = 2.5 * dpr;
+
+    const arrowSize = 10 * dpr;
+    const xSpan = steps * stepX + 18 * dpr;
+    const ySpan = steps * stepY + 18 * dpr;
+
+    // X Axis
+    ctx.beginPath();
+    ctx.moveTo(cx - xSpan, cy);
+    ctx.lineTo(cx + xSpan, cy);
+    ctx.stroke();
+
+    // Arrowhead on +X
+    ctx.beginPath();
+    ctx.moveTo(cx + xSpan, cy);
+    ctx.lineTo(cx + xSpan - arrowSize, cy - arrowSize * 0.45);
+    ctx.lineTo(cx + xSpan - arrowSize, cy + arrowSize * 0.45);
+    ctx.closePath();
+    ctx.fill();
+
+    // Arrowhead on -X
+    ctx.beginPath();
+    ctx.moveTo(cx - xSpan, cy);
+    ctx.lineTo(cx - xSpan + arrowSize, cy - arrowSize * 0.45);
+    ctx.lineTo(cx - xSpan + arrowSize, cy + arrowSize * 0.45);
+    ctx.closePath();
+    ctx.fill();
+
+    // Y Axis
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + ySpan);
+    ctx.lineTo(cx, cy - ySpan);
+    ctx.stroke();
+
+    // Arrowhead on +Y
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - ySpan);
+    ctx.lineTo(cx - arrowSize * 0.45, cy - ySpan + arrowSize);
+    ctx.lineTo(cx + arrowSize * 0.45, cy - ySpan + arrowSize);
+    ctx.closePath();
+    ctx.fill();
+
+    // Arrowhead on -Y
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + ySpan);
+    ctx.lineTo(cx - arrowSize * 0.45, cy + ySpan - arrowSize);
+    ctx.lineTo(cx + arrowSize * 0.45, cy + ySpan - arrowSize);
+    ctx.closePath();
+    ctx.fill();
+
+    // 4. Numbered Ticks along X and Y
+    const fontSize = Math.max(10, Math.round(11 * dpr));
+    ctx.font = `600 ${fontSize}px Inter, sans-serif`;
+    ctx.fillStyle = '#f8fafc';
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1.8 * dpr;
+
+    const tickHalf = 5 * dpr;
+
+    // X axis ticks & numbers
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (let i = -steps; i <= steps; i++) {
+      if (i === 0) continue;
+      const tx = cx + i * stepX;
+      ctx.beginPath();
+      ctx.moveTo(tx, cy - tickHalf);
+      ctx.lineTo(tx, cy + tickHalf);
+      ctx.stroke();
+
+      ctx.fillText(String(i), tx, cy + tickHalf + 4 * dpr);
+    }
+
+    // Y axis ticks & numbers
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let j = -steps; j <= steps; j++) {
+      if (j === 0) continue;
+      const ty = cy - j * stepY;
+      ctx.beginPath();
+      ctx.moveTo(cx - tickHalf, ty);
+      ctx.lineTo(cx + tickHalf, ty);
+      ctx.stroke();
+
+      ctx.fillText(String(j), cx - tickHalf - 5 * dpr, ty);
+    }
+
+    // 5. Origin (0,0) indicator
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3.8 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.stroke();
+
+    ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.fillText('O(0,0)', cx - 8 * dpr, cy + 6 * dpr);
+
+    // 6. Axis Labels "x" and "y"
+    const labelFont = Math.max(13, Math.round(15 * dpr));
+    ctx.font = `bold italic ${labelFont}px 'Cambria Math', Georgia, serif`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('x', cx + xSpan + 5 * dpr, cy);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('y', cx, cy - ySpan - 4 * dpr);
+
+    ctx.restore();
+  }
+
+  /**
+   * 3. Calibrated Smart Classroom Ruler with Centimeter & Millimeter units
+   */
+  private renderRuler(
+    ctx: CanvasRenderingContext2D,
+    shape: ShapeObject,
+    x: number,
+    y: number,
+    w: number,
+    h: number
+  ): void {
+    const s = this.zoom * this.devicePixelRatio;
+    const rLen = Math.max(100, w);
+    const rH = Math.max(40, h);
+    const dpr = this.devicePixelRatio;
+
+    ctx.save();
+    ctx.globalAlpha = 1;
+
+    // 1. Acrylic Translucent Ruler Body with Gloss Reflection
+    const radius = 8 * s;
+    ctx.beginPath();
+    ctx.roundRect(x, y, rLen, rH, radius);
+    ctx.fillStyle = 'rgba(248, 250, 252, 0.90)';
+    ctx.fill();
+
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.stroke();
+
+    // Subtle top reflection shine
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.fillRect(x + 4, y + 2, rLen - 8, 3 * dpr);
+
+    // 2. Calibrated Centimeter and Millimeter Ticks
+    const pxPerCm = 32 * s;
+    const totalCm = Math.floor((rLen - 44 * s) / pxPerCm);
+    const startX = x + 24 * s;
+
+    // Unit Emblem at the start
+    const unitFont = Math.max(10, Math.round(12 * s));
+    ctx.font = `bold ${unitFont}px Inter, sans-serif`;
+    ctx.fillStyle = '#0369a1';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('cm', x + 12 * s, y + 22 * s);
+
+    // Number font for 0, 1, 2, 3...
+    const numFont = Math.max(10, Math.round(12 * s));
+    ctx.font = `600 ${numFont}px Inter, sans-serif`;
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#0f172a';
+
+    const mmTickLen = 6 * dpr;
+    const halfCmTickLen = 11 * dpr;
+    const cmTickLen = 17 * dpr;
+
+    for (let cm = 0; cm <= totalCm; cm++) {
+      const cmX = startX + cm * pxPerCm;
+      if (cmX > x + rLen - 10 * s) break;
+
+      // Centimeter major tick
+      ctx.lineWidth = 1.5 * dpr;
+      ctx.beginPath();
+      ctx.moveTo(cmX, y);
+      ctx.lineTo(cmX, y + cmTickLen);
+      ctx.stroke();
+
+      // Number label
+      ctx.fillText(String(cm), cmX, y + cmTickLen + 9 * dpr);
+
+      // Millimeter sub-ticks (1 to 9)
+      if (cm < totalCm) {
+        ctx.lineWidth = 0.8 * dpr;
+        for (let mm = 1; mm <= 9; mm++) {
+          const mmX = cmX + (mm * pxPerCm) / 10;
+          if (mmX > x + rLen - 8 * s) break;
+          const tLen = mm === 5 ? halfCmTickLen : mmTickLen;
+          ctx.beginPath();
+          ctx.moveTo(mmX, y);
+          ctx.lineTo(mmX, y + tLen);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Ruler model / brand watermark
+    const brandFont = Math.max(9, Math.round(10 * s));
+    ctx.font = `500 ${brandFont}px Inter, sans-serif`;
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'right';
+    ctx.fillText(`SmartBoard Studio • ${totalCm} cm`, x + rLen - 16 * s, y + rH - 12 * s);
+
+    ctx.restore();
+  }
+
+  /**
+   * 5. 180° Classroom Protractor Instrument
+   */
+  private renderProtractor(
+    ctx: CanvasRenderingContext2D,
+    shape: ShapeObject,
+    x: number,
+    y: number,
+    w: number,
+    h: number
+  ): void {
+    const s = this.zoom * this.devicePixelRatio;
+    const dpr = this.devicePixelRatio;
+    const radius = Math.min(w / 2, h);
+    const cx = x + w / 2;
+    const cy = y + radius; // baseline is at bottom of semicircle
+
+    ctx.save();
+    ctx.globalAlpha = 1;
+
+    // 1. Semi-Circular Frosted Acrylic Protractor Body
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, Math.PI, 0, false);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(224, 242, 254, 0.78)';
+    ctx.fill();
+
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 2 * dpr;
+    ctx.stroke();
+
+    // Center cutout semicircle
+    const innerRadius = radius * 0.32;
+    ctx.beginPath();
+    ctx.arc(cx, cy, innerRadius, Math.PI, 0, false);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(2, 132, 199, 0.6)';
+    ctx.lineWidth = 1 * dpr;
+    ctx.stroke();
+
+    // Origin crosshair at center
+    ctx.beginPath();
+    ctx.moveTo(cx - 10 * dpr, cy);
+    ctx.lineTo(cx + 10 * dpr, cy);
+    ctx.moveTo(cx, cy - 10 * dpr);
+    ctx.lineTo(cx, cy);
+    ctx.strokeStyle = '#0369a1';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2.5 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = '#0369a1';
+    ctx.fill();
+
+    // 2. Dual Degree Scales (0..180 and 180..0)
+    const tickFont = Math.max(8, Math.round(10 * s));
+    ctx.font = `600 ${tickFont}px Inter, sans-serif`;
+    ctx.fillStyle = '#0f172a';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const outerTickR = radius;
+    const majorTickLen = 14 * dpr;
+    const midTickLen = 9 * dpr;
+    const minorTickLen = 5 * dpr;
+
+    for (let deg = 0; deg <= 180; deg++) {
+      const rad = Math.PI - (deg * Math.PI) / 180; // 0 on right, 180 on left
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+
+      const isMajor = deg % 10 === 0;
+      const isMid = deg % 5 === 0 && !isMajor;
+      const tLen = isMajor ? majorTickLen : isMid ? midTickLen : minorTickLen;
+
+      // Tick line
+      ctx.beginPath();
+      ctx.moveTo(cx + outerTickR * cos, cy - outerTickR * sin);
+      ctx.lineTo(cx + (outerTickR - tLen) * cos, cy - (outerTickR - tLen) * sin);
+      ctx.strokeStyle = isMajor ? '#0f172a' : '#64748b';
+      ctx.lineWidth = isMajor ? 1.4 * dpr : 0.8 * dpr;
+      ctx.stroke();
+
+      // Outer Scale numbers every 10 degrees (0 -> 180)
+      if (isMajor && deg >= 10 && deg <= 170) {
+        const textR = outerTickR - majorTickLen - 10 * dpr;
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText(String(deg), cx + textR * cos, cy - textR * sin);
+
+        // Inner Scale numbers every 10 degrees (180 -> 0)
+        const innerTextR = outerTickR - majorTickLen - 22 * dpr;
+        ctx.fillStyle = '#0284c7';
+        ctx.fillText(String(180 - deg), cx + innerTextR * cos, cy - innerTextR * sin);
+      }
+    }
+
+    // 3. Central Angle Demonstration Ray (showing 60 degrees)
+    const demoAngleDeg = 60;
+    const demoRad = Math.PI - (demoAngleDeg * Math.PI) / 180;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + (radius * 0.92) * Math.cos(demoRad), cy - (radius * 0.92) * Math.sin(demoRad));
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2 * dpr;
+    ctx.stroke();
+
+    // Angle Arc
+    const arcR = radius * 0.45;
+    ctx.beginPath();
+    ctx.arc(cx, cy, arcR, Math.PI, demoRad, true);
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.stroke();
+
+    ctx.font = `bold ${Math.max(10, Math.round(12 * s))}px Inter, sans-serif`;
+    ctx.fillStyle = '#dc2626';
+    ctx.fillText('60°', cx + arcR * 1.25 * Math.cos(Math.PI - (30 * Math.PI) / 180), cy - arcR * 1.25 * Math.sin(Math.PI - (30 * Math.PI) / 180));
+
+    // Protractor Label
+    ctx.font = `bold ${Math.max(10, Math.round(11 * s))}px Inter, sans-serif`;
+    ctx.fillStyle = '#0369a1';
+    ctx.fillText('180° Classroom Protractor', cx, cy - radius * 0.16);
+
+    ctx.restore();
+  }
+
+  /**
+   * 6. Geometric Compass Instrument
+   */
+  private renderCompass(
+    ctx: CanvasRenderingContext2D,
+    shape: ShapeObject,
+    x: number,
+    y: number,
+    w: number,
+    h: number
+  ): void {
+    const s = this.zoom * this.devicePixelRatio;
+    const dpr = this.devicePixelRatio;
+    const topX = x + w / 2;
+    const topY = y + 16 * s;
+    const needleX = x + 20 * s;
+    const needleY = y + h - 10 * s;
+    const pencilX = x + w - 20 * s;
+    const pencilY = y + h - 10 * s;
+
+    ctx.save();
+    ctx.globalAlpha = 1;
+
+    // 1. Swept Circle Arc drawn by compass
+    const radiusDoc = Math.abs(pencilX - needleX);
+    ctx.beginPath();
+    ctx.arc(needleX, needleY, radiusDoc, -Math.PI * 0.4, 0.1, false);
+    ctx.setLineDash([6 * dpr, 4 * dpr]);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2 * dpr;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 2. Calibrated Radius Dimension Line & Readout
+    ctx.beginPath();
+    ctx.moveTo(needleX, needleY);
+    ctx.lineTo(pencilX, pencilY);
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+    ctx.lineWidth = 1.2 * dpr;
+    ctx.stroke();
+
+    const radiusCm = (radiusDoc / (32 * s)).toFixed(1);
+    const midX = (needleX + pencilX) / 2;
+    const midY = needleY - 8 * dpr;
+    ctx.font = `bold ${Math.max(11, Math.round(13 * s))}px Inter, sans-serif`;
+    ctx.fillStyle = '#0284c7';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`r = ${radiusCm} cm`, midX, midY);
+
+    // 3. Top Knurled Hinge Knob
+    ctx.fillStyle = '#64748b';
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 2 * dpr;
+    ctx.beginPath();
+    ctx.arc(topX, topY, 10 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Central brass hinge screw
+    ctx.beginPath();
+    ctx.arc(topX, topY, 4 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fill();
+
+    // 4. Left Leg (Steel Needle Leg)
+    ctx.beginPath();
+    ctx.moveTo(topX - 3 * dpr, topY);
+    ctx.lineTo(needleX + 3 * dpr, needleY - 14 * dpr);
+    ctx.lineTo(needleX, needleY);
+    ctx.lineTo(needleX - 3 * dpr, needleY - 14 * dpr);
+    ctx.closePath();
+    ctx.fillStyle = '#94a3b8';
+    ctx.fill();
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.stroke();
+
+    // Needle point dot
+    ctx.beginPath();
+    ctx.arc(needleX, needleY, 2.5 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = '#ef4444';
+    ctx.fill();
+
+    // 5. Right Leg (Pencil Holder & Graphite Tip)
+    ctx.beginPath();
+    ctx.moveTo(topX + 3 * dpr, topY);
+    ctx.lineTo(pencilX + 6 * dpr, pencilY - 26 * dpr);
+    ctx.lineTo(pencilX - 6 * dpr, pencilY - 26 * dpr);
+    ctx.closePath();
+    ctx.fillStyle = '#94a3b8';
+    ctx.fill();
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.stroke();
+
+    // Yellow wooden pencil inserted in clamp
+    ctx.beginPath();
+    ctx.moveTo(pencilX - 4 * dpr, pencilY - 28 * dpr);
+    ctx.lineTo(pencilX + 4 * dpr, pencilY - 28 * dpr);
+    ctx.lineTo(pencilX + 4 * dpr, pencilY - 8 * dpr);
+    ctx.lineTo(pencilX, pencilY);
+    ctx.lineTo(pencilX - 4 * dpr, pencilY - 8 * dpr);
+    ctx.closePath();
+    ctx.fillStyle = '#f59e0b';
+    ctx.fill();
+    ctx.strokeStyle = '#b45309';
+    ctx.lineWidth = 1 * dpr;
+    ctx.stroke();
+
+    // Lead tip
+    ctx.beginPath();
+    ctx.moveTo(pencilX - 2 * dpr, pencilY - 4 * dpr);
+    ctx.lineTo(pencilX + 2 * dpr, pencilY - 4 * dpr);
+    ctx.lineTo(pencilX, pencilY);
+    ctx.closePath();
+    ctx.fillStyle = '#1e293b';
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  /**
+   * Snaps pointer to the straight top edge of any visible ruler if within 24px distance
+   */
+  private snapPointToRulerIfNear(docPt: Point): Point {
+    for (const obj of this.committedObjects) {
+      if (obj.type === 'shape' && (obj as ShapeObject).shapeType === 'ruler') {
+        const r = obj as ShapeObject;
+        const rw = r.width || 480;
+        const rh = r.height || 76;
+        const rot = ((r.rotation || 0) * Math.PI) / 180;
+
+        const cx = r.x + rw / 2;
+        const cy = r.y + rh / 2;
+
+        const cos = Math.cos(-rot);
+        const sin = Math.sin(-rot);
+        const relX = docPt.x - cx;
+        const relY = docPt.y - cy;
+        const localX = relX * cos - relY * sin;
+        const localY = relX * sin + relY * cos;
+
+        const topEdgeLocalY = -rh / 2;
+        const snapDist = 24 / this.zoom;
+
+        if (
+          Math.abs(localY - topEdgeLocalY) <= snapDist &&
+          localX >= -rw / 2 - 12 &&
+          localX <= rw / 2 + 12
+        ) {
+          const clampedX = Math.max(-rw / 2, Math.min(rw / 2, localX));
+          const cosF = Math.cos(rot);
+          const sinF = Math.sin(rot);
+          const worldX = cx + clampedX * cosF - topEdgeLocalY * sinF;
+          const worldY = cy + clampedX * sinF + topEdgeLocalY * cosF;
+
+          return {
+            ...docPt,
+            x: worldX,
+            y: worldY,
+          };
+        }
+      }
+    }
+    return docPt;
+  }
+
 
   private renderText(ctx: CanvasRenderingContext2D, text: TextObject): void {
     const s = this.zoom * this.devicePixelRatio;
@@ -2846,6 +3668,45 @@ export class DrawingEngine {
       ctx.fill();
     }
 
+    // Render LaTeX Mathematical Formulas with high-fidelity vector rendering
+    const isLatex = text.isLatex || isLatexSyntax(text.content);
+    if (isLatex) {
+      const measured = measureLatexSize(text.content, text.fontSize);
+      const svgW = Math.max(340, Math.round(measured.width * 2));
+      const svgH = Math.max(140, Math.round(measured.height * 2));
+
+      const img = getCachedLatexImage(
+        text.id,
+        text.content,
+        text.color || '#ffffff',
+        text.fontSize * this.zoom * this.devicePixelRatio,
+        svgW,
+        svgH,
+        () => {
+          this.requestActiveRender();
+          this.requestCommittedRender();
+        }
+      );
+      if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        // Fit within tw and th strictly preserving natural aspect ratio (never distorts or stretches!)
+        const imgAspect = img.naturalWidth / img.naturalHeight;
+        let drawW = tw;
+        let drawH = tw / imgAspect;
+
+        if (drawH > th) {
+          drawH = th;
+          drawW = th * imgAspect;
+        }
+
+        const drawX = x + (tw - drawW) / 2;
+        const drawY = y + (th - drawH) / 2;
+
+        ctx.drawImage(img, drawX, drawY, drawW, drawH);
+      }
+      ctx.restore();
+      return;
+    }
+
     ctx.font = `${text.fontStyle || 'normal'} ${text.fontWeight || 400} ${
       text.fontSize * this.zoom * this.devicePixelRatio
     }px ${text.fontFamily || 'Inter, sans-serif'}`;
@@ -2858,6 +3719,49 @@ export class DrawingEngine {
     for (let i = 0; i < lines.length; i++) {
       ctx.fillText(lines[i], x, y + i * lineHeight);
     }
+    ctx.restore();
+  }
+
+  private renderImage(ctx: CanvasRenderingContext2D, imgObj: ImageObject): void {
+    if (!imgObj.dataUrl) return;
+
+    const s = this.zoom * this.devicePixelRatio;
+    const x = (imgObj.x + this.panX) * s;
+    const y = (imgObj.y + this.panY) * s;
+    const w = imgObj.width * s;
+    const h = imgObj.height * s;
+
+    let img = this.imageCache.get(imgObj.dataUrl);
+    if (!img) {
+      img = new Image();
+      img.onload = () => {
+        this.requestActiveRender();
+        this.requestCommittedRender();
+      };
+      img.src = imgObj.dataUrl;
+      this.imageCache.set(imgObj.dataUrl, img);
+    }
+
+    if (!img.complete || img.naturalWidth === 0) return;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    if (imgObj.opacity !== undefined) {
+      ctx.globalAlpha = imgObj.opacity;
+    }
+
+    if (imgObj.rotation) {
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      ctx.translate(cx, cy);
+      ctx.rotate((imgObj.rotation * Math.PI) / 180);
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    } else {
+      ctx.drawImage(img, x, y, w, h);
+    }
+
     ctx.restore();
   }
 
@@ -3063,55 +3967,7 @@ export class DrawingEngine {
       }
     }
 
-    if (samples.length === 0) return;
-    if (samples.length === 1) {
-      ctx.save();
-      ctx.fillStyle = style.color;
-      ctx.globalAlpha = style.opacity;
-      ctx.beginPath();
-      ctx.arc(samples[0].x, samples[0].y, samples[0].r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    // Render continuous tangent capsules and anti-aliased discs
-    // 100% solid: NO swallowtail self-intersections, NO lost data, NO jagged edges!
-    ctx.save();
-    ctx.fillStyle = style.color;
-    ctx.globalAlpha = style.opacity;
-
-    for (let k = 0; k < samples.length - 1; k++) {
-      const p1 = samples[k];
-      const p2 = samples[k + 1];
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const dist = Math.hypot(dx, dy);
-
-      ctx.beginPath();
-      ctx.arc(p1.x, p1.y, p1.r, 0, Math.PI * 2);
-      ctx.fill();
-
-      if (dist > 1e-4) {
-        const nx = -dy / dist;
-        const ny = dx / dist;
-
-        ctx.beginPath();
-        ctx.moveTo(p1.x + nx * p1.r, p1.y + ny * p1.r);
-        ctx.lineTo(p2.x + nx * p2.r, p2.y + ny * p2.r);
-        ctx.lineTo(p2.x - nx * p2.r, p2.y - ny * p2.r);
-        ctx.lineTo(p1.x - nx * p1.r, p1.y - ny * p1.r);
-        ctx.closePath();
-        ctx.fill();
-      }
-    }
-
-    const last = samples[samples.length - 1];
-    ctx.beginPath();
-    ctx.arc(last.x, last.y, last.r, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
+    this.renderContinuousRibbon(ctx, samples, style.color, style.opacity);
   }
 
   /**
@@ -3265,11 +4121,25 @@ export class DrawingEngine {
       }
     }
 
+    this.renderContinuousRibbon(ctx, samples, style.color, style.opacity);
+  }
+
+  /**
+   * Continuous anti-aliased single-path ribbon rendering
+   * Replaces thousands of fragmented arc/fill draw calls with a single hardware-accelerated pass.
+   */
+  private renderContinuousRibbon(
+    ctx: CanvasRenderingContext2D,
+    samples: { x: number; y: number; r: number }[],
+    color: string,
+    opacity: number
+  ): void {
     if (samples.length === 0) return;
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.globalAlpha = opacity;
+
     if (samples.length === 1) {
-      ctx.save();
-      ctx.fillStyle = style.color;
-      ctx.globalAlpha = style.opacity;
       ctx.beginPath();
       ctx.arc(samples[0].x, samples[0].y, samples[0].r, 0, Math.PI * 2);
       ctx.fill();
@@ -3277,40 +4147,67 @@ export class DrawingEngine {
       return;
     }
 
-    ctx.save();
-    ctx.fillStyle = style.color;
-    ctx.globalAlpha = style.opacity;
+    const n = samples.length;
+    const left: { x: number; y: number }[] = [];
+    const right: { x: number; y: number }[] = [];
 
-    for (let k = 0; k < samples.length - 1; k++) {
-      const p1 = samples[k];
-      const p2 = samples[k + 1];
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const dist = Math.hypot(dx, dy);
+    const firstDx = samples[1].x - samples[0].x;
+    const firstDy = samples[1].y - samples[0].y;
+    const lastDx = samples[n - 1].x - samples[n - 2].x;
+    const lastDy = samples[n - 1].y - samples[n - 2].y;
 
-      ctx.beginPath();
-      ctx.arc(p1.x, p1.y, p1.r, 0, Math.PI * 2);
-      ctx.fill();
-
-      if (dist > 1e-4) {
-        const nx = -dy / dist;
-        const ny = dx / dist;
-
-        ctx.beginPath();
-        ctx.moveTo(p1.x + nx * p1.r, p1.y + ny * p1.r);
-        ctx.lineTo(p2.x + nx * p2.r, p2.y + ny * p2.r);
-        ctx.lineTo(p2.x - nx * p2.r, p2.y - ny * p2.r);
-        ctx.lineTo(p1.x - nx * p1.r, p1.y - ny * p1.r);
-        ctx.closePath();
-        ctx.fill();
+    for (let i = 0; i < n; i++) {
+      let dx: number;
+      let dy: number;
+      if (i === 0) {
+        dx = firstDx;
+        dy = firstDy;
+      } else if (i === n - 1) {
+        dx = lastDx;
+        dy = lastDy;
+      } else {
+        dx = samples[i + 1].x - samples[i - 1].x;
+        dy = samples[i + 1].y - samples[i - 1].y;
       }
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const r = samples[i].r;
+
+      left.push({ x: samples[i].x + nx * r, y: samples[i].y + ny * r });
+      right.push({ x: samples[i].x - nx * r, y: samples[i].y - ny * r });
     }
 
-    const last = samples[samples.length - 1];
     ctx.beginPath();
-    ctx.arc(last.x, last.y, last.r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(left[0].x, left[0].y);
 
+    // Left border curve
+    for (let i = 1; i < n; i++) {
+      const midX = (left[i - 1].x + left[i].x) / 2;
+      const midY = (left[i - 1].y + left[i].y) / 2;
+      ctx.quadraticCurveTo(left[i - 1].x, left[i - 1].y, midX, midY);
+    }
+    ctx.lineTo(left[n - 1].x, left[n - 1].y);
+
+    // End cap
+    const endAngle = Math.atan2(lastDy, lastDx);
+    ctx.arc(samples[n - 1].x, samples[n - 1].y, samples[n - 1].r, endAngle - Math.PI / 2, endAngle + Math.PI / 2, false);
+
+    // Right border curve in reverse
+    ctx.lineTo(right[n - 1].x, right[n - 1].y);
+    for (let i = n - 2; i >= 0; i--) {
+      const midX = (right[i + 1].x + right[i].x) / 2;
+      const midY = (right[i + 1].y + right[i].y) / 2;
+      ctx.quadraticCurveTo(right[i + 1].x, right[i + 1].y, midX, midY);
+    }
+    ctx.lineTo(right[0].x, right[0].y);
+
+    // Start cap
+    const startAngle = Math.atan2(firstDy, firstDx);
+    ctx.arc(samples[0].x, samples[0].y, samples[0].r, startAngle + Math.PI / 2, startAngle + (3 * Math.PI) / 2, false);
+
+    ctx.closePath();
+    ctx.fill();
     ctx.restore();
   }
 
@@ -3628,7 +4525,7 @@ export class DrawingEngine {
   }
 
   resize(width: number, height: number): void {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     this.devicePixelRatio = dpr;
     for (const canvas of [this.committedCanvas, this.activeCanvas]) {
       canvas.width = Math.floor(width * dpr);

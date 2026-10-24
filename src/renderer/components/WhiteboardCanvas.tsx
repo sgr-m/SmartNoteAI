@@ -9,11 +9,16 @@ import {
   StrokeObject,
   ShapeObject,
   TextObject,
+  ImageObject,
   CanvasObject,
   GroupObject,
   Point,
+  BoundingBox,
 } from '../../shared/types';
-import { TextModal } from './TextModal';
+import { InlineTextEditor } from './InlineTextEditor';
+import { AddToResourceLibraryModal } from './AddToResourceLibraryModal';
+import { isLatexSyntax } from '../services/latexService';
+import { isTypingOrInputFocused } from '../utils/keyboardUtils';
 import { v4 as uuidv4 } from 'uuid';
 import './WhiteboardCanvas.css';
 
@@ -57,9 +62,11 @@ export function WhiteboardCanvas(): React.ReactElement {
   // Text modal state
   const [textModalPos, setTextModalPos] = useState<Point | null>(null);
   const [editingTextObj, setEditingTextObj] = useState<TextObject | null>(null);
+  const [showAddToResourceModal, setShowAddToResourceModal] = useState(false);
+  const [resourceObjectToSave, setResourceObjectToSave] = useState<CanvasObject | null>(null);
 
   // Vertical Selection Pill Active Flyout Menu
-  const [activeFlyout, setActiveFlyout] = useState<'none' | 'palette' | 'layer' | 'more' | 'thickness'>('none');
+  const [activeFlyout, setActiveFlyout] = useState<'none' | 'palette' | 'layer' | 'more' | 'thickness' | 'imageFit'>('none');
 
   // Close flyouts on selection change
   useEffect(() => {
@@ -75,6 +82,9 @@ export function WhiteboardCanvas(): React.ReactElement {
 
   const currentPageRef = useRef(currentPage);
   currentPageRef.current = currentPage;
+
+  const selectedObjectRef = useRef(selectedObject);
+  selectedObjectRef.current = selectedObject;
 
   // Slide Transitions (Section 10)
   const [activeTransitionClass, setActiveTransitionClass] = useState<string>('');
@@ -268,9 +278,28 @@ export function WhiteboardCanvas(): React.ReactElement {
   }, [setZoom, setPan]);
 
   const handleTextClick = useCallback((pos: Point) => {
+    const page = currentPageRef.current;
+    if (page) {
+      // Check if clicking directly on an existing text object (search topmost first)
+      const hitText = [...page.objects].reverse().find((obj) => {
+        if (obj.type !== 'text') return false;
+        const t = obj as TextObject;
+        const tw = t.width || 200;
+        const th = t.height || 40;
+        return pos.x >= t.x && pos.x <= t.x + tw && pos.y >= t.y && pos.y <= t.y + th;
+      }) as TextObject | undefined;
+
+      if (hitText) {
+        setSelectedObject(hitText);
+        setTextModalPos({ x: hitText.x, y: hitText.y });
+        setEditingTextObj(hitText);
+        return;
+      }
+    }
+
     setTextModalPos(pos);
     setEditingTextObj(null);
-  }, []);
+  }, [setSelectedObject]);
 
   // ─── Background & Page Framing Rendering ──────────────────────────────────
   const drawBackground = useCallback((width: number, height: number) => {
@@ -280,10 +309,14 @@ export function WhiteboardCanvas(): React.ReactElement {
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(width * dpr);
-    canvas.height = Math.floor(height * dpr);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
+    const targetW = Math.floor(width * dpr);
+    const targetH = Math.floor(height * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+    }
 
     const bg = currentPage?.background || { type: 'blank', color: '#1a1a2e' };
     const zoom = toolState.zoom;
@@ -298,9 +331,34 @@ export function WhiteboardCanvas(): React.ReactElement {
     if (bg.type === 'image' && bg.imageUrl) {
       const cached = bgImageCacheRef.current.get(bg.imageUrl);
       if (cached && cached.complete && cached.naturalWidth > 0) {
-        // Stretch to full screen canvas (0, 0, canvas.width, canvas.height)
-        // Fixed at (0, 0) so hand tool dragging moves content without moving the background image!
-        ctx.drawImage(cached, 0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        const canvasAspect = canvas.width / canvas.height;
+        const imgAspect = cached.naturalWidth / cached.naturalHeight;
+
+        let drawW = canvas.width;
+        let drawH = canvas.height;
+        let drawX = 0;
+        let drawY = 0;
+
+        // If aspect ratios differ (e.g. portrait A4 or 4:3 presentation on a 16:9 smartboard),
+        // fit centered preserving exact aspect ratio so pages never stretch or distort!
+        if (Math.abs(canvasAspect - imgAspect) > 0.05) {
+          if (imgAspect > canvasAspect) {
+            drawW = canvas.width;
+            drawH = canvas.width / imgAspect;
+            drawY = (canvas.height - drawH) / 2;
+          } else {
+            drawH = canvas.height;
+            drawW = canvas.height * imgAspect;
+            drawX = (canvas.width - drawW) / 2;
+          }
+        }
+
+        ctx.drawImage(cached, drawX, drawY, drawW, drawH);
+        ctx.restore();
       } else if (!cached) {
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -428,7 +486,7 @@ export function WhiteboardCanvas(): React.ReactElement {
     const handleCanvasPointerDown = () => {
       closeAllPopups();
       setActiveFlyout('none');
-      if (toolState.activeTool !== 'select') {
+      if (toolState.activeTool !== 'select' && selectedObjectRef.current) {
         setSelectedObject(null);
       }
     };
@@ -437,6 +495,44 @@ export function WhiteboardCanvas(): React.ReactElement {
       canvas.removeEventListener('pointerdown', handleCanvasPointerDown, { capture: true });
     };
   }, [closeAllPopups, toolState.activeTool, setSelectedObject]);
+
+  // Double-click on canvas: Immediately open text/formula object for editing
+  useEffect(() => {
+    const canvas = activeCanvasRef.current;
+    if (!canvas) return;
+
+    const handleCanvasDoubleClick = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+      const docX = clientX / toolState.zoom - toolState.panX;
+      const docY = clientY / toolState.zoom - toolState.panY;
+
+      const page = currentPageRef.current;
+      if (!page) return;
+
+      const hitText = [...page.objects].reverse().find((obj) => {
+        if (obj.type !== 'text') return false;
+        const t = obj as TextObject;
+        const tw = t.width || 200;
+        const th = t.height || 40;
+        return docX >= t.x && docX <= t.x + tw && docY >= t.y && docY <= t.y + th;
+      }) as TextObject | undefined;
+
+      if (hitText) {
+        e.preventDefault();
+        e.stopPropagation();
+        setSelectedObject(hitText);
+        setTextModalPos({ x: hitText.x, y: hitText.y });
+        setEditingTextObj(hitText);
+      }
+    };
+
+    canvas.addEventListener('dblclick', handleCanvasDoubleClick);
+    return () => {
+      canvas.removeEventListener('dblclick', handleCanvasDoubleClick);
+    };
+  }, [toolState.zoom, toolState.panX, toolState.panY, setSelectedObject]);
 
   // Sync tools & settings to engine
   useEffect(() => {
@@ -524,16 +620,20 @@ export function WhiteboardCanvas(): React.ReactElement {
     engineRef.current?.clearActiveCanvas();
   }, [currentPageIndex, setSelectedObject]);
 
-  // Redraw committed canvas and background when page, objects, or selection changes
+  // Redraw committed canvas when page, objects, or selection changes
   useEffect(() => {
     if (!currentPage || !engineRef.current) return;
     engineRef.current.redrawCommitted(currentPage.objects, selectedObject?.id, selectedObject);
+  }, [currentPageIndex, currentPage?.objects, selectedObject]);
+
+  // Redraw background ONLY when background settings, page, or view changes (NOT on stroke additions!)
+  useEffect(() => {
     const container = containerRef.current;
     if (container) {
       const { width, height } = container.getBoundingClientRect();
       drawBackground(width, height);
     }
-  }, [currentPageIndex, currentPage, currentPage?.objects, currentPage?.background, selectedObject, drawBackground]);
+  }, [currentPageIndex, currentPage?.background, toolState.zoom, toolState.panX, toolState.panY, drawBackground]);
 
   // ─── Selected Object Manipulations (Delete, Duplicate, Lock) ──────────────
 
@@ -870,11 +970,269 @@ export function WhiteboardCanvas(): React.ReactElement {
     });
   }, [selectedObject, commandSystem, docDispatch, setSelectedObject]);
 
-  // Keyboard shortcut: Delete, Backspace, Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+D
+  // ─── Image Screen Fit & Sizing Actions ─────────────────────────────────────
+  const handleImageFitAction = useCallback(
+    (action: 'fit' | 'fill' | 'cover' | 'repeat' | 'center' | 'original' | 'background') => {
+      if (!selectedObject || selectedObject.type !== 'image') return;
+      const imgObj = selectedObject as ImageObject;
+      const pageIndex = currentPageIndexRef.current;
+      const page = currentPageRef.current;
+      if (!page) return;
+
+      const zoom = toolState.zoom || 1;
+      const containerW = containerRef.current?.clientWidth || window.innerWidth;
+      const containerH = containerRef.current?.clientHeight || window.innerHeight;
+      const visibleW = containerW / zoom;
+      const visibleH = containerH / zoom;
+
+      // Document coordinates currently visible
+      const startX = -toolState.panX;
+      const startY = -toolState.panY;
+      const screenW = visibleW;
+      const screenH = visibleH;
+      const prevObj = JSON.parse(JSON.stringify(imgObj)) as ImageObject;
+
+      if (action === 'background') {
+        const prevBg = JSON.parse(JSON.stringify(page.background || { type: 'blank', color: '#1a1a2e' }));
+        const newBg = {
+          type: 'image' as const,
+          imageUrl: imgObj.dataUrl || imgObj.filePath,
+          color: '#ffffff',
+        };
+        commandSystem.execute({
+          id: uuidv4(),
+          description: 'Set Image as Page Background',
+          execute() {
+            docDispatch({ type: 'SET_PAGE_BACKGROUND', pageIndex, background: newBg });
+            docDispatch({ type: 'REMOVE_OBJECT', pageIndex, objectId: imgObj.id });
+            setSelectedObject(null);
+            setToastMessage('Image set as page background');
+          },
+          undo() {
+            docDispatch({ type: 'SET_PAGE_BACKGROUND', pageIndex, background: prevBg });
+            docDispatch({ type: 'ADD_OBJECT', pageIndex, object: prevObj });
+            setSelectedObject(prevObj);
+          },
+        });
+        setActiveFlyout('none');
+        return;
+      }
+
+      if (action === 'repeat') {
+        const tileW = Math.max(160, Math.min(320, imgObj.width));
+        const tileH = Math.max(120, Math.min(240, (tileW / (imgObj.width || 1)) * (imgObj.height || 1)));
+        const cols = Math.ceil(screenW / tileW);
+        const rows = Math.ceil(screenH / tileH);
+        const newObjects: CanvasObject[] = [];
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            newObjects.push({
+              ...imgObj,
+              id: r === 0 && c === 0 ? imgObj.id : uuidv4(),
+              x: startX + c * tileW,
+              y: startY + r * tileH,
+              width: tileW,
+              height: tileH,
+              rotation: 0,
+            });
+          }
+        }
+
+        commandSystem.execute({
+          id: uuidv4(),
+          description: `Repeat / Tile image into ${newObjects.length} copies`,
+          execute() {
+            docDispatch({ type: 'REMOVE_OBJECT', pageIndex, objectId: imgObj.id });
+            docDispatch({ type: 'ADD_OBJECTS', pageIndex, objects: newObjects });
+            setSelectedObject(newObjects[0]);
+            setToastMessage(`Tiled image into ${newObjects.length} copies`);
+          },
+          undo() {
+            docDispatch({ type: 'REMOVE_OBJECTS', pageIndex, objectIds: newObjects.map((o) => o.id) });
+            docDispatch({ type: 'ADD_OBJECT', pageIndex, object: prevObj });
+            setSelectedObject(prevObj);
+          },
+        });
+        setActiveFlyout('none');
+        return;
+      }
+
+      let newX = imgObj.x;
+      let newY = imgObj.y;
+      let newW = imgObj.width;
+      let newH = imgObj.height;
+
+      const imgAspect = imgObj.width && imgObj.height ? imgObj.width / imgObj.height : 16 / 9;
+
+      switch (action) {
+        case 'fit': {
+          const screenAspect = screenW / screenH;
+          if (imgAspect > screenAspect) {
+            newW = screenW;
+            newH = screenW / imgAspect;
+            newX = startX;
+            newY = startY + (screenH - newH) / 2;
+          } else {
+            newH = screenH;
+            newW = screenH * imgAspect;
+            newX = startX + (screenW - newW) / 2;
+            newY = startY;
+          }
+          break;
+        }
+
+        case 'fill': {
+          newX = startX;
+          newY = startY;
+          newW = screenW;
+          newH = screenH;
+          break;
+        }
+
+        case 'cover': {
+          const screenAspect = screenW / screenH;
+          if (imgAspect > screenAspect) {
+            newH = screenH;
+            newW = screenH * imgAspect;
+            newX = startX + (screenW - newW) / 2;
+            newY = startY;
+          } else {
+            newW = screenW;
+            newH = screenW / imgAspect;
+            newX = startX;
+            newY = startY + (screenH - newH) / 2;
+          }
+          break;
+        }
+
+        case 'center': {
+          newX = startX + (screenW - imgObj.width) / 2;
+          newY = startY + (screenH - imgObj.height) / 2;
+          break;
+        }
+
+        case 'original': {
+          const cached = bgImageCacheRef.current.get(imgObj.dataUrl || imgObj.filePath);
+          let origW = (cached && cached.naturalWidth > 0) ? cached.naturalWidth : 800;
+          let origH = (cached && cached.naturalHeight > 0) ? cached.naturalHeight : 800 / imgAspect;
+          if (origW > screenW || origH > screenH) {
+            const origScale = Math.min(screenW / origW, screenH / origH);
+            origW = Math.round(origW * origScale);
+            origH = Math.round(origH * origScale);
+          }
+          newW = origW;
+          newH = origH;
+          newX = startX + (screenW - newW) / 2;
+          newY = startY + (screenH - newH) / 2;
+          break;
+        }
+      }
+
+      const updatedObj: ImageObject = {
+        ...imgObj,
+        x: Math.round(newX),
+        y: Math.round(newY),
+        width: Math.round(newW),
+        height: Math.round(newH),
+        rotation: 0,
+      };
+
+      commandSystem.execute({
+        id: uuidv4(),
+        description: `Fit Image: ${action}`,
+        execute() {
+          docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: updatedObj });
+          setSelectedObject(updatedObj);
+        },
+        undo() {
+          docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: prevObj });
+          setSelectedObject(prevObj);
+        },
+      });
+
+      setActiveFlyout('none');
+    },
+    [selectedObject, toolState.zoom, commandSystem, docDispatch, setSelectedObject, setToastMessage]
+  );
+
+  // Select All Objects on Current Page (Ctrl+A)
+  const handleSelectAll = useCallback(() => {
+    const page = currentPageRef.current;
+    if (!page || !page.objects || page.objects.length === 0) return;
+
+    // Filter unlocked objects from visible layers
+    const selectable = page.objects.filter((o) => {
+      if (o.locked) return false;
+      const l = page.layers?.find((lay) => lay.id === o.layerId);
+      if (l && (!l.visible || l.locked)) return false;
+      return true;
+    });
+
+    if (selectable.length === 0) return;
+
+    // Switch tool to 'select' so selection outline & action-strip are active
+    setActiveTool('select');
+
+    if (selectable.length === 1) {
+      setSelectedObject(selectable[0]);
+      if (engineRef.current) {
+        engineRef.current.setSelectedObject(selectable[0]);
+        engineRef.current.redrawCommitted(page.objects, selectable[0].id, selectable[0]);
+      }
+    } else {
+      let grp: GroupObject;
+      if (engineRef.current) {
+        grp = engineRef.current.createGroupFromObjects(selectable);
+      } else {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const obj of selectable) {
+          const b = obj.type === 'stroke'
+            ? (obj as StrokeObject).bbox
+            : { x: (obj as any).x || 0, y: (obj as any).y || 0, width: (obj as any).width || 50, height: (obj as any).height || 50 };
+          if (b.x < minX) minX = b.x;
+          if (b.y < minY) minY = b.y;
+          if (b.x + b.width > maxX) maxX = b.x + b.width;
+          if (b.y + b.height > maxY) maxY = b.y + b.height;
+        }
+        const bbox: BoundingBox = {
+          x: minX,
+          y: minY,
+          width: Math.max(10, maxX - minX),
+          height: Math.max(10, maxY - minY),
+        };
+        grp = {
+          id: `group_${uuidv4()}`,
+          type: 'group',
+          objects: selectable,
+          bbox,
+          x: bbox.x,
+          y: bbox.y,
+          width: bbox.width,
+          height: bbox.height,
+          rotation: 0,
+          locked: false,
+          layerId: selectable[0]?.layerId || 'default',
+        };
+      }
+
+      setSelectedObject(grp);
+      if (engineRef.current) {
+        engineRef.current.setSelectedObject(grp);
+        engineRef.current.redrawCommitted(page.objects, grp.id, grp);
+      }
+    }
+  }, [setActiveTool, setSelectedObject]);
+
+  // Keyboard shortcut: Delete, Backspace, Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+D, Ctrl+A
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (isTypingOrInputFocused(e)) return;
+
+      if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleSelectAll();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedObject) {
           e.preventDefault();
           handleDeleteSelected();
@@ -904,7 +1262,14 @@ export function WhiteboardCanvas(): React.ReactElement {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedObject, handleDeleteSelected, handleDuplicateSelected, copyObject, pasteObject]);
+  }, [
+    selectedObject,
+    handleDeleteSelected,
+    handleDuplicateSelected,
+    handleSelectAll,
+    copyObject,
+    pasteObject,
+  ]);
 
   // ─── Text Modal Save (Section 8) ──────────────────────────────────────────
 
@@ -948,6 +1313,7 @@ export function WhiteboardCanvas(): React.ReactElement {
         opacity: 1,
         rotation: 0,
         preset: textData.preset || 'body',
+        isLatex: textData.isLatex ?? (textData.content ? isLatexSyntax(textData.content) : false),
         locked: false,
         layerId: 'objects',
       };
@@ -1077,10 +1443,10 @@ export function WhiteboardCanvas(): React.ReactElement {
       const containerW = containerRef.current?.clientWidth || window.innerWidth;
       const containerH = containerRef.current?.clientHeight || window.innerHeight;
 
-      if (selectedScreenBBox.left + selectedScreenBBox.width + 56 <= containerW) {
-        pillLeft = selectedScreenBBox.left + selectedScreenBBox.width + 12;
+      if (selectedScreenBBox.left + selectedScreenBBox.width + 60 <= containerW) {
+        pillLeft = selectedScreenBBox.left + selectedScreenBBox.width + 18;
       } else {
-        pillLeft = Math.max(12, selectedScreenBBox.left - 52);
+        pillLeft = Math.max(12, selectedScreenBBox.left - 64);
       }
       pillTop = Math.max(16, Math.min(containerH - 340, selectedScreenBBox.top));
     }
@@ -1112,6 +1478,34 @@ export function WhiteboardCanvas(): React.ReactElement {
               : 'default',
         }}
       />
+
+      {/* Quick "✏️ Edit Text/Formula" floating badge directly above selected text element */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'text' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            const t = selectedObject as TextObject;
+            setTextModalPos({ x: t.x, y: t.y });
+            setEditingTextObj(t);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button className="quick-edit-btn" title="Edit text content (or double-click text)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+            <span>Edit {(selectedObject as TextObject).isLatex ? 'Formula' : 'Text'}</span>
+          </button>
+        </div>
+      )}
 
       {/* Vertical Floating Action Toolbar / Pill (Reference Images 1, 2, 3) */}
       {toolState.activeTool === 'select' && selectedObject && selectedScreenBBox && (
@@ -1179,29 +1573,44 @@ export function WhiteboardCanvas(): React.ReactElement {
 
           <div className="sel-pill-divider" />
 
-          {/* 4. 🔤 Text / Font Properties */}
-          <button
-            className="sel-pill-btn"
-            onClick={() => {
-              if (selectedObject.type === 'text') {
-                const t = selectedObject as TextObject;
-                setTextModalPos({ x: t.x, y: t.y });
-                setEditingTextObj(t);
-              } else {
-                setToastMessage('Text tool: Convert or style text elements');
-              }
-            }}
-            title={selectedObject.type === 'text' ? 'Edit Text & Font properties' : 'Text tool'}
-            aria-label="Text & Font Properties"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="4 20 12 4 20 20" />
-              <line x1="7" y1="14" x2="17" y2="14" />
-              <path d="M18 16l3 3-3 3" />
-            </svg>
-          </button>
+          {/* 4. ✏️ Edit Text & Font Properties */}
+          {selectedObject.type === 'text' && (
+            <>
+              <button
+                className="sel-pill-btn active-text-edit"
+                onClick={() => {
+                  const t = selectedObject as TextObject;
+                  setTextModalPos({ x: t.x, y: t.y });
+                  setEditingTextObj(t);
+                }}
+                title="Edit Text & Formula properties (Double-click text to edit)"
+                aria-label="Text & Font Properties"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              </button>
+              <div className="sel-pill-divider" />
+            </>
+          )}
 
-          <div className="sel-pill-divider" />
+          {/* 4b. ⛶ Image Screen Fit / Stretch / Fill */}
+          {selectedObject.type === 'image' && (
+            <>
+              <button
+                className={`sel-pill-btn ${activeFlyout === 'imageFit' ? 'active' : ''}`}
+                onClick={() => setActiveFlyout((f) => (f === 'imageFit' ? 'none' : 'imageFit'))}
+                title="Fit to Screen, Fill / Stretch, Cover, Repeat, Center"
+                aria-label="Image Screen Sizing"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                </svg>
+              </button>
+              <div className="sel-pill-divider" />
+            </>
+          )}
 
           {/* 5. 👥 Cloner / Infinite Clone Mode */}
           <button
@@ -1372,13 +1781,26 @@ export function WhiteboardCanvas(): React.ReactElement {
               <button
                 className="flyout-item"
                 onClick={() => {
-                  setToastMessage('Saved to Resource Library!');
                   setActiveFlyout('none');
+                  setResourceObjectToSave(selectedObject);
+                  setShowAddToResourceModal(true);
                 }}
               >
                 <span className="flyout-icon">🖼️</span>
                 <span className="flyout-label">Add to resource library</span>
               </button>
+
+              {/* 4b. Fit to Screen / Fill (for image) */}
+              {selectedObject.type === 'image' && (
+                <button
+                  className="flyout-item has-submenu"
+                  onClick={() => setActiveFlyout('imageFit')}
+                >
+                  <span className="flyout-icon">⛶</span>
+                  <span className="flyout-label">Fit to Screen / Fill</span>
+                  <span className="submenu-arrow">›</span>
+                </button>
+              )}
 
               {/* 5. Rotate 90° Clockwise */}
               <button
@@ -1460,6 +1882,76 @@ export function WhiteboardCanvas(): React.ReactElement {
                   <span className="thickness-label">{w}px</span>
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* ─── Image Fit & Screen Sizing Flyout Menu ─────────────────────── */}
+          {activeFlyout === 'imageFit' && selectedObject.type === 'image' && (
+            <div className="sel-flyout-menu image-fit-flyout-menu" style={{ left: pillLeft < (selectedScreenBBox?.left || 0) ? -245 : 50 }}>
+              <div className="flyout-header-title">Image Screen Sizing</div>
+
+              <button
+                className="flyout-item"
+                onClick={() => handleImageFitAction('fit')}
+                title="Fit to Screen: proportionally shrinks or grows image to fit inside screen boundaries"
+              >
+                <span className="flyout-icon">⛶</span>
+                <span className="flyout-label">Fit to Screen (Contain)</span>
+              </button>
+
+              <button
+                className="flyout-item"
+                onClick={() => handleImageFitAction('fill')}
+                title="Fill Screen: stretches image to fill all 4 edges of the screen"
+              >
+                <span className="flyout-icon">⬛</span>
+                <span className="flyout-label">Fill Screen (Stretch)</span>
+              </button>
+
+              <button
+                className="flyout-item"
+                onClick={() => handleImageFitAction('cover')}
+                title="Cover Screen: fills the entire screen while maintaining aspect ratio (crops if needed)"
+              >
+                <span className="flyout-icon">🔲</span>
+                <span className="flyout-label">Cover Screen (Crop to Fit)</span>
+              </button>
+
+              <button
+                className="flyout-item"
+                onClick={() => handleImageFitAction('repeat')}
+                title="Repeat: tiles image across the entire screen in a neat grid"
+              >
+                <span className="flyout-icon">🔁</span>
+                <span className="flyout-label">Repeat / Tile Screen</span>
+              </button>
+
+              <button
+                className="flyout-item"
+                onClick={() => handleImageFitAction('center')}
+                title="Center on Screen: moves image to the center of the board without resizing"
+              >
+                <span className="flyout-icon">🎯</span>
+                <span className="flyout-label">Center on Screen</span>
+              </button>
+
+              <button
+                className="flyout-item"
+                onClick={() => handleImageFitAction('background')}
+                title="Set as Page Background: converts this image into the background of this page"
+              >
+                <span className="flyout-icon">🖼️</span>
+                <span className="flyout-label">Set as Page Background</span>
+              </button>
+
+              <button
+                className="flyout-item"
+                onClick={() => handleImageFitAction('original')}
+                title="Reset Size: restores natural 100% resolution dimensions"
+              >
+                <span className="flyout-icon">1:1</span>
+                <span className="flyout-label">Reset Size (100% Original)</span>
+              </button>
             </div>
           )}
 
@@ -1585,15 +2077,36 @@ export function WhiteboardCanvas(): React.ReactElement {
         </div>
       )}
 
-      {/* Section 8: Location-Based Text Modal */}
+      {/* Direct On-Board Text Typing & Right-Docked Typography Toolbar */}
       {(textModalPos || editingTextObj) && (
-        <TextModal
+        <InlineTextEditor
           initialPoint={textModalPos || { x: editingTextObj?.x || 100, y: editingTextObj?.y || 100 }}
           initialText={editingTextObj}
+          zoom={toolState.zoom}
+          panX={toolState.panX}
+          panY={toolState.panY}
           onSave={handleSaveText}
           onClose={() => {
             setTextModalPos(null);
             setEditingTextObj(null);
+          }}
+        />
+      )}
+
+      {/* Add To Resource Library Interactive Modal */}
+      {showAddToResourceModal && resourceObjectToSave && (
+        <AddToResourceLibraryModal
+          objectToSave={resourceObjectToSave}
+          onClose={() => {
+            setShowAddToResourceModal(false);
+            setResourceObjectToSave(null);
+          }}
+          onSaved={(name, cat, folder) => {
+            setShowAddToResourceModal(false);
+            setResourceObjectToSave(null);
+            setToastMessage(
+              `Saved "${name}" to Resource Library under ${cat}${folder ? ` / ${folder}` : ''}!`
+            );
           }}
         />
       )}

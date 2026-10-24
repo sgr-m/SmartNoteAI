@@ -9,6 +9,7 @@ import { PenFlyout } from './PenFlyout';
 import { ShapeFlyout } from './ShapeFlyout';
 import { EraserFlyout } from './EraserFlyout';
 import { MenuFlyout } from './MenuFlyout';
+import { isTypingOrInputFocused } from '../utils/keyboardUtils';
 import './Toolbar.css';
 
 interface ToolbarProps {
@@ -120,7 +121,7 @@ export function Toolbar({
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      if (isTypingOrInputFocused(e)) {
         return;
       }
       if (e.key === 'p' || e.key === 'P') {
@@ -130,9 +131,19 @@ export function Toolbar({
       } else if (e.key === 's' || e.key === 'S') {
         if (!e.ctrlKey && !e.metaKey) setActiveTool('select');
       } else if (e.key === 'h' || e.key === 'H') {
-        if (!e.ctrlKey && !e.metaKey) setActiveTool('shape');
+        if (!e.ctrlKey && !e.metaKey) setActiveTool('pan');
       } else if (e.key === 't' || e.key === 'T') {
         if (!e.ctrlKey && !e.metaKey) setActiveTool('text');
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          handlePrevPage();
+        }
+      } else if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          handleNextPage();
+        }
       } else if (e.key === 'Escape') {
         closeAllFlyouts();
       }
@@ -140,7 +151,7 @@ export function Toolbar({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setActiveTool, closeAllFlyouts]);
+  }, [setActiveTool, closeAllFlyouts, handlePrevPage, handleNextPage]);
 
   return (
     <div className="bottom-smartboard-dock-container" role="toolbar" aria-label="Smartboard Tools">
@@ -313,8 +324,8 @@ export function Toolbar({
             setActiveTool('pan');
             closeAllFlyouts();
           }}
-          title="Pan & Roam Canvas (hold Middle Mouse or Space)"
-          aria-label="Pan Tool"
+          title="Hand Tool (H) — Pan & Roam Canvas (or hold Space / Middle Mouse)"
+          aria-label="Hand Tool"
         >
           <span className="dock-tool-icon">✋</span>
         </button>
@@ -370,9 +381,13 @@ export function Toolbar({
         {/* Previous Page Arrow (<) */}
         <button
           className="dock-page-arrow-btn"
-          onClick={handlePrevPage}
+          onClick={(e) => {
+            e.stopPropagation();
+            handlePrevPage();
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
           disabled={currentPageIndex <= 0}
-          title="Previous Page"
+          title="Previous Page (Left Arrow / PageUp)"
           aria-label="Previous Page"
         >
           ‹
@@ -381,7 +396,11 @@ export function Toolbar({
         {/* Page Thumbnail Sheet Card */}
         <button
           className="dock-page-sheet-card"
-          onClick={() => onTogglePagePanel?.()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onTogglePagePanel?.();
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
           title="Open Page Thumbnails & Slide Deck"
           aria-label={`Page ${currentPageIndex + 1} of ${totalPages}`}
         >
@@ -395,9 +414,13 @@ export function Toolbar({
         {/* Next Page Arrow (>) */}
         <button
           className="dock-page-arrow-btn"
-          onClick={handleNextPage}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleNextPage();
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
           disabled={currentPageIndex >= totalPages - 1}
-          title="Next Page"
+          title="Next Page (Right Arrow / PageDown)"
           aria-label="Next Page"
         >
           ›

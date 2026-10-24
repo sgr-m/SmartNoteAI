@@ -113,6 +113,77 @@ describe('Resource Library Subsystem (Section 13)', () => {
       expect(updatedItem?.favorite).toBe(newFav);
     });
 
+    it('saves a complex multi-object diagram with subject category and custom folder', () => {
+      // Simulate saving a logic circuit (XOR and AND gates) to Computer Science / Digital Electronics
+      const xorGate: ShapeObject = {
+        id: 'xor-1',
+        type: 'shape',
+        shapeType: 'rect',
+        x: 150,
+        y: 100,
+        width: 120,
+        height: 60,
+        rotation: 0,
+        fillColor: 'transparent',
+        fillOpacity: 0,
+        strokeColor: '#38bdf8',
+        strokeWidth: 3,
+        strokeOpacity: 1,
+        strokeStyle: 'solid',
+        locked: false,
+        layerId: 'objects',
+      };
+
+      const andGate: ShapeObject = {
+        id: 'and-1',
+        type: 'shape',
+        shapeType: 'arrow',
+        x: 150,
+        y: 220,
+        width: 120,
+        height: 60,
+        rotation: 0,
+        fillColor: 'transparent',
+        fillOpacity: 0,
+        strokeColor: '#38bdf8',
+        strokeWidth: 3,
+        strokeOpacity: 1,
+        strokeStyle: 'solid',
+        locked: false,
+        layerId: 'objects',
+      };
+
+      const saved = ResourceLibraryService.saveResource({
+        name: 'Half Adder Circuit',
+        description: 'XOR gate sum and AND gate carry out digital circuit',
+        category: 'computer-science',
+        collectionName: 'Digital Electronics',
+        tags: ['half-adder', 'xor', 'and', 'logic-circuits'],
+        favorite: false,
+        thumbnailUrl: 'data:image/svg+xml;utf8,<svg></svg>',
+        objects: [xorGate, andGate],
+      });
+
+      expect(saved.id).toBeDefined();
+      expect(saved.name).toBe('Half Adder Circuit');
+      expect(saved.category).toBe('computer-science');
+      expect(saved.collectionName).toBe('Digital Electronics');
+      expect(saved.folderId).toBeDefined();
+
+      // Verify custom folder was automatically created in user folders
+      const folders = ResourceLibraryService.getUserFolders();
+      const createdFolder = folders.find((f) => f.id === saved.folderId);
+      expect(createdFolder).toBeDefined();
+      expect(createdFolder?.name).toBe('Digital Electronics');
+
+      // Verify the saved resource is returned in the collection
+      const allResources = ResourceLibraryService.getResources();
+      const found = allResources.find((r) => r.id === saved.id);
+      expect(found).toBeDefined();
+      expect(found?.objects.length).toBe(2);
+      expect(found?.folderId).toBe(saved.folderId);
+    });
+
     it('deletes a custom saved resource', () => {
       const saved = ResourceLibraryService.saveResource({
         name: 'Temporary Resource',

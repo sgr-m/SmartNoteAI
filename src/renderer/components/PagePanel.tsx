@@ -85,6 +85,19 @@ function renderPageThumbnailSvg(page: Page): React.ReactElement {
               />
             );
           }
+          return (
+            <rect
+              key={sh.id}
+              x={sh.x}
+              y={sh.y}
+              width={sh.width}
+              height={sh.height}
+              rx={8}
+              fill={sh.fillColor && sh.fillColor !== 'transparent' ? sh.fillColor : 'rgba(56, 189, 248, 0.2)'}
+              stroke={sh.strokeColor || '#38bdf8'}
+              strokeWidth={Math.max(2, sh.strokeWidth)}
+            />
+          );
         }
         if (obj.type === 'text') {
           const t = obj as TextObject;

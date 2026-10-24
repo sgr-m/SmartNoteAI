@@ -1,0 +1,526 @@
+/* ─── Inline On-Board Text Editor & Right-Side Typography Inspector ─── */
+
+/* 1. On-Board Direct Text Box */
+.inline-board-text-wrapper {
+  position: absolute;
+  min-width: 180px;
+  max-width: 900px;
+  pointer-events: auto;
+  cursor: default;
+  transform: translate(0, 0);
+  animation: inlineFadeIn 0.15s ease-out;
+}
+
+@keyframes inlineFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.inline-board-text-container {
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  border: 1.5px dashed rgba(56, 189, 248, 0.65);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  padding: 8px 12px;
+  backdrop-filter: blur(8px);
+  transition: border-color 0.15s ease;
+}
+
+.inline-board-text-container:focus-within {
+  border-color: #38bdf8;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(56, 189, 248, 0.35);
+}
+
+.inline-board-textarea {
+  width: 100%;
+  min-width: 140px;
+  min-height: 40px;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.35;
+  padding: 0;
+  margin: 0;
+  caret-color: #38bdf8;
+  cursor: text;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.inline-board-textarea::placeholder {
+  color: rgba(148, 163, 184, 0.6);
+  font-style: italic;
+}
+
+/* KaTeX Live Preview in the On-Board Box */
+.inline-latex-live-preview {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clickable-formula-preview {
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-radius: 6px;
+  padding: 6px;
+}
+
+.clickable-formula-preview:hover {
+  background: rgba(56, 189, 248, 0.12);
+  outline: 1px dashed rgba(56, 189, 248, 0.4);
+}
+
+.latex-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #facc15;
+  background: rgba(250, 204, 21, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  align-self: flex-start;
+}
+
+.latex-rendered-content {
+  padding: 4px 6px;
+  overflow-x: auto;
+  line-height: 1.4;
+}
+
+.latex-error-hint {
+  font-size: 11px;
+  color: #f87171;
+  font-style: italic;
+}
+
+.inline-board-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.inline-commit-btn {
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inline-commit-btn:hover {
+  background: linear-gradient(135deg, #0369a1, #075985);
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+}
+
+/* 2. Right-Side Typography & Formula Toolbar */
+.board-typography-sidebar {
+  position: absolute;
+  right: 20px;
+  top: 74px;
+  width: 320px;
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  z-index: 130;
+  animation: sidebarSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+@keyframes sidebarSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.board-typography-sidebar::-webkit-scrollbar {
+  width: 5px;
+}
+.board-typography-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+/* Header */
+.typo-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 10px;
+}
+
+.typo-sidebar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f8fafc;
+  letter-spacing: -0.01em;
+}
+
+.typo-icon {
+  background: linear-gradient(135deg, #38bdf8, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.typo-done-btn {
+  background: #38bdf8;
+  color: #0f172a;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.typo-done-btn:hover {
+  background: #7dd3fc;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+
+/* Sections */
+.typo-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.typo-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.typo-section-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.06em;
+}
+
+/* LaTeX Toggle & Quick Chips */
+.latex-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.latex-toggle-label input[type="checkbox"] {
+  accent-color: #facc15;
+  cursor: pointer;
+}
+
+.latex-toggle-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: #facc15;
+}
+
+.latex-snippets-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.latex-snippet-chip {
+  background: rgba(250, 204, 21, 0.12);
+  color: #fef08a;
+  border: 1px solid rgba(250, 204, 21, 0.25);
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+}
+
+.latex-snippet-chip:hover {
+  background: rgba(250, 204, 21, 0.25);
+  border-color: #facc15;
+  transform: translateY(-1px);
+}
+
+/* Quick Presets Grid */
+.typo-presets-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.typo-preset-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: #cbd5e1;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.typo-preset-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.typo-preset-btn.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+/* Font Select Dropdown */
+.typo-font-select {
+  width: 100%;
+  background: rgba(30, 41, 59, 0.85);
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.typo-font-select:focus {
+  border-color: #38bdf8;
+}
+
+.typo-font-select optgroup {
+  background: #0f172a;
+  color: #94a3b8;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.typo-font-select option {
+  background: #1e293b;
+  color: #f8fafc;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+/* Size and Style Buttons Row */
+.typo-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.typo-size-group {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.typo-stepper-btn {
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  width: 28px;
+  height: 32px;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+.typo-stepper-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.typo-size-input {
+  width: 44px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: #f8fafc;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  -moz-appearance: textfield;
+}
+
+.typo-size-input::-webkit-outer-spin-button,
+.typo-size-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.typo-style-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.typo-icon-btn {
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  color: #cbd5e1;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.typo-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.typo-icon-btn.active {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+/* Paragraph Alignment Row */
+.typo-align-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.typo-align-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  padding: 6px 8px;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.typo-align-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.typo-align-btn.active {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+/* Colors Row */
+.typo-colors-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.typo-color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.typo-color-swatch:hover {
+  transform: scale(1.15);
+  border-color: #ffffff;
+}
+
+.typo-color-swatch.active {
+  transform: scale(1.2);
+  border-color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+}
+
+.typo-custom-color-picker {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  cursor: pointer;
+  background: transparent;
+  overflow: hidden;
+}
+
+.typo-custom-color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.typo-custom-color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}

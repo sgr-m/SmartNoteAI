@@ -228,6 +228,13 @@ function renderShape(ctx: CanvasRenderingContext2D, shape: ShapeObject) {
       ctx.closePath();
       break;
     }
+    case 'cartesianAxes':
+      ctx.rect(x, y, w, h);
+      ctx.moveTo(x, y + h / 2);
+      ctx.lineTo(x + w, y + h / 2);
+      ctx.moveTo(x + w / 2, y);
+      ctx.lineTo(x + w / 2, y + h);
+      break;
     default:
       ctx.rect(x, y, w, h);
       break;

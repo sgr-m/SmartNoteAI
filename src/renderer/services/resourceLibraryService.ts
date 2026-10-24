@@ -25,6 +25,7 @@ export interface SavedResource {
   description: string;
   category: ResourceCategory;
   collectionName?: string;
+  folderId?: string;
   tags: string[];
   favorite: boolean;
   thumbnailUrl: string; // PNG or SVG data URL
@@ -419,8 +420,21 @@ export class ResourceLibraryService {
    * Save a new resource created from canvas objects
    */
   static saveResource(resource: Omit<SavedResource, 'id' | 'createdAt'>): SavedResource {
+    let folderId = resource.folderId;
+    if (resource.collectionName && resource.collectionName.trim()) {
+      const folders = this.getUserFolders();
+      let f = folders.find(
+        (item) => item.name.toLowerCase() === resource.collectionName!.trim().toLowerCase()
+      );
+      if (!f) {
+        f = this.createFolder(resource.collectionName.trim());
+      }
+      folderId = f.id;
+    }
+
     const newResource: SavedResource = {
       ...resource,
+      folderId,
       id: uuidv4(),
       createdAt: Date.now(),
     };

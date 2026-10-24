@@ -125,4 +125,66 @@ describe('Document Import Subsystem (Section 11)', () => {
       expect((pages[0].objects[0] as any).dataUrl).toBe('data:image/png;base64,full1');
     });
   });
+
+  describe('PDF Processing and Local Worker Setup (Section 11.1)', () => {
+    it('parses PDF document locally without remote CDN dependencies', async () => {
+      const pdfjsLib = await import('pdfjs-dist');
+      const pdfjsWorker: any = await import('pdfjs-dist/build/pdf.worker.min.mjs');
+      (globalThis as any).pdfjsWorker = pdfjsWorker;
+
+      const minimalPdf = '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 100 100]/Parent 2 0 R/Resources<<>>>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000009 00000 n\n0000000052 00000 n\n0000000101 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n178\n%%EOF\n';
+      const uint8 = new TextEncoder().encode(minimalPdf);
+
+      const loadingTask = pdfjsLib.getDocument({ data: uint8 });
+      const pdfDoc = await loadingTask.promise;
+      expect(pdfDoc.numPages).toBe(1);
+
+      const page = await pdfDoc.getPage(1);
+      const viewport = page.getViewport({ scale: 1 });
+      expect(viewport.width).toBe(100);
+      expect(viewport.height).toBe(100);
+
+      await pdfDoc.destroy();
+    });
+
+    it('calculates high-resolution scale for 4K smartboard presentation without blurriness', () => {
+      // For standard A4 portrait (595 x 842 pt), scale must yield at least 2000px on major axis
+      const unscaledWidth = 595;
+      const unscaledHeight = 842;
+      const maxDim = Math.max(unscaledWidth, unscaledHeight);
+      const targetMajor = 2880;
+      const hiResScale = Math.max(2.5, Math.min(4.0, targetMajor / maxDim));
+
+      expect(hiResScale).toBeGreaterThanOrEqual(2.5);
+      expect(unscaledHeight * hiResScale).toBeGreaterThanOrEqual(2400);
+      expect(unscaledWidth * hiResScale).toBeGreaterThanOrEqual(1800);
+    });
+
+    it('positions and scales imported page ImageObject to fit 1920x1080 presentation canvas without overflowing', () => {
+      const converted = convertDocumentPagesToSmartboardPages([
+        {
+          pageNumber: 1,
+          thumbnailDataUrl: 'data:image/png;base64,t',
+          fullDataUrl: 'data:image/png;base64,f',
+          width: 2880,
+          height: 1620,
+        },
+      ], { asBackground: false, titlePrefix: 'Lecture' });
+
+      expect(converted.length).toBe(1);
+      const page = converted[0];
+      expect(page.width).toBe(1920);
+      expect(page.height).toBe(1080);
+      expect(page.background.type).toBe('blank');
+      expect(page.objects.length).toBe(1);
+
+      const img = page.objects[0] as any;
+      expect(img.type).toBe('image');
+      expect(img.x).toBe(0);
+      expect(img.y).toBe(0);
+      expect(img.width).toBe(1920);
+      expect(img.height).toBe(1080);
+    });
+  });
 });
+

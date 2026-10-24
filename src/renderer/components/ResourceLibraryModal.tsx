@@ -10,10 +10,11 @@ import {
   SavedResource,
   ResourceCategory,
   BUILTIN_CATEGORIES,
+  STARTER_RESOURCES,
   UserFolder,
 } from '../services/resourceLibraryService';
 import { exportSelectedObjectsAsImage } from '../services/documentExportService';
-import { CanvasObject } from '../../shared/types';
+import { CanvasObject, StrokeObject } from '../../shared/types';
 import { v4 as uuidv4 } from 'uuid';
 import './ResourceLibraryModal.css';
 
@@ -27,6 +28,7 @@ export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): Re
   const [resources, setResources] = useState<SavedResource[]>([]);
   const [folders, setFolders] = useState<UserFolder[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<ResourceCategory | 'all' | 'favorites'>('all');
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -71,12 +73,30 @@ export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): Re
     const currentPageIndex = docState.currentPageIndex;
 
     // Clone objects with fresh IDs to prevent ID collisions
-    const clonedObjects = objects.map((obj) => ({
-      ...obj,
-      id: uuidv4(),
-      x: (obj as any).x !== undefined ? (obj as any).x + 40 : undefined,
-      y: (obj as any).y !== undefined ? (obj as any).y + 40 : undefined,
-    }));
+    const clonedObjects = objects.map((obj) => {
+      if (obj.type === 'stroke') {
+        const s = obj as StrokeObject;
+        return {
+          ...s,
+          id: uuidv4(),
+          points: (s.points || []).map((p) => ({ ...p, x: p.x + 40, y: p.y + 40 })),
+          bbox: s.bbox
+            ? {
+                x: s.bbox.x + 40,
+                y: s.bbox.y + 40,
+                width: s.bbox.width,
+                height: s.bbox.height,
+              }
+            : { x: 40, y: 40, width: 100, height: 100 },
+        };
+      }
+      return {
+        ...obj,
+        id: uuidv4(),
+        x: (obj as any).x !== undefined ? (obj as any).x + 40 : undefined,
+        y: (obj as any).y !== undefined ? (obj as any).y + 40 : undefined,
+      };
+    });
 
     commandSystem.execute({
       id: uuidv4(),
@@ -186,6 +206,17 @@ export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): Re
 
   // Filter logic
   const filtered = resources.filter((item) => {
+    // If a specific custom folder is selected, filter by folder ID or collection name
+    if (selectedFolderId) {
+      const folder = folders.find((f) => f.id === selectedFolderId);
+      if (folder) {
+        const matchesFolderId = item.folderId === folder.id;
+        const matchesFolderName =
+          item.collectionName?.trim().toLowerCase() === folder.name.trim().toLowerCase();
+        if (!matchesFolderId && !matchesFolderName) return false;
+      }
+    }
+
     if (selectedCategory === 'favorites') {
       if (!item.favorite) return false;
     } else if (selectedCategory !== 'all') {
@@ -197,6 +228,7 @@ export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): Re
     return (
       item.name.toLowerCase().includes(q) ||
       item.description.toLowerCase().includes(q) ||
+      (item.collectionName && item.collectionName.toLowerCase().includes(q)) ||
       item.tags.some((t) => t.includes(q))
     );
   });
@@ -331,15 +363,21 @@ export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): Re
             <div className="sidebar-section-title">Categories</div>
 
             <button
-              className={`sidebar-cat-btn ${selectedCategory === 'all' ? 'active' : ''}`}
-              onClick={() => setSelectedCategory('all')}
+              className={`sidebar-cat-btn ${selectedCategory === 'all' && !selectedFolderId ? 'active' : ''}`}
+              onClick={() => {
+                setSelectedCategory('all');
+                setSelectedFolderId(null);
+              }}
             >
               <span>🌐</span> All Resources
             </button>
 
             <button
-              className={`sidebar-cat-btn ${selectedCategory === 'favorites' ? 'active' : ''}`}
-              onClick={() => setSelectedCategory('favorites')}
+              className={`sidebar-cat-btn ${selectedCategory === 'favorites' && !selectedFolderId ? 'active' : ''}`}
+              onClick={() => {
+                setSelectedCategory('favorites');
+                setSelectedFolderId(null);
+              }}
             >
               <span>⭐</span> Favorites
             </button>
@@ -349,8 +387,11 @@ export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): Re
             {BUILTIN_CATEGORIES.map((cat) => (
               <button
                 key={cat.id}
-                className={`sidebar-cat-btn ${selectedCategory === cat.id ? 'active' : ''}`}
-                onClick={() => setSelectedCategory(cat.id)}
+                className={`sidebar-cat-btn ${selectedCategory === cat.id && !selectedFolderId ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedCategory(cat.id);
+                  setSelectedFolderId(null);
+                }}
               >
                 <span>{cat.icon}</span> {cat.label}
               </button>
@@ -364,11 +405,24 @@ export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): Re
               </button>
             </div>
 
-            {folders.map((f) => (
-              <div key={f.id} className="folder-item-chip">
-                <span>📁 {f.name}</span>
-              </div>
-            ))}
+            {folders.map((f) => {
+              const count = resources.filter(
+                (r) => r.folderId === f.id || r.collectionName?.toLowerCase() === f.name.toLowerCase()
+              ).length;
+              return (
+                <div
+                  key={f.id}
+                  className={`folder-item-chip ${selectedFolderId === f.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setSelectedFolderId(f.id);
+                    setSelectedCategory('all');
+                  }}
+                >
+                  <span>📁 {f.name}</span>
+                  <span className="folder-item-count">{count}</span>
+                </div>
+              );
+            })}
           </div>
 
           {/* Right Main Grid */}
@@ -387,58 +441,66 @@ export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): Re
 
             {/* Grid */}
             <div className="res-cards-grid">
-              {filtered.map((item) => (
-                <div
-                  key={item.id}
-                  className="res-card-item"
-                  draggable={true}
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('application/json', JSON.stringify(item.objects));
-                  }}
-                  onClick={() => handleInsertObjects(item.objects, item.name)}
-                >
-                  <div className="res-card-thumb-container">
-                    {item.thumbnailUrl.startsWith('data:') ? (
-                      <img src={item.thumbnailUrl} alt={item.name} className="res-thumb-image" />
-                    ) : (
-                      <div className="res-thumb-placeholder">📄</div>
-                    )}
-                    <button
-                      className={`res-favorite-btn ${item.favorite ? 'active' : ''}`}
-                      onClick={(e) => handleToggleFavorite(item.id, e)}
-                      title={item.favorite ? 'Remove from favorites' : 'Add to favorites'}
-                    >
-                      ★
-                    </button>
-                    {item.category === 'user-collections' && (
+              {filtered.map((item) => {
+                const isCustom = STARTER_RESOURCES.every((s) => s.id !== item.id);
+                return (
+                  <div
+                    key={item.id}
+                    className="res-card-item"
+                    draggable={true}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('application/json', JSON.stringify(item.objects));
+                    }}
+                    onClick={() => handleInsertObjects(item.objects, item.name)}
+                  >
+                    <div className="res-card-thumb-container">
+                      {item.thumbnailUrl.startsWith('data:') ? (
+                        <img src={item.thumbnailUrl} alt={item.name} className="res-thumb-image" />
+                      ) : (
+                        <div className="res-thumb-placeholder">📄</div>
+                      )}
                       <button
-                        className="res-delete-btn"
-                        onClick={(e) => handleDeleteResource(item.id, e)}
-                        title="Delete resource"
+                        className={`res-favorite-btn ${item.favorite ? 'active' : ''}`}
+                        onClick={(e) => handleToggleFavorite(item.id, e)}
+                        title={item.favorite ? 'Remove from favorites' : 'Add to favorites'}
                       >
-                        ✕
+                        ★
                       </button>
-                    )}
-                  </div>
+                      {isCustom && (
+                        <button
+                          className="res-delete-btn"
+                          onClick={(e) => handleDeleteResource(item.id, e)}
+                          title="Delete resource"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
 
-                  <div className="res-card-details">
-                    <h4 className="res-card-name" title={item.name}>{item.name}</h4>
-                    <p className="res-card-desc">{item.description}</p>
-                    <div className="res-card-footer">
-                      <span className="res-category-tag">{item.category}</span>
-                      <button
-                        className="btn-insert-now"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleInsertObjects(item.objects, item.name);
-                        }}
-                      >
-                        Insert
-                      </button>
+                    <div className="res-card-details">
+                      <h4 className="res-card-name" title={item.name}>{item.name}</h4>
+                      <p className="res-card-desc">{item.description}</p>
+                      <div className="res-card-footer">
+                        <span className="res-category-tag">{item.category}</span>
+                        {item.collectionName && (
+                          <span className="res-folder-tag" title={`Folder: ${item.collectionName}`}>
+                            📁 {item.collectionName}
+                          </span>
+                        )}
+                        <button
+                          className="btn-insert-now"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleInsertObjects(item.objects, item.name);
+                          }}
+                        >
+                          Insert
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {filtered.length === 0 && (

@@ -76,7 +76,12 @@ export type ShapeType =
   | 'arc'
   | 'polyline'
   | 'recognition'
-  | 'freeform';
+  | 'freeform'
+  | 'cartesianAxes'
+  | 'ruler'
+  | 'protractor'
+  | 'compass';
+
 
 export interface ShapeObject {
   id: string;
@@ -123,6 +128,7 @@ export interface TextObject {
   preset: TextPreset;
   locked: boolean;
   layerId: string;
+  isLatex?: boolean;
 }
 
 // ─── Image ────────────────────────────────────────────────────────────────────
