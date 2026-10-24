@@ -1,0 +1,445 @@
+.whiteboard-canvas-wrapper {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  background: var(--canvas-bg);
+  touch-action: none; /* critical: prevents browser touch handling interfering with stylus */
+  cursor: default;
+}
+
+.canvas-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.bg-canvas {
+  z-index: 1;
+}
+
+.committed-canvas {
+  z-index: 2;
+}
+
+.active-canvas {
+  z-index: 3;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  /* active canvas receives all pointer events */
+}
+
+/* Vertical Floating Action Pill Toolbar (Reference Images 1, 2, 3) */
+.selected-object-vertical-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 22px;
+  padding: 6px 4px;
+  gap: 1px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.15);
+  animation: selPillFadeIn 0.14s ease-out;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 120;
+}
+
+@keyframes selPillFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.sel-pill-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: #1e293b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  position: relative;
+}
+
+.sel-pill-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  transform: scale(1.05);
+}
+
+.sel-pill-btn.active {
+  background: #e2e8f0;
+  color: #0284c7;
+}
+
+.sel-pill-btn.active-clone {
+  background: #e0f2fe;
+  color: #0284c7;
+  box-shadow: inset 0 0 0 1.5px #0284c7;
+}
+
+.sel-pill-btn.drag-duplicate-handle {
+  cursor: grab;
+}
+
+.sel-pill-btn.drag-duplicate-handle:active {
+  cursor: grabbing;
+  background: #e2e8f0;
+}
+
+.sel-pill-btn.delete-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.sel-pill-divider {
+  width: 24px;
+  height: 1px;
+  background: #e2e8f0;
+  margin: 1px 0;
+}
+
+/* ─── Flyout Menus (Reference Image 2 and Image 3) ───────────────────────── */
+.sel-flyout-menu {
+  position: absolute;
+  top: 0;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28), 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 6px 0;
+  min-width: 215px;
+  display: flex;
+  flex-direction: column;
+  z-index: 150;
+  animation: selPillFadeIn 0.12s ease-out;
+}
+
+.flyout-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
+  background: transparent;
+  border: none;
+  color: #1e293b;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.flyout-item:hover {
+  background: #f8fafc;
+  color: #0284c7;
+}
+
+.flyout-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: 16px;
+  color: #334155;
+  flex-shrink: 0;
+}
+
+.flyout-item:hover .flyout-icon {
+  color: #0284c7;
+}
+
+.flyout-label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.flyout-item.has-submenu {
+  display: flex;
+  justify-content: space-between;
+}
+
+.submenu-arrow {
+  color: #94a3b8;
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* ─── Thickness Sub-Flyout ──────────────────────────────────────────────── */
+.thickness-flyout-menu {
+  min-width: 180px;
+  padding: 8px 0;
+}
+
+.flyout-header-title {
+  padding: 4px 16px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 4px;
+}
+
+.flyout-thickness-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.12s ease;
+}
+
+.flyout-thickness-row:hover {
+  background: #f8fafc;
+}
+
+.thickness-bar {
+  flex: 1;
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+.thickness-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  width: 32px;
+  text-align: right;
+}
+
+/* ─── Palette Flyout ────────────────────────────────────────────────────── */
+.palette-flyout-menu {
+  min-width: 180px;
+  padding: 10px;
+}
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.palette-swatch-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  padding: 0;
+}
+
+.palette-swatch-dot:hover {
+  transform: scale(1.22);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* ─── Floating Paste Button ─────────────────────────────────────────────── */
+.canvas-floating-paste-btn {
+  position: absolute;
+  top: 18px;
+  right: 24px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  animation: selPillFadeIn 0.15s ease-out;
+}
+
+.canvas-floating-paste-btn:hover {
+  background: #f8fafc;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  color: #0284c7;
+}
+
+/* ─── Canvas Toast Notification Banner ──────────────────────────────────── */
+.canvas-toast-banner {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(10px);
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  z-index: 200;
+  pointer-events: none;
+  animation: toastSlideDown 0.15s ease-out;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@keyframes toastSlideDown {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ─── Canvas Navigation Floating HUD (Section 9) ─── */
+.canvas-nav-hud {
+  position: absolute;
+  bottom: 84px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(18, 22, 34, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.canvas-nav-btn {
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.canvas-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.canvas-nav-btn:active {
+  transform: scale(0.95);
+}
+
+.canvas-nav-btn.zoom-level-btn {
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  min-width: 44px;
+  color: #a5b4fc;
+}
+
+.canvas-nav-btn.active-pan {
+  background: rgba(108, 99, 255, 0.35);
+  color: #ffffff;
+  border: 1px solid rgba(108, 99, 255, 0.6);
+}
+
+.canvas-nav-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 0 2px;
+}
+
+/* ─── Slide Transitions (Section 10) ─── */
+.canvas-trans-fade {
+  animation: canvasFadeIn 0.35s ease-out;
+}
+@keyframes canvasFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.canvas-trans-slide-left {
+  animation: canvasSlideLeft 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes canvasSlideLeft {
+  from { transform: translateX(60px); opacity: 0.7; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.canvas-trans-slide-right {
+  animation: canvasSlideRight 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes canvasSlideRight {
+  from { transform: translateX(-60px); opacity: 0.7; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.canvas-trans-slide-up {
+  animation: canvasSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes canvasSlideUp {
+  from { transform: translateY(60px); opacity: 0.7; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.canvas-trans-slide-down {
+  animation: canvasSlideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes canvasSlideDown {
+  from { transform: translateY(-60px); opacity: 0.7; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.canvas-trans-wipe {
+  animation: canvasWipe 0.4s ease-out;
+}
+@keyframes canvasWipe {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+

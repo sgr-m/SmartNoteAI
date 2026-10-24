@@ -1,0 +1,365 @@
+/* PagePanel.css — Slide deck manager drawer */
+
+.page-panel {
+  width: 100%;
+  height: 100%;
+  background: rgba(18, 20, 32, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #f1f5f9;
+  font-family: inherit;
+}
+
+.page-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.panel-title-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.panel-lesson-name {
+  font-size: 10.5px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90px;
+}
+
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.panel-tool-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #cbd5e1;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.panel-tool-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.panel-tool-btn.add-btn-highlight {
+  background: rgba(108, 99, 255, 0.3);
+  border-color: rgba(108, 99, 255, 0.6);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.panel-tool-btn.add-btn-highlight:hover {
+  background: #6c63ff;
+}
+
+.page-panel-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.page-thumb-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.page-thumb-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.page-thumb-card.active {
+  background: rgba(108, 99, 255, 0.12);
+  border-color: #6c63ff;
+  box-shadow: 0 4px 14px rgba(108, 99, 255, 0.25);
+}
+
+.page-card-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.page-index-badge {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+.page-thumb-card.active .page-index-badge {
+  background: #6c63ff;
+  color: #ffffff;
+}
+
+.page-card-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #e2e8f0;
+  font-weight: 600;
+  cursor: text;
+}
+
+.page-inline-rename-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #6c63ff;
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 11px;
+  padding: 1px 4px;
+  outline: none;
+}
+
+.page-mini-action-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  transition: color 0.1s ease;
+}
+
+.page-mini-action-btn:hover {
+  color: #ffffff;
+}
+
+.page-thumbnail-viewport {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #1a1a2e;
+}
+
+.page-thumbnail-viewport.active {
+  border-color: rgba(108, 99, 255, 0.5);
+}
+
+.page-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+  position: relative;
+}
+
+.transition-selector-wrapper {
+  position: relative;
+}
+
+.transition-pill-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 2px 7px;
+  font-size: 9.5px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.transition-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.trans-name {
+  white-space: nowrap;
+  max-width: 55px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.transition-popup-dropdown {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  width: 140px;
+  background: rgba(15, 23, 42, 0.98);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trans-dropdown-header {
+  font-size: 10px;
+  font-weight: 700;
+  color: #a5b4fc;
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 2px;
+}
+
+.trans-option-row {
+  background: none;
+  border: none;
+  color: #cbd5e1;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.1s ease;
+}
+
+.trans-option-row:hover {
+  background: rgba(108, 99, 255, 0.25);
+  color: #ffffff;
+}
+
+.trans-option-row.active {
+  background: rgba(108, 99, 255, 0.5);
+  color: #ffffff;
+}
+
+.page-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.page-arrow-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  width: 18px;
+  height: 18px;
+  font-size: 8px;
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.page-arrow-btn:hover:not(:disabled) {
+  background: rgba(108, 99, 255, 0.3);
+  color: #ffffff;
+}
+
+.page-arrow-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.page-card-delete-btn {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 4px;
+  width: 18px;
+  height: 18px;
+  font-size: 9px;
+  color: #f87171;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.page-card-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.4);
+  color: #ffffff;
+}
+
+.page-panel-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.panel-nav-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.panel-nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.panel-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.panel-nav-counter {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  font-family: var(--font-mono, monospace);
+}

@@ -1,0 +1,98 @@
+.titlebar {
+  display: flex;
+  align-items: center;
+  height: var(--titlebar-height);
+  background: var(--titlebar-bg);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+  position: relative;
+  z-index: var(--z-toolbar);
+}
+
+.titlebar-drag-region {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  height: 100%;
+  -webkit-app-region: drag;
+  gap: 16px;
+  padding: 0 16px;
+  min-width: 0;
+}
+
+.titlebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-logo-icon {
+  font-size: 18px;
+  color: var(--accent-primary);
+  filter: drop-shadow(0 0 6px var(--accent-primary));
+}
+
+.titlebar-app-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.titlebar-doc-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  -webkit-app-region: drag;
+}
+
+.titlebar-dirty-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-warning);
+  flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+
+.titlebar-controls {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.win-ctrl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.win-ctrl:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.win-ctrl-close:hover {
+  background: var(--accent-danger);
+  color: #fff;
+}

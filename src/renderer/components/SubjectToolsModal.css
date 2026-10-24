@@ -1,0 +1,231 @@
+.subject-tools-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.subject-tools-modal {
+  width: 90%;
+  max-width: 760px;
+  max-height: 85vh;
+  background: #161b26;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.subject-tools-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: #11141d;
+}
+
+.subject-tools-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.subject-tools-title-group h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.subject-tools-title-group p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.subject-tools-icon {
+  font-size: 24px;
+}
+
+.subject-tools-close {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.subject-tools-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.subject-tools-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #131722;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tab-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tab-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.tab-btn.active {
+  background: linear-gradient(135deg, #0091ff, #0060df);
+  border-color: #0091ff;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 145, 255, 0.35);
+}
+
+.subject-tools-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.tool-card {
+  background: #1b2230;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tool-card:hover {
+  background: #222b3d;
+  border-color: #0091ff;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.tool-card-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.tool-card h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.tool-card p {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
+  flex: 1;
+}
+
+.insert-btn {
+  background: rgba(0, 145, 255, 0.15);
+  border: 1px solid rgba(0, 145, 255, 0.4);
+  color: #38bdf8;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tool-card:hover .insert-btn {
+  background: #0091ff;
+  color: #fff;
+}
+
+.geometry-instrument-card {
+  background: #1b2230;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.instrument-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.instrument-header h4 {
+  margin: 0;
+  font-size: 15px;
+  color: #f8fafc;
+}
+
+.instrument-header p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.ruler-preview-strip {
+  height: 50px;
+  background: linear-gradient(180deg, #f8fafc, #e2e8f0);
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
+  padding: 4px 8px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: flex-start;
+}
+
+.ruler-marks {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.ruler-tick {
+  color: #1e293b;
+  font-size: 11px;
+  font-weight: 700;
+  border-top: 2px solid #0f172a;
+  padding-top: 2px;
+}
+
+.ruler-select {
+  background: #0f172a;
+  color: #f1f5f9;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+}

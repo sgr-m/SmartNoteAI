@@ -1,0 +1,397 @@
+/* ─── PenFlyout (Reference Image 2) ───────────────────────────────────────── */
+
+.smartboard-pen-flyout {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45), 0 2px 10px rgba(0, 0, 0, 0.15);
+  border: 1px solid #c2c9d2;
+  z-index: 1000;
+  width: 480px;
+  user-select: none;
+  animation: flyoutSlideUp 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Black Title Header */
+.flyout-header-bar {
+  background: #1c1e22;
+  border-radius: 11px 11px 0 0;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flyout-title {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.flyout-close-btn {
+  background: none;
+  border: none;
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.8;
+  transition: opacity 0.1s;
+}
+
+.flyout-close-btn:hover {
+  opacity: 1;
+}
+
+/* Split Layout Body: Left Pane (Slider + Tray) and Right Pane (Palette) */
+.flyout-body.flyout-split-layout {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.flyout-left-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* Thickness Row */
+.thickness-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.slider-track-wrapper {
+  flex: 1;
+}
+
+/* Metallic Slider */
+.metallic-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: #d8dde4;
+  border-radius: 3px;
+  outline: none;
+  border: 1px solid #b8bec7;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+  touch-action: none;
+}
+
+.metallic-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffffff 0%, #d8dde4 50%, #8c939d 100%);
+  border: 1px solid #717882;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25), inset 0 1px 0 #ffffff;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.metallic-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.08);
+}
+
+.thickness-val-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  font-family: monospace;
+  min-width: 30px;
+  text-align: right;
+}
+
+/* Checkered Preview Circle */
+.preview-circle-container {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid #c8cdd4;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.preview-circle-checkered {
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(45deg, #e4e7eb 25%, transparent 25%), 
+    linear-gradient(-45deg, #e4e7eb 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #e4e7eb 75%), 
+    linear-gradient(-45deg, transparent 75%, #e4e7eb 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+  background-color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-circle-dot {
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: all 0.1s ease;
+}
+
+/* Inset Recessed Tray for Pen Types */
+.pen-tray-recessed {
+  background: #f0f3f6;
+  border-radius: 10px;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.15), inset 0 1px 1px rgba(0, 0, 0, 0.1);
+  border: 1px solid #d5dadf;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.pen-tray-item {
+  flex: 1;
+  height: 80px;
+  background: none;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 2px;
+  position: relative;
+  transition: all 0.1s ease;
+}
+
+.pen-tray-item:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.pen-tray-item.active {
+  border-color: #0091ff;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 145, 255, 0.25);
+}
+
+/* Right Side Full-Height Color Palette Column */
+.flyout-right-palette-column {
+  border-left: 1px solid #e1e4e8;
+  padding-left: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.color-grid-full-height {
+  display: grid;
+  grid-template-columns: repeat(3, 26px);
+  gap: 5px;
+}
+
+.color-tile-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: transform 0.1s;
+}
+
+.color-tile-btn:hover {
+  transform: scale(1.12);
+}
+
+.color-tile-btn.active {
+  outline: 2.5px solid #e53935;
+  outline-offset: 1px;
+}
+
+.eyedropper-tile {
+  background: #f1f3f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+/* ─── Realistic Pen Graphics ─────────────────────────────────────────────── */
+.pen-graphic {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 22px;
+  height: 60px;
+}
+
+/* 1. Pen / Hard Pen */
+.pencil-graphic {
+  justify-content: flex-start;
+}
+.pencil-tip {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 12px solid #222222;
+}
+.pencil-body {
+  width: 10px;
+  height: 48px;
+  background: #111111;
+  border-radius: 0 0 2px 2px;
+}
+
+/* 2. Flat Brush / Row Pen */
+.flatbrush-graphic {
+  justify-content: flex-start;
+}
+.flatbrush-tip {
+  width: 15px;
+  height: 10px;
+  background: #334155;
+  border-radius: 1px 1px 0 0;
+}
+.flatbrush-ferrule {
+  width: 16px;
+  height: 8px;
+  background: linear-gradient(90deg, #94a3b8, #cbd5e1, #94a3b8);
+  border-radius: 1px;
+}
+.flatbrush-handle {
+  width: 11px;
+  height: 42px;
+  background: #854d0e;
+  border-radius: 0 0 3px 3px;
+}
+
+/* 3. Highlighter */
+.highlighter-graphic {
+  justify-content: flex-start;
+}
+.highlighter-tip {
+  width: 13px;
+  height: 13px;
+  background: #f59e0b;
+  clip-path: polygon(0 0, 100% 40%, 100% 100%, 0 100%);
+}
+.highlighter-body {
+  width: 15px;
+  height: 45px;
+  background: #ffffff;
+  border: 1px solid #d0d7de;
+  border-radius: 0 0 3px 3px;
+}
+
+/* 4. Calligraphy Brush / Soft Brush */
+.calligraphy-graphic {
+  justify-content: flex-start;
+}
+.calligraphy-tip {
+  width: 10px;
+  height: 14px;
+  background: #1e293b;
+  clip-path: polygon(50% 0%, 100% 65%, 80% 100%, 20% 100%, 0% 65%);
+}
+.calligraphy-ferrule {
+  width: 12px;
+  height: 6px;
+  background: #cbd5e1;
+}
+.calligraphy-handle {
+  width: 10px;
+  height: 40px;
+  background: #475569;
+  border-radius: 0 0 4px 4px;
+}
+
+/* 5. Laser Pen */
+.laser-graphic {
+  justify-content: flex-start;
+}
+.laser-beam {
+  width: 4px;
+  height: 8px;
+  background: #ff1744;
+  border-radius: 2px 2px 0 0;
+  box-shadow: 0 0 6px #ff1744;
+}
+.laser-barrel {
+  width: 9px;
+  height: 50px;
+  background: linear-gradient(90deg, #999 0%, #eee 50%, #888 100%);
+  border-radius: 2px 2px 4px 4px;
+}
+
+/* 6. Magic Pen / Smart Pen */
+.magic-graphic {
+  justify-content: flex-start;
+}
+.magic-star {
+  color: #ffb703;
+  font-size: 15px;
+  filter: drop-shadow(0 0 4px #fb8500);
+}
+.magic-wand {
+  width: 6px;
+  height: 44px;
+  background: linear-gradient(180deg, #ffd166 0%, #118ab2 100%);
+  border-radius: 3px;
+}
+
+/* 7. Texture Pen / Pattern Pen */
+.pattern-graphic {
+  justify-content: flex-start;
+}
+.pattern-eraser {
+  width: 10px;
+  height: 8px;
+  background: #ff85a1;
+  border-radius: 3px 3px 0 0;
+}
+.pattern-body {
+  width: 10px;
+  height: 50px;
+  background: repeating-linear-gradient(45deg, #6c757d, #6c757d 4px, #e9ecef 4px, #e9ecef 8px);
+  border-radius: 0 0 2px 2px;
+}
+
+/* Bottom Callout Pointer Arrow */
+.pen-flyout-pointer {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 10px solid #ffffff;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.15));
+}
+
+@keyframes flyoutSlideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}

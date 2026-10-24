@@ -1,0 +1,210 @@
+/* ─── EraserFlyout (Reference Image 3) ────────────────────────────────────── */
+
+.smartboard-eraser-flyout {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45), 0 2px 10px rgba(0, 0, 0, 0.15);
+  border: 1px solid #c2c9d2;
+  z-index: 1000;
+  width: 420px;
+  user-select: none;
+  animation: flyoutSlideUp 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.eraser-flyout-body {
+  padding: 12px 14px;
+}
+
+.eraser-modes-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Mode Button Card */
+.eraser-mode-card {
+  width: 68px;
+  height: 68px;
+  background: linear-gradient(180deg, #ffffff 0%, #edf1f5 100%);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  transition: all 0.12s ease;
+}
+
+.eraser-mode-card:hover {
+  background: linear-gradient(180deg, #f6f8fa 0%, #e2e8f0 100%);
+}
+
+.eraser-mode-card.active {
+  border-color: #0091ff;
+  box-shadow: 0 0 0 1px #0091ff, 0 4px 12px rgba(0, 145, 255, 0.25);
+  background: #f0f7ff;
+}
+
+/* Blue Eraser Graphic */
+.eraser-blue-body {
+  width: 38px;
+  height: 22px;
+  background: linear-gradient(135deg, #2196f3 0%, #1565c0 100%);
+  border-radius: 4px;
+  position: relative;
+  transform: rotate(-35deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 2px 3px 6px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.eraser-blue-body::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  background: #ffffff;
+  border-radius: 4px 0 0 4px;
+  box-shadow: inset 1px 0 2px rgba(0, 0, 0, 0.15);
+}
+
+.eraser-label-text {
+  font-size: 8px;
+  font-weight: 700;
+  color: #ffffff;
+  font-family: sans-serif;
+  letter-spacing: 0.3px;
+  transform: rotate(-3deg);
+  margin-left: 6px;
+}
+
+.eraser-blue-body.small {
+  width: 28px;
+  height: 18px;
+}
+.eraser-blue-body.small .eraser-label-text {
+  font-size: 6px;
+}
+
+.eraser-blue-body.mini {
+  width: 28px;
+  height: 18px;
+}
+.eraser-blue-body.mini .eraser-label-text {
+  font-size: 6px;
+}
+
+/* Dashed box wrapper for object eraser */
+.dashed-box-wrapper {
+  border: 2px dashed #94a3b8;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 3. Slide to Clear Pages */
+.slide-to-clear-track {
+  flex: 1;
+  height: 68px;
+  background: #f0f3f6;
+  border-radius: 12px;
+  border: 1px solid #d5dadf;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.slide-to-clear-track.cleared {
+  background: #ecfdf5;
+  border-color: #10b981;
+}
+
+.slide-fill-progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.35) 100%);
+  border-radius: 12px;
+  pointer-events: none;
+  transition: width 0.05s ease-out;
+}
+
+.slide-eraser-thumb {
+  width: 44px;
+  height: 44px;
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  z-index: 2;
+  touch-action: none;
+  user-select: none;
+  pointer-events: none;
+  transition: transform 0.05s ease-out;
+}
+
+.slide-eraser-thumb:active {
+  cursor: grabbing;
+}
+
+.slide-track-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  user-select: none;
+  pointer-events: none;
+}
+
+.slide-arrows {
+  color: #94a3b8;
+  font-size: 11px;
+  letter-spacing: 2px;
+}
+
+.slide-page-target {
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+}
+
+/* Bottom Callout Pointer Arrow */
+.eraser-flyout-pointer {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 10px solid #ffffff;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.15));
+}

@@ -1,0 +1,359 @@
+/* DocumentImportModal.css */
+
+.doc-import-modal {
+  width: 760px;
+  max-width: 95vw;
+  max-height: 85vh;
+  background: rgba(18, 20, 32, 0.96);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(108, 99, 255, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #f1f5f9;
+  animation: docModalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes docModalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.doc-import-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.doc-import-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.doc-import-icon {
+  font-size: 20px;
+}
+
+.doc-import-title-group h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.doc-import-close-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 18px;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.doc-import-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.doc-import-dropzone {
+  margin: 20px 24px;
+  border: 2px dashed rgba(108, 99, 255, 0.4);
+  border-radius: 14px;
+  padding: 36px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(108, 99, 255, 0.04);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.doc-import-dropzone:hover {
+  border-color: #6c63ff;
+  background: rgba(108, 99, 255, 0.08);
+  transform: translateY(-1px);
+}
+
+.dropzone-icon {
+  font-size: 38px;
+  margin-bottom: 4px;
+}
+
+.dropzone-text {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.dropzone-subtext {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.doc-import-file-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.file-info-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-badge-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.file-badge-meta {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.change-file-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-size: 11.5px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.change-file-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.doc-import-warning {
+  margin: 10px 24px 0;
+  padding: 10px 14px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #fde68a;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+.doc-import-progress-bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  width: 100%;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #6c63ff;
+  transition: width 0.2s ease;
+}
+
+.doc-import-selection-area {
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.selection-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.selection-count {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.selection-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.sel-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #94a3b8;
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.sel-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.doc-pages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.doc-page-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.doc-page-card:hover {
+  border-color: rgba(108, 99, 255, 0.5);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.doc-page-card.selected {
+  border-color: #6c63ff;
+  box-shadow: 0 0 0 1px #6c63ff;
+}
+
+.page-card-preview {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.pdf-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.generic-thumb-box {
+  color: #1e293b;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.page-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #cbd5e1;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.page-checkbox {
+  accent-color: #6c63ff;
+  cursor: pointer;
+}
+
+.import-settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+}
+
+.import-setting-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.import-setting-label input {
+  accent-color: #6c63ff;
+}
+
+.doc-import-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 14px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.doc-cancel-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #cbd5e1;
+  padding: 8px 18px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.doc-cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.doc-submit-btn {
+  background: #6c63ff;
+  border: none;
+  border-radius: 8px;
+  color: #ffffff;
+  padding: 8px 22px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.doc-submit-btn:hover:not(:disabled) {
+  background: #5b52e0;
+  box-shadow: 0 4px 12px rgba(108, 99, 255, 0.4);
+}
+
+.doc-submit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

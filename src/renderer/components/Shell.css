@@ -1,0 +1,101 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-primary);
+  position: relative;
+}
+
+.shell-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.shell-workspace {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Slide-out Page Drawer on right or left */
+.shell-slideout-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 58px; /* Leave bottom toolbar accessible */
+  width: 220px;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-default);
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.4);
+  z-index: 50;
+  animation: slideInRight 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+
+/* Global Windows Explorer Drag-and-Drop Overlay */
+.shell-drag-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 14, 26, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: fadeIn 0.15s ease;
+}
+
+.shell-drag-dialog {
+  border: 2px dashed rgba(77, 166, 255, 0.7);
+  background: rgba(25, 35, 60, 0.75);
+  padding: 40px 60px;
+  border-radius: 20px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.shell-drag-dialog .drag-icon {
+  font-size: 54px;
+  animation: bounce 1s infinite alternate ease-in-out;
+}
+
+@keyframes bounce {
+  from { transform: translateY(0); }
+  to { transform: translateY(-8px); }
+}
+
+.shell-drag-dialog h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.shell-drag-dialog p {
+  margin: 0;
+  font-size: 14px;
+  color: #94a3b8;
+}
+

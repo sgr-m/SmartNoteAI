@@ -1,0 +1,177 @@
+/* ─── MenuFlyout (Reference Image 5) ───────────────────────────────────────── */
+
+.smartboard-menu-flyout {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 12px;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: 1px solid #d0d7de;
+  z-index: 1000;
+  width: 320px;
+  user-select: none;
+  animation: flyoutSlideUp 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes flyoutSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.menu-flyout-content {
+  display: flex;
+  padding: 10px;
+  gap: 10px;
+}
+
+/* Left column of rounded 3D buttons */
+.menu-left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 170px;
+}
+
+.menu-category-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #edf1f5 100%);
+  border: 1px solid #c2c9d2;
+  border-radius: 10px;
+  color: #1f2328;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.1s ease;
+}
+
+.menu-category-btn:hover {
+  background: linear-gradient(180deg, #f6f8fa 0%, #e1e7ee 100%);
+  border-color: #abb3be;
+}
+
+.menu-category-btn.active {
+  background: linear-gradient(180deg, #2b3038 0%, #171a1d 100%);
+  color: #ffffff;
+  border-color: #171a1d;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+}
+
+.menu-category-btn.exit-btn {
+  margin-top: 4px;
+}
+
+.menu-category-btn.exit-btn:hover {
+  color: #d32f2f;
+}
+
+.menu-btn-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.menu-btn-icon {
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menu-arrow {
+  font-size: 10px;
+  color: #8c959f;
+}
+
+.menu-category-btn.active .menu-arrow {
+  color: #ffffff;
+}
+
+/* Right column submenu */
+.menu-right-column {
+  flex: 1;
+  background: #f6f8fa;
+  border-radius: 10px;
+  border: 1px solid #e1e4e8;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.submenu-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.submenu-tile-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  background: #ffffff;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  transition: all 0.1s ease;
+}
+
+.submenu-tile-btn:hover {
+  background: #eef3f9;
+  border-color: #0091ff;
+  transform: translateY(-1px);
+}
+
+.submenu-icon-box {
+  font-size: 20px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.badge-new {
+  position: absolute;
+  top: -4px;
+  right: -8px;
+  background: #2ea44f;
+  color: white;
+  font-size: 8px;
+  font-weight: bold;
+  padding: 1px 3px;
+  border-radius: 4px;
+}
+
+.submenu-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #24292f;
+}
+
+/* Bottom Pointer Arrow */
+.menu-flyout-pointer {
+  position: absolute;
+  bottom: -10px;
+  left: 28px;
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 10px solid #ffffff;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.15));
+}
