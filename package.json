@@ -20,7 +20,10 @@
     "test:ui": "vitest --ui",
     "lint": "eslint src --ext .ts,.tsx --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "typecheck:main": "tsc -p tsconfig.main.json --noEmit"
+    "typecheck:main": "tsc -p tsconfig.main.json --noEmit",
+    "dev:site": "vite --config website/vite.config.ts website",
+    "build:site": "vite build --config website/vite.config.ts website",
+    "preview:site": "vite preview --config website/vite.config.ts website"
   },
   "dependencies": {
     "@types/katex": "^0.16.8",
