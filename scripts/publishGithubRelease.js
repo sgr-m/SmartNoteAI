@@ -18,11 +18,27 @@ async function main() {
   const repo = 'sgr-m/SmartNoteAI';
   const tag = 'v0.1.0';
   const releaseName = 'SmartNoteAI v0.1.0 — Windows Release';
+
+  const crypto = require('crypto');
+  const installerPath = path.resolve(__dirname, '..', 'release', 'SmartNoteAI Setup 0.1.0.exe');
+  const blockmapPath = path.resolve(__dirname, '..', 'release', 'SmartNoteAI Setup 0.1.0.exe.blockmap');
+
+  function getSha256(filePath) {
+    if (!fs.existsSync(filePath)) return 'FILE_NOT_FOUND';
+    const buffer = fs.readFileSync(filePath);
+    return crypto.createHash('sha256').update(buffer).digest('hex').toUpperCase();
+  }
+
+  const installerSha = getSha256(installerPath);
+  const blockmapSha = getSha256(blockmapPath);
+  const installerSizeMB = fs.existsSync(installerPath) ? (fs.statSync(installerPath).size / (1024 * 1024)).toFixed(2) : '103.8';
+  const blockmapSizeKB = fs.existsSync(blockmapPath) ? (fs.statSync(blockmapPath).size / 1024).toFixed(1) : '114';
+
   const releaseBody = `## SmartNoteAI v0.1.0 (Windows Release) 🎓🚀
 
 Welcome to the official public release of **SmartNoteAI**!
 
-SmartNoteAI is a high-performance interactive digital whiteboard and teaching suite designed specifically for Windows 10 & 11.
+SmartNoteAI is a high-performance, open-source interactive digital whiteboard and teaching suite designed specifically for Windows 10 & 11, released under the **GNU General Public License v3.0 or later (GPL-3.0-or-later)**.
 
 ---
 
@@ -66,8 +82,8 @@ SmartNoteAI is a high-performance interactive digital whiteboard and teaching su
 
 | File | Size | SHA-256 Checksum |
 | :--- | :--- | :--- |
-| **\`SmartNoteAI.Setup.0.1.0.exe\`** | ~102 MB | \`9F51BABB3F2D6D255E0A5BCC60FD207C4669D0584E30F5CA403C7E2546607139\` |
-| **\`SmartNoteAI.Setup.0.1.0.exe.blockmap\`** | ~114 KB | \`CED28A9F5370DF255C0D6A8558890DA1065A742C0F16338D289801FA3741A34B\` |
+| **\`SmartNoteAI.Setup.0.1.0.exe\`** | ~${installerSizeMB} MB | \`${installerSha}\` |
+| **\`SmartNoteAI.Setup.0.1.0.exe.blockmap\`** | ~${blockmapSizeKB} KB | \`${blockmapSha}\` |
 
 ---
 
@@ -78,8 +94,9 @@ As this is a newly published open-source binary, Windows Defender SmartScreen ma
 
 ### 🔗 Documentation Links:
 - [Source Code](https://github.com/sgr-m/SmartNoteAI)
-- [Changelog](https://github.com/sgr-m/SmartNoteAI/blob/main/CHANGELOG.md)
+- [License (GNU GPLv3)](https://github.com/sgr-m/SmartNoteAI/blob/main/LICENSE)
 - [Trademark & Branding Policy](https://github.com/sgr-m/SmartNoteAI/blob/main/TRADEMARKS.md)
+- [Changelog](https://github.com/sgr-m/SmartNoteAI/blob/main/CHANGELOG.md)
 - [Voluntary Donations (UPI & PayPal)](https://github.com/sgr-m/SmartNoteAI/blob/main/DONATE.md)
 `;
 
@@ -106,9 +123,6 @@ As this is a newly published open-source binary, Windows Defender SmartScreen ma
     prerelease: false,
   });
   console.log(`Release created successfully! ID: ${release.id}`);
-
-  const installerPath = path.resolve(__dirname, '..', 'release', 'SmartNoteAI Setup 0.1.0.exe');
-  const blockmapPath = path.resolve(__dirname, '..', 'release', 'SmartNoteAI Setup 0.1.0.exe.blockmap');
 
   if (fs.existsSync(installerPath)) {
     console.log('Uploading installer binary asset...');
