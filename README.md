@@ -187,7 +187,7 @@ If you find this software useful, you can optionally support its continued devel
 - **Supported Apps**: Google Pay, PhonePe, Paytm, BHIM, CRED
 
 ### 🌐 PayPal (International)
-- **PayPal Link**: [`YOUR_PAYPAL_DONATION_URL_HERE`](YOUR_PAYPAL_DONATION_URL_HERE)
+- **PayPal Link**: [`COMING SOON`](YOUR_PAYPAL_DONATION_URL_HERE)
 
 *(See [DONATE.md](DONATE.md) for further information regarding voluntary support.)*
 
