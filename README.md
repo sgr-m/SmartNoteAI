@@ -28,33 +28,40 @@ Traditional digital whiteboard tools often suffer from significant latency, requ
 
 ## 🖼️ Application Screenshots
 
-### 1. Interactive Whiteboard with Math Teaching Notes
-![Whiteboard Lecture with Equations](assets/Screenshots/Home%20with%20drawing.PNG)
-*Live classroom lecture with handwritten notes, quadratic formulas, vector diagrams, and bottom floating dock.*
+### 1. Interactive Whiteboard: Advanced STEM & Math Derivations
+![Interactive Whiteboard with Formulas and Instruments](assets/Screenshots/hero-whiteboard.png)
+*Live classroom lecture canvas showing Navier-Stokes, Gauss Divergence, Cauchy Integral, and Riemann Zeta formulas, binary search tree, 50 cm metric ruler, 180° protractor, and cosine waveform.*
 
 ---
 
-### 2. STEM Lecture: Computer Science & LaTeX Equation Editor
-![Full Adder Concept with Formulas](assets/Screenshots/notes%20handwriten%20plus%20latex%20with%20diagram.PNG)
-*Digital electronics truth table, logic circuit diagram, and built-in LaTeX formula editor.*
+### 2. Live Desktop Annotation: VS Code & Python Jupyter Notebook
+![Desktop Annotation over Code](assets/Screenshots/desktop-annotation.png)
+*Annotating directly over Visual Studio Code, Python Jupyter Notebook, and Matplotlib data visualization with handwritten notes, arrows, and the floating bottom dock.*
 
 ---
 
-### 3. Subject Teaching Tools (Math Ruler, Protractor & Triangle)
-![Classroom Subject Tools](assets/Screenshots/subject%20teaching%20tool.PNG)
-*Interactive 180° protractor, 30 cm metric ruler, and geometric drawing instruments.*
+### 3. STEM Subject Instruments (50 cm Ruler, 180° Protractor & Compass)
+![Classroom Subject Tools](assets/Screenshots/subject-tools.png)
+*Active mathematical instruments on canvas including a 50 cm metric ruler, 180° classroom protractor measuring 60° angles on an equilateral triangle, and dynamic compass arc ($r = 10.1\text{ cm}$).*
 
 ---
 
-### 4. Presentation Focus & Spotlight Tool
-![Spotlight Presentation Overlay](assets/Screenshots/Focus%20Tool.PNG)
-*Spotlight overlay dimming background distractions to direct student focus to specific board sections.*
+### 4. Presentation Spotlight & Waveform Timing
+![Spotlight Presentation Overlay](assets/Screenshots/focus-tool.png)
+*Circular spotlight beam dimming the background canvas to direct student focus to propagation delay ($t_{pd}$) and square wave pulse transitions.*
 
 ---
 
-### 5. Teaching Resource Library & Asset Management
-![Teaching Resource Library](assets/Screenshots/Teaching%20Resource%20Library.PNG)
-*Integrated library for managing and inserting custom diagrams, shapes, and teaching templates.*
+### 5. STEM Lecture: Logic Circuits & Native KaTeX Formula Editor
+![Full Adder Concept with Formulas](assets/Screenshots/notes-latex.png)
+*Digital electronics truth table, Full Adder logic circuit diagram, and built-in offline LaTeX formula editor with vector fonts.*
+
+---
+
+### 6. Subject Teaching Tools & STEM Lesson Modules
+![Subject Teaching Tools](assets/Screenshots/resource-library.png)
+*Calibrated STEM formula modules, Cartesian axes, Pythagorean theorem, and calculus derivative rules ready for one-click board insertion.*
+
 
 ---
 
