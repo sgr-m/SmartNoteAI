@@ -1,5 +1,5 @@
 import heroWhiteboard from '../assets/images/hero-whiteboard.png';
-import focusTool from '../assets/images/focus-tool.png';
+import desktopAnnotation from '../assets/images/desktop-annotation.png';
 import notesLatex from '../assets/images/notes-latex.png';
 
 export interface FeatureItem {
@@ -21,7 +21,7 @@ export const primaryFeatures: FeatureItem[] = [
     description:
       'Engineered specifically for digitizer tablets including XP-Pen Deco Mini 7, Wacom One/Intuos, Huion Inspiroy, and Windows Ink displays. Experience dynamic pressure sensitivity that responds naturally to your hand with palm rejection for touch displays.',
     image: heroWhiteboard,
-    imageAlt: 'SmartNoteAI canvas showing handwritten mathematical derivations and diagrams',
+    imageAlt: 'SmartNoteAI whiteboard showing handwritten advanced math formulas, geometry tools, and logic diagrams',
     highlights: [
       'Native Chromium DirectManipulationStylus API integration',
       'Continuous pressure sensitivity smoothly modulating stroke width',
@@ -33,13 +33,13 @@ export const primaryFeatures: FeatureItem[] = [
   {
     id: 'desktop-annotation',
     kicker: 'Live Teaching Workflow',
-    title: 'Live Desktop Overlay & Rectangular Screen Snip',
+    title: 'Live Desktop Overlay & Code Annotation',
     description:
-      'Instantly toggle to Desktop Mode to annotate directly over active code in VS Code, PowerPoint slides, browser simulations, or video lessons with a floating dock. Capture any screen area with the Snip Tool and paste it directly onto your whiteboard.',
-    image: focusTool,
-    imageAlt: 'SmartNoteAI desktop spotlight focus and annotation mode over Windows applications',
+      'Instantly toggle to Desktop Mode to annotate directly over active code in VS Code, Jupyter notebooks, PowerPoint slides, browser simulations, or video lessons with a floating dock. Capture any screen area with the Snip Tool and paste it directly onto your whiteboard.',
+    image: desktopAnnotation,
+    imageAlt: 'SmartNoteAI desktop annotation over VS Code Jupyter notebook and matplotlib graph',
     highlights: [
-      'Draw over live Windows applications without interrupting lecture flow',
+      'Draw and highlight directly over live code, IDEs, and browser simulations',
       'Area Screen Snip: crop any diagram or equation directly onto canvas',
       'Floating presentation toolbar with quick tool flyouts',
       'Instant toggle back to full whiteboard with saved annotations',
@@ -83,7 +83,7 @@ export const secondaryFeatures: SecondaryFeature[] = [
     id: 'subject-instruments',
     title: 'STEM Subject Instruments',
     description:
-      'Interactive 30 cm metric ruler, 180° protractor, 30-60-90° set square, and coordinate axes calibrated for precise classroom demonstrations.',
+      'Interactive metric ruler, 180° protractor, compass radius arc, and coordinate axes calibrated for classroom demonstrations.',
     icon: 'ruler',
   },
   {
