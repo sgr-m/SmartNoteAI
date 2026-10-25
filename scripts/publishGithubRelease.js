@@ -17,12 +17,12 @@ async function main() {
 
   const repo = 'sgr-m/SmartNoteAI';
   const tag = 'v0.1.0';
-  const releaseName = 'SmartBoard Studio v0.1.0 — Windows Initial Release';
-  const releaseBody = `## SmartBoard Studio v0.1.0 (Windows Initial Release) 🎓🚀
+  const releaseName = 'SmartNoteAI v0.1.0 — Windows Initial Release';
+  const releaseBody = `## SmartNoteAI v0.1.0 (Windows Initial Release) 🎓🚀
 
-Welcome to the first official release of **SmartBoard Studio**!
+Welcome to the first official release of **SmartNoteAI**!
 
-SmartBoard Studio is a high-performance interactive digital smartboard and teaching suite built for Windows 10 & 11.
+SmartNoteAI is a high-performance interactive digital smartboard and teaching suite built for Windows 10 & 11.
 
 ---
 
@@ -55,42 +55,46 @@ SmartBoard Studio is a high-performance interactive digital smartboard and teach
 ---
 
 ### 📦 Installation:
-Download \`SmartBoard.Studio.Setup.0.1.0.exe\` below and run the installer on Windows 10 or 11.
+Download \`SmartNoteAI.Setup.0.1.0.exe\` below and run the installer on Windows 10 or 11.
 `;
 
-  console.log('Checking for existing release for tag:', tag);
-  const existingRelease = await apiRequest(`/repos/${repo}/releases/tags/${tag}`, 'GET', token);
+  console.log('Checking for existing releases in repo...');
+  const existingReleases = await apiRequest(`/repos/${repo}/releases`, 'GET', token);
 
-  let release;
-  if (existingRelease && existingRelease.id) {
-    console.log(`Release already exists with ID ${existingRelease.id}.`);
-    release = existingRelease;
-  } else {
-    console.log('Creating new GitHub release...');
-    release = await apiRequest(`/repos/${repo}/releases`, 'POST', token, {
-      tag_name: tag,
-      target_commitish: 'main',
-      name: releaseName,
-      body: releaseBody,
-      draft: false,
-      prerelease: false,
-    });
-    console.log(`Release created successfully! ID: ${release.id}`);
+  if (Array.isArray(existingReleases)) {
+    for (const rel of existingReleases) {
+      if (rel.tag_name === tag || rel.name.includes('SmartBoard Studio')) {
+        console.log(`Deleting previous release ${rel.id} (${rel.name})...`);
+        await apiRequest(`/repos/${repo}/releases/${rel.id}`, 'DELETE', token);
+        console.log(`✓ Deleted old release ${rel.id}`);
+      }
+    }
   }
 
-  const installerPath = path.resolve(__dirname, '..', 'release', 'SmartBoard Studio Setup 0.1.0.exe');
-  const blockmapPath = path.resolve(__dirname, '..', 'release', 'SmartBoard Studio Setup 0.1.0.exe.blockmap');
+  console.log('Creating clean GitHub release for SmartNoteAI...');
+  const release = await apiRequest(`/repos/${repo}/releases`, 'POST', token, {
+    tag_name: tag,
+    target_commitish: 'main',
+    name: releaseName,
+    body: releaseBody,
+    draft: false,
+    prerelease: false,
+  });
+  console.log(`Release created successfully! ID: ${release.id}`);
+
+  const installerPath = path.resolve(__dirname, '..', 'release', 'SmartNoteAI Setup 0.1.0.exe');
+  const blockmapPath = path.resolve(__dirname, '..', 'release', 'SmartNoteAI Setup 0.1.0.exe.blockmap');
 
   if (fs.existsSync(installerPath)) {
     console.log('Uploading installer binary asset...');
-    await uploadAsset(release, installerPath, 'SmartBoard.Studio.Setup.0.1.0.exe', 'application/vnd.microsoft.portable-executable', token);
+    await uploadAsset(release, installerPath, 'SmartNoteAI.Setup.0.1.0.exe', 'application/vnd.microsoft.portable-executable', token);
   } else {
     console.warn('Installer file not found at:', installerPath);
   }
 
   if (fs.existsSync(blockmapPath)) {
     console.log('Uploading blockmap asset...');
-    await uploadAsset(release, blockmapPath, 'SmartBoard.Studio.Setup.0.1.0.exe.blockmap', 'application/octet-stream', token);
+    await uploadAsset(release, blockmapPath, 'SmartNoteAI.Setup.0.1.0.exe.blockmap', 'application/octet-stream', token);
   }
 
   console.log('\n🎉 Windows Release v0.1.0 is published and live at:');
@@ -106,7 +110,7 @@ function apiRequest(endpoint, method, token, data = null) {
       method: method,
       headers: {
         'Authorization': `token ${token}`,
-        'User-Agent': 'SmartBoard-Studio-Release-Uploader',
+        'User-Agent': 'SmartNoteAI-Release-Uploader',
         'Accept': 'application/vnd.github.v3+json',
       },
     };
@@ -139,7 +143,7 @@ function apiRequest(endpoint, method, token, data = null) {
 function uploadAsset(release, filePath, assetName, contentType, token) {
   return new Promise((resolve, reject) => {
     const stats = fs.statSync(filePath);
-    const uploadUrlTemplate = release.upload_url; // e.g. https://uploads.github.com/repos/.../releases/1234/assets{?name,label}
+    const uploadUrlTemplate = release.upload_url;
     const cleanUploadUrl = uploadUrlTemplate.replace(/\{.*?\}/, '');
     const uploadUrl = new URL(`${cleanUploadUrl}?name=${encodeURIComponent(assetName)}`);
 
@@ -151,7 +155,7 @@ function uploadAsset(release, filePath, assetName, contentType, token) {
       method: 'POST',
       headers: {
         'Authorization': `token ${token}`,
-        'User-Agent': 'SmartBoard-Studio-Release-Uploader',
+        'User-Agent': 'SmartNoteAI-Release-Uploader',
         'Accept': 'application/vnd.github.v3+json',
         'Content-Type': contentType,
         'Content-Length': stats.size,
@@ -189,7 +193,9 @@ function uploadAsset(release, filePath, assetName, contentType, token) {
   });
 }
 
-main().catch((err) => {
-  console.error('Release failed:', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('Release failed:', err);
+    process.exit(1);
+  });
+}

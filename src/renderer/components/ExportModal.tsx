@@ -97,7 +97,7 @@ export function ExportModal({ onClose }: ExportModalProps): React.ReactElement {
         setExportProgress(pct);
       });
 
-      const title = docState.lesson.meta?.title?.trim() || 'SmartBoard_Lesson';
+      const title = docState.lesson.meta?.title?.trim() || 'SmartNoteAI_Lesson';
       const cleanTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_');
       downloadBlob(blob, `${cleanTitle}.pdf`);
 
@@ -118,7 +118,7 @@ export function ExportModal({ onClose }: ExportModalProps): React.ReactElement {
 
     try {
       const currentPage = docState.lesson.pages[docState.currentPageIndex];
-      const title = docState.lesson.meta?.title?.trim() || 'SmartBoard_Lesson';
+      const title = docState.lesson.meta?.title?.trim() || 'SmartNoteAI_Lesson';
       const cleanTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_');
 
       if (imageScope === 'selection') {
@@ -163,7 +163,7 @@ export function ExportModal({ onClose }: ExportModalProps): React.ReactElement {
   const handleExportLesson = () => {
     try {
       const json = exportNativeLesson(docState.lesson);
-      const title = docState.lesson.meta?.title?.trim() || 'SmartBoard_Lesson';
+      const title = docState.lesson.meta?.title?.trim() || 'SmartNoteAI_Lesson';
       const cleanTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_');
       downloadText(json, `${cleanTitle}.sbl`, 'application/json');
       setToastMessage?.('Native editable lesson (.sbl) exported!');
@@ -177,7 +177,7 @@ export function ExportModal({ onClose }: ExportModalProps): React.ReactElement {
   const handleExportCsv = () => {
     try {
       const csv = exportLessonToCsv(docState.lesson);
-      const title = docState.lesson.meta?.title?.trim() || 'SmartBoard_Lesson';
+      const title = docState.lesson.meta?.title?.trim() || 'SmartNoteAI_Lesson';
       const cleanTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_');
       downloadText(csv, `${cleanTitle}_structure.csv`, 'text/csv');
       setToastMessage?.('Lesson structure CSV exported!');
@@ -196,7 +196,7 @@ export function ExportModal({ onClose }: ExportModalProps): React.ReactElement {
             <span className="export-header-icon">📤</span>
             <div>
               <h3>Export Lesson & Resources</h3>
-              <p className="export-header-sub">Milestone 3, Section 12 — Printable PDF, High-Res Images & Native Formats</p>
+              <p className="export-header-sub">Printable PDF, High-Resolution Images & Vector Graphics</p>
             </div>
           </div>
           <button className="export-close-btn" onClick={onClose} aria-label="Close export dialog">✕</button>
@@ -441,7 +441,7 @@ export function ExportModal({ onClose }: ExportModalProps): React.ReactElement {
             <div className="export-info-box">
               <div className="info-box-icon">💾</div>
               <div className="info-box-content">
-                <h4>Native Editable SmartBoard Lesson (.sbl)</h4>
+                <h4>Native Editable SmartNoteAI Lesson (.sbl)</h4>
                 <p>
                   Saves the entire lesson including all slides, vector strokes, editable shapes, text layers,
                   backgrounds, transitions, and metadata in a documented, versioned native format.
@@ -453,7 +453,7 @@ export function ExportModal({ onClose }: ExportModalProps): React.ReactElement {
               <div><strong>Lesson Title:</strong> {docState.lesson.meta.title}</div>
               <div><strong>Subject:</strong> {docState.lesson.meta.subject || 'General'}</div>
               <div><strong>Total Slides:</strong> {docState.lesson.pages.length}</div>
-              <div><strong>Schema Version:</strong> 1.0 (SmartBoard Native Format)</div>
+              <div><strong>Schema Version:</strong> 1.0 (SmartNoteAI Native Format)</div>
             </div>
           </div>
         )}

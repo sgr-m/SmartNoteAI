@@ -1,9 +1,9 @@
 {
-  "name": "smartboard-studio",
+  "name": "smartnoteai",
   "version": "0.1.0",
-  "description": "SmartBoard Studio — High-performance Windows teaching application",
+  "description": "SmartNoteAI — Intelligent Digital Whiteboard & Teaching Application",
   "main": "dist/main/main.js",
-  "author": "SmartBoard Studio Team",
+  "author": "SmartNoteAI Team",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -55,8 +55,8 @@
     "wait-on": "^8.0.3"
   },
   "build": {
-    "appId": "com.smartboardstudio.app",
-    "productName": "SmartBoard Studio",
+    "appId": "com.smartnoteai.app",
+    "productName": "SmartNoteAI",
     "win": {
       "target": [
         {
@@ -76,7 +76,7 @@
       "createStartMenuShortcut": true,
       "installerIcon": "assets/icons/icon.ico",
       "uninstallerIcon": "assets/icons/icon.ico",
-      "shortcutName": "SmartBoard Studio"
+      "shortcutName": "SmartNoteAI"
     },
     "files": [
       "dist/**/*",

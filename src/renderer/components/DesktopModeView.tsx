@@ -93,8 +93,8 @@ export function DesktopModeView(): React.ReactElement {
             handleReturnToBoard();
           }
         }}
-        title="Return to SmartBoard (Preserves Full Screen) — Drag to move"
-        aria-label="Return to SmartBoard"
+        title="Return to Whiteboard (SmartNoteAI) — Drag to move"
+        aria-label="Return to Whiteboard"
       >
         <svg
           viewBox="0 0 24 24"

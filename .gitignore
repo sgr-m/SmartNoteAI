@@ -5,5 +5,3 @@ release/
 .env
 .env.local
 *.sbl
-assets/icons/*.ico
-!assets/icons/.gitkeep

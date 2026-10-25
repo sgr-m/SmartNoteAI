@@ -40,6 +40,7 @@ async function createMainWindow(): Promise<BrowserWindow> {
   const { width, height } = primaryDisplay.workAreaSize;
 
   const win = new BrowserWindow({
+    title: 'SmartNoteAI',
     width: Math.min(1600, width),
     height: Math.min(960, height),
     minWidth: 1024,
@@ -195,10 +196,10 @@ function setupApplicationMenu(): void {
     {
       label: 'Help',
       submenu: [
-        { label: 'About SmartBoard Studio', click: () => dialog.showMessageBox({
-          title: 'SmartBoard Studio',
-          message: 'SmartBoard Studio v0.1.0',
-          detail: 'High-performance Windows smartboard teaching application.\nBuilt with Electron + React + TypeScript.',
+        { label: 'About SmartNoteAI', click: () => dialog.showMessageBox({
+          title: 'SmartNoteAI',
+          message: 'SmartNoteAI v0.1.0',
+          detail: 'Intelligent digital whiteboard and teaching application.\nBuilt with Electron + React + TypeScript.',
           buttons: ['OK'],
         }) },
       ],

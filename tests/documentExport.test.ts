@@ -170,7 +170,7 @@ describe('Document Export Subsystem (Section 12)', () => {
       const parsed = JSON.parse(exportedJson);
 
       expect(parsed.schemaVersion).toBe(1);
-      expect(parsed.generator).toBe('SmartBoard Studio v0.1.0');
+      expect(parsed.generator).toBe('SmartNoteAI v0.1.0');
       expect(parsed.meta.title).toBe('Quantum Physics 101');
       expect(parsed.pages.length).toBe(2);
       expect(parsed.pages[0].objects[0].shapeType).toBe('rect');

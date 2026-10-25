@@ -496,7 +496,7 @@ export function exportNativeLesson(lesson: LessonDocument): string {
     ...lesson,
     schemaVersion: 1,
     exportedAt: new Date().toISOString(),
-    generator: 'SmartBoard Studio v0.1.0',
+    generator: 'SmartNoteAI v0.1.0',
   };
   return JSON.stringify(versionedDocument, null, 2);
 }

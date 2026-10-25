@@ -3400,7 +3400,7 @@ export class DrawingEngine {
     ctx.font = `500 ${brandFont}px Inter, sans-serif`;
     ctx.fillStyle = '#64748b';
     ctx.textAlign = 'right';
-    ctx.fillText(`SmartBoard Studio • ${totalCm} cm`, x + rLen - 16 * s, y + rH - 12 * s);
+    ctx.fillText(`SmartNoteAI • ${totalCm} cm`, x + rLen - 16 * s, y + rH - 12 * s);
 
     ctx.restore();
   }

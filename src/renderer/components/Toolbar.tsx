@@ -209,11 +209,11 @@ export function Toolbar({
           )}
         </div>
 
-        {/* Section 14.1 Desktop button: Access Windows desktop or minimize board without closing lesson */}
+        {/* Desktop button: Minimize whiteboard to interact with desktop */}
         <button
           className="dock-icon-btn"
           onClick={() => onDesktop?.()}
-          title="Desktop: Access Windows desktop without closing lesson (Section 14.1)"
+          title="Desktop Mode: Minimize whiteboard to interact with desktop (D)"
           aria-label="Show Desktop"
         >
           <div className="monitor-icon-graphic">🖥️</div>
@@ -223,7 +223,7 @@ export function Toolbar({
         <button
           className={`dock-icon-btn ${isPresentationMode ? 'active' : ''}`}
           onClick={() => onTogglePresentationMode?.()}
-          title="Presentation Mode / Full Screen Teaching (F11)"
+          title="Presentation Mode: Full screen teaching view (F11)"
           aria-label="Presentation Mode"
         >
           <div className="monitor-icon-graphic">⛶</div>
@@ -233,7 +233,7 @@ export function Toolbar({
         <button
           className={`dock-icon-btn ${activePresentationTool === 'spotlight' ? 'active' : ''}`}
           onClick={() => onActivatePresentationTool?.('spotlight')}
-          title="Spotlight Focus Tool (Section 15)"
+          title="Spotlight: Focus audience attention on a specific area"
           aria-label="Spotlight"
         >
           <div className="monitor-icon-graphic">🔦</div>
@@ -243,7 +243,7 @@ export function Toolbar({
         <button
           className={`dock-icon-btn ${activePresentationTool === 'annotation' ? 'active' : ''}`}
           onClick={() => onActivatePresentationTool?.('annotation')}
-          title="Desktop Annotation (Section 14.2)"
+          title="Desktop Annotation: Draw directly over any open application"
           aria-label="Desktop Annotation"
         >
           <div className="monitor-icon-graphic">✏️</div>
@@ -253,7 +253,7 @@ export function Toolbar({
         <button
           className="dock-icon-btn"
           onClick={() => onToggleTimer?.()}
-          title="Timer & Stopwatch (Section 15)"
+          title="Classroom Timer & Stopwatch"
           aria-label="Timer"
         >
           <div className="monitor-icon-graphic">⏱️</div>
@@ -263,7 +263,7 @@ export function Toolbar({
         <button
           className="dock-icon-btn"
           onClick={() => onScreenshot?.()}
-          title="Screenshot Capture & Save/Insert (Section 14 & 15)"
+          title="Screen Capture: Snip region and insert onto board"
           aria-label="Screenshot"
         >
           <div className="monitor-icon-graphic">📸</div>
@@ -272,7 +272,7 @@ export function Toolbar({
         <button
           className="dock-icon-btn"
           onClick={() => onOpenBackgroundModal?.()}
-          title="Page Background, Grids & Dimensions (Section 9)"
+          title="Page Style: Background color, grids, lines & dimensions"
           aria-label="Background & Dimensions"
         >
           <div className="bg-icon-graphic">🎨</div>
@@ -281,7 +281,7 @@ export function Toolbar({
         <button
           className="dock-icon-btn"
           onClick={() => onOpenLayersModal?.()}
-          title="Page Layers Manager (Section 9)"
+          title="Page Layers: Reorder, lock, and manage canvas elements"
           aria-label="Layers Manager"
         >
           <div className="layers-icon-graphic">📑</div>

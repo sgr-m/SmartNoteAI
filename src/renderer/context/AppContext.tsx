@@ -321,7 +321,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
   const saveLessonAs = useCallback(async () => {
     const result = await window.electronAPI.invoke('file:saveDialog', {
       title: 'Save Lesson',
-      filters: [{ name: 'SmartBoard Lesson', extensions: ['sbl'] }],
+      filters: [{ name: 'SmartNoteAI Lesson', extensions: ['sbl'] }],
       defaultPath: docState.lesson.meta.title + '.sbl',
     }) as string | null;
     if (!result) return;
@@ -331,7 +331,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
   const openLesson = useCallback(async () => {
     const files = await window.electronAPI.invoke('file:openDialog', {
       title: 'Open Lesson',
-      filters: [{ name: 'SmartBoard Lesson', extensions: ['sbl'] }],
+      filters: [{ name: 'SmartNoteAI Lesson', extensions: ['sbl'] }],
     }) as string[] | null;
     if (!files || files.length === 0) return;
     const json = await window.electronAPI.invoke('file:readText', files[0]) as string;

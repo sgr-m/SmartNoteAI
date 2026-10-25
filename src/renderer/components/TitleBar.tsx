@@ -30,8 +30,8 @@ export function TitleBar({ title, isDirty }: TitleBarProps): React.ReactElement 
     <div className="titlebar">
       <div className="titlebar-drag-region">
         <div className="titlebar-logo">
-          <span className="titlebar-logo-icon">⬡</span>
-          <span className="titlebar-app-name">SmartBoard Studio</span>
+          <img src="./assets/icons/icon.png" alt="SmartNoteAI" className="titlebar-logo-img" />
+          <span className="titlebar-app-name">SmartNoteAI</span>
         </div>
         <div className="titlebar-doc-title">
           <span>{title}</span>

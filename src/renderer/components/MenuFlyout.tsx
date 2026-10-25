@@ -135,7 +135,7 @@ export function MenuFlyout({
           <button
             className="menu-category-btn exit-btn"
             onClick={() => {
-              if (window.confirm('Save and exit SmartBoard Studio?')) {
+              if (window.confirm('Save and exit SmartNoteAI?')) {
                 window.close();
               }
             }}
@@ -309,7 +309,7 @@ export function MenuFlyout({
             <div style={{ padding: 10, fontSize: 12, color: '#333' }}>
               <div style={{ fontWeight: 600, marginBottom: 8 }}>Preferences</div>
               <p style={{ color: '#666', lineHeight: 1.5, marginBottom: 12 }}>
-                SmartBoard Studio v0.1.0<br />
+                SmartNoteAI v0.1.0<br />
                 Bottom docked classroom interface.<br />
                 Hardware acceleration: 120 FPS capable.<br />
                 Latency optimized.

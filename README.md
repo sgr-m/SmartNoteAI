@@ -1,11 +1,15 @@
-# SmartBoard Studio (SmartNoteAI) 🎓✨
+<p align="center">
+  <img src="assets/logo.png" alt="SmartNoteAI Logo" width="360" />
+</p>
+
+# SmartNoteAI 🎓✨
 
 [![Release](https://img.shields.io/github/v/release/sgr-m/SmartNoteAI?color=blue&label=Windows%20Release)](https://github.com/sgr-m/SmartNoteAI/releases)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://github.com/sgr-m/SmartNoteAI/releases)
 [![Tests](https://img.shields.io/badge/Tests-172%20passing-brightgreen)](https://github.com/sgr-m/SmartNoteAI)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**SmartBoard Studio** is a high-performance, modern interactive smartboard and digital teaching suite built for Windows 10 & 11. Designed specifically for educators, presenters, and creators, it delivers a low-latency digital canvas, hardware stylus digitizer support, instant live desktop annotation, smart shape recognition, and native LaTeX equation rendering.
+**SmartNoteAI** is a high-performance, modern interactive smartboard and digital teaching suite built for Windows 10 & 11. Designed specifically for educators, presenters, and creators, it delivers a low-latency digital canvas, hardware stylus digitizer support, instant live desktop annotation, smart shape recognition, and native LaTeX equation rendering.
 
 ---
 
@@ -43,10 +47,10 @@
 
 ## 📥 Download & Installation
 
-### Windows Installer (Recommended)
+### Windows Installer
 1. Go to the [**Releases**](https://github.com/sgr-m/SmartNoteAI/releases) page.
-2. Download the latest `SmartBoard.Studio.Setup.0.1.0.exe`.
-3. Run the installer and launch **SmartBoard Studio** from your Start Menu or Desktop shortcut.
+2. Download `SmartNoteAI.Setup.0.1.0.exe`.
+3. Run the installer and launch **SmartNoteAI** from your Start Menu or Desktop shortcut.
 
 ---
 
@@ -70,7 +74,7 @@
 
 ## 🛠️ Development Setup
 
-If you want to contribute to SmartBoard Studio or run it locally from source:
+If you want to contribute to SmartNoteAI or run it locally from source:
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) (v18 or higher recommended)
@@ -105,8 +109,8 @@ Runs the full Vitest suite (172 unit and integration tests across drawing, prese
 npm run dist
 ```
 Generates an installer inside the `release/` directory:
-- `release/SmartBoard Studio Setup 0.1.0.exe`
-- `release/win-unpacked/SmartBoard Studio.exe`
+- `release/SmartNoteAI Setup 0.1.0.exe`
+- `release/win-unpacked/SmartNoteAI.exe`
 
 ---
 

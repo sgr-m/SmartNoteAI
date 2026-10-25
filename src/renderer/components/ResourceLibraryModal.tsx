@@ -185,7 +185,7 @@ export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): Re
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `SmartBoard_Resources_${Date.now()}.sbr`;
+    a.download = `SmartNoteAI_Resources_${Date.now()}.sbr`;
     a.click();
     URL.revokeObjectURL(url);
     setToastMessage?.('Exported resource collection package (.sbr)');
@@ -411,7 +411,7 @@ export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): Re
             <span className="res-lib-icon">📚</span>
             <div>
               <h3>Teaching Resource Library</h3>
-              <p>Milestone 3, Section 13 — Windows Folder & Reusable Asset System</p>
+              <p>Visual Assets, Graphics, Shapes & Reusable Teaching Materials</p>
             </div>
           </div>
           <div className="res-lib-header-actions">
@@ -447,7 +447,7 @@ export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): Re
         <div className="res-lib-location-bar">
           <span className="location-icon">📁</span>
           <span className="location-text">
-            <strong>Resource Location:</strong> Documents\SmartboardStudio\Resources
+            <strong>Resource Location:</strong> Documents\SmartNoteAI\Resources
           </span>
           <span className="location-status">✓ Synced with Windows File System</span>
         </div>

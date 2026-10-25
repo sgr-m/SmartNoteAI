@@ -309,7 +309,7 @@ export function Shell(): React.ReactElement {
             <div className="shell-drag-overlay">
               <div className="shell-drag-dialog">
                 <span className="drag-icon">📂</span>
-                <h3>Drop files into SmartBoard Studio</h3>
+                <h3>Drop files into SmartNoteAI</h3>
                 <p>Supports PDFs, PowerPoint slides (.pptx), Images (PNG, JPG, SVG), and Lessons (.sbl)</p>
               </div>
             </div>
