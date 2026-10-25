@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="SmartNoteAI Logo" width="360" />
+  <img src="assets/logo.png" alt="SmartNoteAI Logo" width="380" />
 </p>
 
 # SmartNoteAI 🎓✨
@@ -9,52 +9,57 @@
 [![Tests](https://img.shields.io/badge/Tests-172%20passing-brightgreen)](https://github.com/sgr-m/SmartNoteAI)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**SmartNoteAI** is a high-performance, modern interactive smartboard and digital teaching suite built for Windows 10 & 11. Designed specifically for educators, presenters, and creators, it delivers a low-latency digital canvas, hardware stylus digitizer support, instant live desktop annotation, smart shape recognition, and native LaTeX equation rendering.
+**SmartNoteAI** is a high-performance interactive digital whiteboard and teaching suite designed specifically for Windows 10 & 11. Built from the ground up for educators, lecturers, content creators, and remote teachers, it delivers ultra-low-latency drawing, dedicated hardware graphics tablet & stylus digitizer integration, live desktop overlay annotation, intelligent geometric shape recognition, and offline LaTeX mathematical formula typography.
 
 ---
 
-## 🚀 Key Features
+## 🚀 Feature Highlights & Hardware Compatibility
 
-### 🖊️ Hardware Stylus & Tablet Support
-- **Precision Digitizer Integration**: Engineered for graphics tablets including **XP-Pen Deco Mini 7**, **Wacom One/Intuos**, **Huion Inspiroy**, and Windows Ink styluses.
-- **Natural Pressure Sensitivity**: Smooth line-weight variation based on pen pressure with zero lag.
-- **Dual Mouse & Tablet Handling**: Seamlessly switch between mouse clicks and stylus drawing without dropping strokes or pointer lock conflicts.
-- **Palm Rejection**: Rejects accidental multi-touch palm inputs during active drawing.
+### 🖊️ Hardware Stylus & Tablet Compatibility
+- **Full Windows Ink & DirectManipulation Support**: Built-in support for USB and wireless drawing tablets including:
+  - **XP-Pen Deco Mini 7**, Deco Series, and Artist Pen Displays
+  - **Wacom One**, **Wacom Intuos**, and **Cintiq**
+  - **Huion Inspiroy** and **Kamvas** Series
+  - Microsoft Surface Pen and active Windows stylus digitizers
+- **Dynamic Pressure Sensitivity**: Real-time line-width variation adapting smoothly from light pencil sketching to bold marker strokes without latency.
+- **Dual Mouse & Digitizer Coordination**: Freely interact with mouse clicks and pen drawing without stylus event drops, pointer lock freezes, or driver conflicts.
+- **Palm Rejection**: Rejects accidental multi-touch finger inputs while pen tip is engaged.
 
-### 🖥️ Live Desktop Annotation Mode
-- **Draw Over Any Application**: Switch instantly to Desktop Mode with a floating toolbar to annotate directly over presentations, PDFs, coding editors (like VS Code), browsers, or videos.
+### 🖥️ Live Desktop Annotation & Screen Snip
+- **Annotate Over Any App**: Minimize to a compact floating toolbar and draw notes, formulas, and highlights directly over active desktop windows (VS Code, PowerPoint, web browsers, videos).
 - **Interactive Click-Through**: Interact with underlying desktop apps and draw notes simultaneously.
-- **Area Screen Snip & Paste**: Capture any rectangular region of your screen with one click and automatically paste it onto your active whiteboard canvas for discussion.
+- **Area Screen Snip**: Capture any rectangular region of your desktop with a single click and have it immediately inserted onto your active whiteboard canvas.
 
-### 📐 Intelligent Shape & Geometric Recognition
-- **Real-Time Shape Identification**: Draw rough geometric shapes—triangles, circles, rectangles, polygons, or straight lines—and have them automatically aligned and snapped to clean geometric figures.
-- **Adjustable Line Styles**: Full control over stroke width, color palette, opacity, and fill.
+### 📺 True Fullscreen Presentation Mode
+- **Seamless Window Restoration**: Returning from desktop mode instantly restores true borderless full-screen view without floating window bounds or desktop background interference.
+- **Single-Click Presentation Toggle**: Direct synchronization between the presentation icon and native Windows fullscreen mode.
+- **Interactive Teaching Dock**: Ergonomic bottom dock with quick flyouts for pen colors, highlighters, multi-mode erasers, shapes, and page management.
+
+### 📐 Intelligent Geometric & Shape Recognition
+- **Hand-Drawn Shape Snapping**: Quickly sketch rough shapes—triangles, circles, ellipses, rectangles, polygons, and straight lines—and have them automatically aligned into clean geometric figures.
+- **Customizable Geometry**: Adjust stroke thickness, line colors, opacity, and fill.
 
 ### 🧮 Mathematical & Scientific Typography (LaTeX / KaTeX)
-- **Built-in Equation Editor**: Write mathematical expressions in LaTeX syntax and render them as crisp, scalable vector formulas on the board.
-- **Offline Fonts Included**: Pre-bundled KaTeX font families without any external web CDN dependency.
+- **Built-in Formula Editor**: Render complex mathematical and scientific equations directly using LaTeX syntax.
+- **Offline Fonts Included**: High-resolution vector KaTeX font glyphs pre-bundled locally with zero internet dependency.
 
 ### 📑 Document Import & Export
-- **PDF Import**: Open multi-page PDF textbooks, assignments, and slides directly onto canvas pages with local PDF worker parsing.
-- **High-Resolution Export**: Export your completed lessons to **PDF documents**, high-resolution **PNG images**, or vector **SVG files**.
-
-### 🎨 Classroom & Presentation Modes
-- **Immersive Full-Screen Presentation**: Borderless, distraction-free view designed for projectors, TVs, and large interactive touchscreens.
-- **Floating Island Dock**: Ergonomic bottom dock with quick-access flyouts for pen colors, highlighters, eraser modes, shapes, and page navigation.
-- **Custom Board Backgrounds**: Switch between Blackboard green, Whiteboard classic, grid paper, coordinate planes, or lined notebook styles.
+- **PDF Document Import**: Import multi-page textbooks, question papers, and slides directly onto whiteboard pages.
+- **Multi-Format Export**: Export completed lectures to printable **PDF**, high-resolution **PNG**, or vector **SVG**.
+- **Native Lesson Format (`.sbl`)**: Save and reload fully interactive, editable lesson files.
 
 ---
 
 ## 📥 Download & Installation
 
-### Windows Installer
-1. Go to the [**Releases**](https://github.com/sgr-m/SmartNoteAI/releases) page.
-2. Download `SmartNoteAI.Setup.0.1.0.exe`.
-3. Run the installer and launch **SmartNoteAI** from your Start Menu or Desktop shortcut.
+### Windows Installer (Recommended)
+1. Visit the [**Releases**](https://github.com/sgr-m/SmartNoteAI/releases) section.
+2. Download the latest installer: **`SmartNoteAI.Setup.0.1.0.exe`**.
+3. Run the setup file and launch **SmartNoteAI** from your Desktop or Start Menu.
 
 ---
 
-## ⌨️ Keyboard Shortcuts
+## ⌨️ Keyboard Shortcuts Cheat Sheet
 
 | Shortcut | Action |
 | :--- | :--- |
@@ -67,14 +72,13 @@
 | `Ctrl` + `Z` | Undo |
 | `Ctrl` + `Y` / `Ctrl` + `Shift` + `Z` | Redo |
 | `Ctrl` + `+` / `Ctrl` + `-` | Zoom In / Out |
-| `F11` | Toggle Fullscreen / Presentation Mode |
+| `Ctrl` + `0` | Fit Page |
+| `F11` | Toggle Fullscreen Presentation Mode |
 | `D` | Toggle Desktop Mode |
 
 ---
 
-## 🛠️ Development Setup
-
-If you want to contribute to SmartNoteAI or run it locally from source:
+## 🛠️ Development & Building from Source
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) (v18 or higher recommended)
@@ -92,37 +96,36 @@ cd SmartNoteAI/smartboard-studio
 npm install
 ```
 
-### 3. Start development server
+### 3. Run development server
 ```bash
 npm run dev
 ```
-This concurrently starts the Vite hot-module-reloading frontend and Electron main process.
 
-### 4. Run tests
+### 4. Run automated test suite
 ```bash
 npm test
 ```
-Runs the full Vitest suite (172 unit and integration tests across drawing, presentation, PDF import, and desktop snip subsystems).
+Runs all 172 unit and integration tests across drawing engine, stylus event processing, presentation synchronization, and PDF import.
 
-### 5. Build production executable
+### 5. Package Windows installer
 ```bash
 npm run dist
 ```
-Generates an installer inside the `release/` directory:
-- `release/SmartNoteAI Setup 0.1.0.exe`
-- `release/win-unpacked/SmartNoteAI.exe`
+Generates production binaries in `release/`:
+- `release/SmartNoteAI Setup 0.1.0.exe` (NSIS installer)
+- `release/win-unpacked/SmartNoteAI.exe` (Portable executable)
 
 ---
 
 ## 🏗️ Architecture & Technology Stack
 
-- **Framework**: [Electron](https://www.electronjs.org/) (Chromium + Node.js)
-- **UI Engine**: [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
-- **Bundler**: [Vite](https://vitejs.dev/)
-- **Math Engine**: [KaTeX](https://katex.org/)
-- **Document Engine**: [pdfjs-dist](https://mozilla.github.io/pdf.js/) & [jsPDF](https://github.com/parallax/jsPDF)
-- **Testing**: [Vitest](https://vitest.dev/)
-- **Packaging**: [electron-builder](https://www.electron.build/)
+- **Application Container**: [Electron 34](https://www.electronjs.org/) (Chromium + Node.js)
+- **Frontend Engine**: [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
+- **Bundler & Build Tool**: [Vite](https://vitejs.dev/)
+- **Mathematical Formula Engine**: [KaTeX](https://katex.org/)
+- **PDF & Document Processing**: [pdfjs-dist](https://mozilla.github.io/pdf.js/) & [jsPDF](https://github.com/parallax/jsPDF)
+- **Unit & Integration Testing**: [Vitest](https://vitest.dev/)
+- **Windows Packaging**: [electron-builder](https://www.electron.build/)
 
 ---
 
