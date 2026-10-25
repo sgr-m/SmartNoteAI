@@ -59,6 +59,7 @@ export const Gallery: React.FC = () => {
                   width="600"
                   height="338"
                   loading="lazy"
+                  style={{ objectFit: item.fitMode || 'cover' }}
                 />
                 <div className="gallery-overlay-badge">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

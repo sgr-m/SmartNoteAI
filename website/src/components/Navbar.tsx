@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import logoImg from '../assets/logo.png';
 
 export const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -17,7 +18,7 @@ export const Navbar: React.FC = () => {
       <div className="container">
         <nav className="navbar" aria-label="Main Navigation">
           <a href="#" className="brand-logo" aria-label="SmartNoteAI Home">
-            <img src="./logo.png" alt="SmartNoteAI Logo" width="38" height="38" />
+            <img src={logoImg} alt="SmartNoteAI Logo" width="38" height="38" />
             <span className="brand-name">SmartNoteAI</span>
             <span className="brand-badge">v0.1.0</span>
           </a>

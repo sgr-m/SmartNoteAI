@@ -1,4 +1,5 @@
 import React from 'react';
+import logoImg from '../assets/logo.png';
 
 export const Footer: React.FC = () => {
   const scrollToTop = () => {
@@ -11,7 +12,7 @@ export const Footer: React.FC = () => {
         <div className="footer-top">
           <div className="footer-brand">
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <img src="./logo.png" alt="SmartNoteAI Logo" width="34" height="34" style={{ borderRadius: '6px' }} />
+              <img src={logoImg} alt="SmartNoteAI Logo" width="34" height="34" style={{ borderRadius: '6px' }} />
               <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '1.2rem', color: '#ffffff' }}>
                 SmartNoteAI
               </span>

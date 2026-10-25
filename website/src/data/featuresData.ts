@@ -1,3 +1,7 @@
+import heroWhiteboard from '../assets/images/hero-whiteboard.png';
+import focusTool from '../assets/images/focus-tool.png';
+import notesLatex from '../assets/images/notes-latex.png';
+
 export interface FeatureItem {
   id: string;
   kicker: string;
@@ -16,7 +20,7 @@ export const primaryFeatures: FeatureItem[] = [
     title: 'Precision Stylus Digitizers & Real-Time Inking',
     description:
       'Engineered specifically for digitizer tablets including XP-Pen Deco Mini 7, Wacom One/Intuos, Huion Inspiroy, and Windows Ink displays. Experience dynamic pressure sensitivity that responds naturally to your hand with palm rejection for touch displays.',
-    image: './images/hero-whiteboard.png',
+    image: heroWhiteboard,
     imageAlt: 'SmartNoteAI canvas showing handwritten mathematical derivations and diagrams',
     highlights: [
       'Native Chromium DirectManipulationStylus API integration',
@@ -32,7 +36,7 @@ export const primaryFeatures: FeatureItem[] = [
     title: 'Live Desktop Overlay & Rectangular Screen Snip',
     description:
       'Instantly toggle to Desktop Mode to annotate directly over active code in VS Code, PowerPoint slides, browser simulations, or video lessons with a floating dock. Capture any screen area with the Snip Tool and paste it directly onto your whiteboard.',
-    image: './images/focus-tool.png',
+    image: focusTool,
     imageAlt: 'SmartNoteAI desktop spotlight focus and annotation mode over Windows applications',
     highlights: [
       'Draw over live Windows applications without interrupting lecture flow',
@@ -48,7 +52,7 @@ export const primaryFeatures: FeatureItem[] = [
     title: 'Native Offline LaTeX Engine & Math Formulas',
     description:
       'Write complex mathematical formulas, physics equations, and computer science logic circuits effortlessly. Featuring a bundled offline KaTeX engine with complete mathematical fonts, your symbols render crisply at any zoom level without internet access.',
-    image: './images/notes-latex.png',
+    image: notesLatex,
     imageAlt: 'Full Adder logic concept, truth table, and LaTeX formula editor in SmartNoteAI',
     highlights: [
       '100% offline bundled KaTeX engine with SIL OFL vector math fonts',

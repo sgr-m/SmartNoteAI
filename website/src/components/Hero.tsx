@@ -1,4 +1,5 @@
 import React from 'react';
+import heroWhiteboard from '../assets/images/hero-whiteboard.png';
 
 export const Hero: React.FC = () => {
   return (
@@ -94,7 +95,7 @@ export const Hero: React.FC = () => {
             </div>
 
             <img
-              src="./images/hero-whiteboard.png"
+              src={heroWhiteboard}
               alt="SmartNoteAI digital whiteboard application interface with handwritten algebra notes, formulas, and floating dock"
               className="window-screenshot"
               width="1962"
