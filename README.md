@@ -4,6 +4,7 @@
 
 # SmartNoteAI 🎓✨
 
+[![Official Website](https://img.shields.io/badge/Official%20Website-SmartNoteAI-0078D6?logo=googlechrome&logoColor=white)](https://sgr-m.github.io/SmartNoteAI/)
 [![Release](https://img.shields.io/github/v/release/sgr-m/SmartNoteAI?color=blue&label=Windows%20Release)](https://github.com/sgr-m/SmartNoteAI/releases)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://github.com/sgr-m/SmartNoteAI/releases)
 [![Tests](https://img.shields.io/badge/Tests-172%20passing-brightgreen)](https://github.com/sgr-m/SmartNoteAI)
@@ -11,6 +12,8 @@
 [![Contribute](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 **SmartNoteAI** is a high-performance, open-source interactive digital whiteboard and teaching software engineered for Windows 10 & 11. Designed specifically for educators, STEM instructors, remote tutors, and content creators, SmartNoteAI delivers low-latency canvas drawing, deep hardware graphics tablet & stylus digitizer integration, live desktop overlay annotation, intelligent geometric shape recognition, and native offline LaTeX formula rendering.
+
+> 🌐 **Official SmartNoteAI Website**: Visit [https://sgr-m.github.io/SmartNoteAI/](https://sgr-m.github.io/SmartNoteAI/) for more information, interactive feature demos, documentation, and verified installer downloads.
 
 ---
 
@@ -109,8 +112,9 @@ Traditional digital whiteboard tools often suffer from significant latency, requ
 ## 📥 Official Windows Download & Installation
 
 ### Official Download
-Always download official, virus-scanned releases from the project's original repository:
-👉 [**Download Latest Windows Release (GitHub Releases)**](https://github.com/sgr-m/SmartNoteAI/releases)
+Always download official, virus-scanned releases from the project's original repository or the [Official SmartNoteAI Website](https://sgr-m.github.io/SmartNoteAI/):
+👉 [**Download Latest Windows Release (GitHub Releases)**](https://github.com/sgr-m/SmartNoteAI/releases)  
+🌐 **Official SmartNoteAI Website**: Visit [https://sgr-m.github.io/SmartNoteAI/](https://sgr-m.github.io/SmartNoteAI/) for more information and product updates.
 
 - **Installer File**: `SmartNoteAI.Setup.0.1.0.exe` (~102 MB)
 - **SHA-256 Checksum**: `9F51BABB3F2D6D255E0A5BCC60FD207C4669D0584E30F5CA403C7E2546607139`
@@ -202,8 +206,9 @@ If you find this software useful, you can optionally support its continued devel
 
 ## 🌐 Official Links
 
+- **Official SmartNoteAI Website**: [https://sgr-m.github.io/SmartNoteAI/](https://sgr-m.github.io/SmartNoteAI/) — *Visit [https://sgr-m.github.io/SmartNoteAI/](https://sgr-m.github.io/SmartNoteAI/) for more information, interactive feature demonstrations, and full documentation.*
 - **Official Repository**: [https://github.com/sgr-m/SmartNoteAI](https://github.com/sgr-m/SmartNoteAI)
-- **Official Website**: `https://sgr-m.github.io/SmartNoteAI/` *(Coming Soon)*
+- **Official Releases**: [https://github.com/sgr-m/SmartNoteAI/releases](https://github.com/sgr-m/SmartNoteAI/releases)
 - **Issue Tracker**: [https://github.com/sgr-m/SmartNoteAI/issues](https://github.com/sgr-m/SmartNoteAI/issues)
 - **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Code of Conduct**: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
