@@ -4,7 +4,7 @@
   "description": "SmartNoteAI — Intelligent Digital Whiteboard & Teaching Application",
   "main": "dist/main/main.js",
   "author": "SmartNoteAI Team",
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "private": true,
   "scripts": {
     "dev": "concurrently --kill-others \"npm run dev:vite\" \"npm run dev:electron\"",

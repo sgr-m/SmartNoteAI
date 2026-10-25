@@ -7,7 +7,7 @@
 [![Release](https://img.shields.io/github/v/release/sgr-m/SmartNoteAI?color=blue&label=Windows%20Release)](https://github.com/sgr-m/SmartNoteAI/releases)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://github.com/sgr-m/SmartNoteAI/releases)
 [![Tests](https://img.shields.io/badge/Tests-172%20passing-brightgreen)](https://github.com/sgr-m/SmartNoteAI)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Contribute](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 **SmartNoteAI** is a high-performance, open-source interactive digital whiteboard and teaching software engineered for Windows 10 & 11. Designed specifically for educators, STEM instructors, remote tutors, and content creators, SmartNoteAI delivers low-latency canvas drawing, deep hardware graphics tablet & stylus digitizer integration, live desktop overlay annotation, intelligent geometric shape recognition, and native offline LaTeX formula rendering.
@@ -207,13 +207,16 @@ If you find this software useful, you can optionally support its continued devel
 
 ## 📄 License & Intellectual Property
 
-This project is open-source software licensed under the [MIT License](LICENSE).  
-Copyright (c) 2026 Sagar Maindola.
+This project is open-source software licensed under the **[GNU General Public License v3.0 or later (GPL-3.0-or-later)](LICENSE)**.  
+Copyright (C) 2026 Sagar Maindola.
+
+Under the GNU GPLv3, you are free to run, study, share, and modify this software. Any distributed modified versions or derivative works must also be licensed under the GNU GPLv3 and disclose their complete source code.
 
 Third-party libraries, fonts, and dependencies retain their respective licenses:
-- KaTeX (MIT) & KaTeX Fonts (SIL OFL 1.1)
-- PDF.js (Apache License 2.0)
+- KaTeX (MIT License) & KaTeX Fonts (SIL OFL 1.1)
+- PDF.js (Apache License 2.0 — compatible with GPLv3)
 - jsPDF (MIT License)
 - React & Electron (MIT License)
 
 See [TRADEMARKS.md](TRADEMARKS.md) for information regarding project branding, name, and logo guidelines.
+

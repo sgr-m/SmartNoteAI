@@ -1,57 +1,75 @@
 # Trademark and Branding Policy
 
-This policy explains the guidelines for using the **SmartNoteAI** name, logos, and associated branding.
+This document outlines the trademark and brand usage policy for the **SmartNoteAI** project.
 
 ---
 
-## 1. Purpose and Philosophy
+## 1. Relationship Between GNU GPLv3 and Trademarks
 
-The software source code of **SmartNoteAI** is released under an open-source license, allowing anyone to inspect, modify, fork, and distribute the code in accordance with the terms of the license.
+The source code of **SmartNoteAI** is published under the **GNU General Public License version 3.0 or later (GPL-3.0-or-later)**. 
 
-However, open-source software licenses do **not** grant trademark or branding rights. The purpose of this Trademark Policy is to:
-1. Protect users by ensuring they know whether a software download is the official, verified release from the original creator or a third-party fork.
-2. Prevent confusion, deceptive representations, or false implications of official endorsement or affiliation.
-3. Allow the open-source community to freely modify and fork the codebase without infringing upon the project's identity.
+Open-source software licenses govern the copyright in software code, granting broad freedoms to inspect, modify, fork, and distribute the program. However, copyright licenses **do not grant trademark rights**. In accordance with **Section 7(e) of the GNU General Public License v3**, the copyright holders explicitly decline to grant trademark rights:
 
----
+> *"GNU GPLv3, Section 7(e): Declining to grant rights under trademark law for use of some trade names, trademarks, or service marks."*
 
-## 2. The SmartNoteAI Marks
-
-The "SmartNoteAI Marks" include:
-- The project name: **SmartNoteAI**
-- The official SmartNoteAI logo (neon circuits document with brain silhouette)
-- The official release installer names and icons
+While the GNU GPLv3 guarantees your legal freedom to modify and share the code, this Trademark Policy prevents misleading third-party distributions, counterfeit releases, and false claims of official endorsement.
 
 ---
 
-## 3. Allowed Uses (No Permission Needed)
+## 2. Protected Brand Assets
 
-You may use the name "SmartNoteAI" without prior written permission to:
-- **Truthfully refer to the original software**: E.g., *"This lecture was created using SmartNoteAI"* or *"Tutorial: How to use SmartNoteAI for online teaching"*.
-- **Describe compatibility or integration**: E.g., *"Custom plugin for SmartNoteAI"* or *"Export filter compatible with SmartNoteAI"*.
-- **Acknowledge the original source**: E.g., *"Forked from SmartNoteAI by Sagar Maindola"*.
-- **Link to the official project repository**: Pointing users to [`https://github.com/sgr-m/SmartNoteAI`](https://github.com/sgr-m/SmartNoteAI).
-
----
-
-## 4. Requirements for Forks and Modified Versions
-
-If you distribute a modified version of the software, you must:
-1. **Rename the software**: Use a distinct name that does not include "SmartNoteAI" as the primary product title (e.g., *"MyNoteStudio (based on SmartNoteAI)"* is acceptable; *"SmartNoteAI Plus"* or *"SmartNoteAI Pro"* is **not** permitted).
-2. **Replace the official logo**: Replace the official application icon and logo with your own branding so users do not mistake your build for an official release.
-3. **Not imply endorsement**: Clearly state in documentation and user interfaces that your version is an unofficial, community-maintained fork and is not endorsed by or affiliated with the original SmartNoteAI project.
+The following marks are proprietary brand assets reserved exclusively for official project releases by Sagar Maindola:
+- **The Word Mark**: `SmartNoteAI`, `SmartNote AI`.
+- **The Official Logo**: The distinctive neon glowing circuits document and brain icon artwork.
+- **Official Identity**: Official installer filenames, application metadata, repository identity, and official web presence.
 
 ---
 
-## 5. Prohibited Uses
+## 3. Official Distribution Channels
 
-You may **not**:
-- Distribute unofficial binaries or modified installers labeled as "Official SmartNoteAI Release".
-- Use the SmartNoteAI logo or name in a manner that falsely implies sponsorship, partnership, or official endorsement.
-- Register domain names, social media handles, or trademarks containing "SmartNoteAI" without explicit authorization.
+Official, verified binaries and installers are published exclusively through:
+1. **Official GitHub Releases**: [https://github.com/sgr-m/SmartNoteAI/releases](https://github.com/sgr-m/SmartNoteAI/releases)
+2. **Official Website**: `https://sgr-m.github.io/SmartNoteAI/`
+
+Any binary, installer, or package hosted on third-party websites, alternative app stores, or file-sharing mirrors that claims to be an "Official SmartNoteAI Build" without authorization is unauthorized.
 
 ---
 
-## 6. Questions and Permissions
+## 4. Permitted Uses (No Written Permission Required)
 
-If you have questions regarding this trademark policy or would like to request permission for a specific use, please open an issue in the official repository or contact the project maintainer.
+You do **not** need prior written permission for:
+- **Truthful Descriptive Use**: Stating that your document, video, or lecture was created using SmartNoteAI.
+- **Compatibility Statements**: Stating that a plugin, script, template, or hardware device is compatible with or designed for SmartNoteAI (e.g., *"XP-Pen configuration preset for SmartNoteAI"*).
+- **Linking & Attribution**: Providing direct links to the official GitHub repository or citing the original author in academic or technical citations.
+- **Source Code Attribution**: Retaining existing copyright and GPLv3 notices in source code files as required by the license.
+
+---
+
+## 5. Rules for Forks, Repackagers, and Third-Party Distributors
+
+If you build from source, modify the code, or redistribute packages under the GNU GPLv3:
+
+1. **You Must Comply with GNU GPLv3**: You must provide full source code of your distributed version under the GNU GPLv3, including all modifications.
+2. **You Must Rebrand**:
+   - You **must change the product name** so that it does not use "SmartNoteAI" as the primary brand name. Acceptable format: *"CustomBoard (based on the SmartNoteAI open-source codebase)"*.
+   - You **must replace the official application icon and logo** with distinct visual assets of your own.
+3. **No False Publisher Claims**: You must **not** state or imply that you are the official SmartNoteAI publisher, that your distribution is the official SmartNoteAI release, or that your build is endorsed or sponsored by the original creator.
+4. **Commercial Redistribution under GPLv3**: While GNU GPLv3 permits charging a fee for conveying software, you may **not** use the SmartNoteAI trademark or logo to market, sell, or mislead buyers into believing they are purchasing an official product or commercial license from the author.
+
+---
+
+## 6. Prohibited Practices
+
+The following actions are strictly prohibited:
+- Re-hosting modified binaries under the name "SmartNoteAI" without removing official logos and branding.
+- Registering trademarks, company names, domain names, or social media accounts containing "SmartNoteAI".
+- Bundling adware, spyware, third-party promotional installers, or telemetry packages under the SmartNoteAI brand identity.
+
+---
+
+## 7. Legal Disclaimer
+
+> **Notice**: This Trademark and Branding Policy is published to communicate clear expectations to the community and protect users from fraudulent distributions. Maintainers and distributors are advised to have this policy reviewed by qualified legal counsel before relying on it for formal enforcement or litigation.
+
+For inquiries or trademark permission requests, please contact the repository maintainer through [GitHub Issues](https://github.com/sgr-m/SmartNoteAI/issues).
+
