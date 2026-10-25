@@ -17,24 +17,24 @@ async function main() {
 
   const repo = 'sgr-m/SmartNoteAI';
   const tag = 'v0.1.0';
-  const releaseName = 'SmartNoteAI v0.1.0 — Windows Initial Release';
-  const releaseBody = `## SmartNoteAI v0.1.0 (Windows Initial Release) 🎓🚀
+  const releaseName = 'SmartNoteAI v0.1.0 — Windows Release';
+  const releaseBody = `## SmartNoteAI v0.1.0 (Windows Release) 🎓🚀
 
-Welcome to the first official release of **SmartNoteAI**!
+Welcome to the official public release of **SmartNoteAI**!
 
-SmartNoteAI is a high-performance interactive digital smartboard and teaching suite built for Windows 10 & 11.
+SmartNoteAI is a high-performance interactive digital whiteboard and teaching suite designed specifically for Windows 10 & 11.
 
 ---
 
 ### ✨ Highlights & Features in this Release:
 
 - **🖊️ Precision Stylus & Hardware Tablet Support**:
-  - Full support for **XP-Pen Deco Mini 7**, **Wacom One / Intuos**, **Huion**, and Windows Ink digitizers.
-  - Natural pressure sensitivity with zero lag.
+  - Full support for **XP-Pen Deco Mini 7**, Deco Series, **Wacom One / Intuos**, **Huion Inspiroy**, and Windows Ink digitizers via Chromium \`DirectManipulationStylus\`.
+  - Continuous pressure sensitivity adapting stroke widths smoothly without lag.
   - Seamless dual mouse & stylus handling without dropped strokes or pointer lock conflicts.
   - Palm rejection for multi-touch finger gestures.
 
-- **🖥️ Live Desktop Annotation Mode**:
+- **🖥️ Live Desktop Annotation & Screen Snip**:
   - Annotate directly over any external application (VS Code, PowerPoint, browser, video players) with a floating desktop toolbar.
   - Area Screen Snip tool to capture any rectangular region and instantly paste it onto your active whiteboard.
 
@@ -46,16 +46,41 @@ SmartNoteAI is a high-performance interactive digital smartboard and teaching su
   - Automatically identifies and snaps rough hand-drawn shapes (triangles, circles, rectangles, polygons, straight lines) into clean geometric figures.
 
 - **🧮 Mathematical Typography (LaTeX / KaTeX)**:
-  - Built-in math formula editor with offline bundled KaTeX fonts.
+  - Built-in math formula editor with offline bundled KaTeX vector fonts.
 
 - **📑 Document Import & Export**:
-  - PDF document import onto canvas pages.
+  - PDF document import onto canvas pages with local PDF.js worker parsing.
   - High-resolution export to **PDF**, **PNG**, and vector **SVG**.
+  - Versioned native editable lesson format (\`.sbl\`).
 
 ---
 
-### 📦 Installation:
-Download \`SmartNoteAI.Setup.0.1.0.exe\` below and run the installer on Windows 10 or 11.
+### 💻 System Requirements:
+- **OS**: Windows 10 / Windows 11 (64-bit)
+- **RAM**: 4 GB minimum (8 GB recommended)
+- **Disk**: 350 MB free disk space
+
+---
+
+### 📦 Release Artifacts & SHA-256 Checksums:
+
+| File | Size | SHA-256 Checksum |
+| :--- | :--- | :--- |
+| **\`SmartNoteAI.Setup.0.1.0.exe\`** | ~102 MB | \`9F51BABB3F2D6D255E0A5BCC60FD207C4669D0584E30F5CA403C7E2546607139\` |
+| **\`SmartNoteAI.Setup.0.1.0.exe.blockmap\`** | ~114 KB | \`CED28A9F5370DF255C0D6A8558890DA1065A742C0F16338D289801FA3741A34B\` |
+
+---
+
+### ⚠️ Installation Note (Windows SmartScreen):
+As this is a newly published open-source binary, Windows Defender SmartScreen may display an unrecognized app notice. Click **"More info"** and then **"Run anyway"** to proceed. You can verify the executable SHA-256 checksum against the table above.
+
+---
+
+### 🔗 Documentation Links:
+- [Source Code](https://github.com/sgr-m/SmartNoteAI)
+- [Changelog](https://github.com/sgr-m/SmartNoteAI/blob/main/CHANGELOG.md)
+- [Trademark & Branding Policy](https://github.com/sgr-m/SmartNoteAI/blob/main/TRADEMARKS.md)
+- [Voluntary Donations (UPI & PayPal)](https://github.com/sgr-m/SmartNoteAI/blob/main/DONATE.md)
 `;
 
   console.log('Checking for existing releases in repo...');
