@@ -8,7 +8,7 @@ If you find this software useful, you can optionally support its continued devel
 
 To support development via any UPI-supported app (Google Pay, PhonePe, Paytm, BHIM, CRED):
 
-- **UPI ID**: ``
+- **UPI ID**: `UPI_ID`
 - **Recipient**: Sagar Maindola (Project Maintainer)
 
 > *Tip: Enter the UPI ID above in your UPI banking or payments app to make a voluntary contribution of any amount.*
@@ -19,7 +19,7 @@ To support development via any UPI-supported app (Google Pay, PhonePe, Paytm, BH
 
 For international contributors wishing to support through PayPal:
 
-- **PayPal Donation Link**: [`COMING SOONG`](YOUR_PAYPAL_DONATION_URL_HERE)
+- **PayPal Donation Link**: [`PAYPAL_DONATION_URL`](PAYPAL_DONATION_URL)
 
 ---
 

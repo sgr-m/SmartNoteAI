@@ -183,11 +183,11 @@ The packaged NSIS installer will be located in `release/SmartNoteAI Setup 0.1.0.
 If you find this software useful, you can optionally support its continued development through UPI or PayPal. Donations are voluntary and are not required to use the software. Your support helps fund maintenance, bug fixes, and future improvements.
 
 ### 🇮🇳 UPI (India)
-- **UPI ID**: `YOUR_UPI_ID_HERE`
+- **UPI ID**: `UPI_ID`
 - **Supported Apps**: Google Pay, PhonePe, Paytm, BHIM, CRED
 
 ### 🌐 PayPal (International)
-- **PayPal Link**: [`COMING SOON`](YOUR_PAYPAL_DONATION_URL_HERE)
+- **PayPal Link**: [`PAYPAL_DONATION_URL`](PAYPAL_DONATION_URL)
 
 *(See [DONATE.md](DONATE.md) for further information regarding voluntary support.)*
 
