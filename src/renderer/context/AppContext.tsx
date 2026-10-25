@@ -8,6 +8,7 @@ import { documentReducer, initialDocumentState, DocumentState, DocumentAction, s
 import { CommandSystem } from '../engine/CommandSystem';
 import { StrokeStyle, ToolId, CanvasObject, StrokeObject, ShapeObject, TextObject, GroupObject, Point, LessonDocument } from '../../shared/types';
 import { ShapeStyle } from '../engine/DrawingEngine';
+import { createImageObject } from '../services/documentImportService';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─── Tool State ───────────────────────────────────────────────────────────────
@@ -72,7 +73,7 @@ interface AppContextValue {
   // Cross-Page Clipboard & Duplication
   clipboardObject: CanvasObject | null;
   copyObject: (obj?: CanvasObject | null) => void;
-  pasteObject: (targetPos?: { x: number; y: number }) => CanvasObject | null;
+  pasteObject: (targetPos?: { x: number; y: number }) => Promise<CanvasObject | null> | CanvasObject | null;
   canPaste: boolean;
   cloneMode: boolean;
   setCloneMode: React.Dispatch<React.SetStateAction<boolean>>;
@@ -130,7 +131,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
   const [shapeStyle, setShapeStyleRaw] = React.useState<ShapeStyle>({
     shapeType: 'recognition',
     fillColor: '#4facfe',
-    fillOpacity: 0.2,
+    fillOpacity: 0, // 100% transparent by default
     strokeColor: '#00f2fe',
     strokeWidth: 3,
     strokeOpacity: 1,
@@ -348,7 +349,23 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
 
   const setShapeStyle = useCallback((style: Partial<ShapeStyle>) => {
     setShapeStyleRaw(s => ({ ...s, ...style }));
-  }, []);
+    if (selectedObject && selectedObject.type === 'shape') {
+      const pageIndex = docState.currentPageIndex;
+      const sh = selectedObject as ShapeObject;
+      const updated: ShapeObject = {
+        ...sh,
+        ...(style.shapeType && style.shapeType !== 'recognition' ? { shapeType: style.shapeType } : {}),
+        ...(style.fillColor !== undefined ? { fillColor: style.fillColor } : {}),
+        ...(style.fillOpacity !== undefined ? { fillOpacity: style.fillOpacity } : {}),
+        ...(style.strokeColor !== undefined ? { strokeColor: style.strokeColor } : {}),
+        ...(style.strokeWidth !== undefined ? { strokeWidth: style.strokeWidth } : {}),
+        ...(style.strokeOpacity !== undefined ? { strokeOpacity: style.strokeOpacity } : {}),
+        ...(style.strokeStyle !== undefined ? { strokeStyle: style.strokeStyle } : {}),
+      };
+      docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: updated });
+      setSelectedObject(updated);
+    }
+  }, [selectedObject, docState.currentPageIndex]);
 
   const deleteSelectedObject = useCallback(() => {
     if (!selectedObject) return;
@@ -418,6 +435,15 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
     if (!target) return;
     const copy = JSON.parse(JSON.stringify(target)) as CanvasObject;
     setClipboardObject(copy);
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(JSON.stringify(copy));
+      }
+    } catch (err) {
+      console.warn('Could not write to system clipboard:', err);
+    }
+
     if (copy.type === 'group') {
       setToastMessage(`Copied ${(copy as GroupObject).objects.length} elements to clipboard. Paste on any page (Ctrl+V)`);
     } else {
@@ -425,101 +451,362 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
     }
   }, [selectedObject]);
 
-  const pasteObject = useCallback((targetPos?: { x: number; y: number }): CanvasObject | null => {
-    if (!clipboardObject) return null;
-    const pageIndex = docState.currentPageIndex;
+  const pasteObject = useCallback(
+    async (targetPos?: { x: number; y: number }): Promise<CanvasObject | null> => {
+      const pageIndex = docState.currentPageIndex;
 
-    if (clipboardObject.type === 'group') {
-      const srcGroup = clipboardObject as GroupObject;
-      const offset = targetPos ? { x: targetPos.x - srcGroup.x, y: targetPos.y - srcGroup.y } : { x: 30, y: 30 };
-      const newObjects: CanvasObject[] = srcGroup.objects.map((child) => {
-        const c = JSON.parse(JSON.stringify(child)) as CanvasObject;
-        c.id = uuidv4();
-        if (c.type === 'stroke') {
-          const str = c as StrokeObject;
-          str.points = str.points.map((p) => ({ ...p, x: p.x + offset.x, y: p.y + offset.y }));
-          str.bbox = { ...str.bbox, x: str.bbox.x + offset.x, y: str.bbox.y + offset.y };
-        } else {
-          (c as ShapeObject | TextObject).x += offset.x;
-          (c as ShapeObject | TextObject).y += offset.y;
+      // 1. Try reading from system clipboard via Electron IPC first
+      let clipData: any = null;
+      if (window.electronAPI?.invoke) {
+        try {
+          clipData = await window.electronAPI.invoke('clipboard:read');
+        } catch (err) {
+          console.warn('IPC clipboard read failed:', err);
         }
-        return c;
-      });
-
-      const newGroup: GroupObject = {
-        ...srcGroup,
-        id: `group_${uuidv4()}`,
-        x: srcGroup.x + offset.x,
-        y: srcGroup.y + offset.y,
-        bbox: {
-          x: srcGroup.bbox.x + offset.x,
-          y: srcGroup.bbox.y + offset.y,
-          width: srcGroup.bbox.width,
-          height: srcGroup.bbox.height,
-        },
-        objects: newObjects,
-      };
-
-      const ids = newObjects.map((o) => o.id);
-      commandSystem.execute({
-        id: uuidv4(),
-        description: `Paste ${newObjects.length} objects`,
-        execute() {
-          docDispatch({ type: 'ADD_OBJECTS', pageIndex, objects: newObjects });
-          setSelectedObject(newGroup);
-        },
-        undo() {
-          docDispatch({ type: 'REMOVE_OBJECTS', pageIndex, objectIds: ids });
-          setSelectedObject(null);
-        },
-      });
-
-      setToastMessage(`Pasted ${newObjects.length} objects on Page ${pageIndex + 1}`);
-      return newGroup;
-    }
-
-    const copy = JSON.parse(JSON.stringify(clipboardObject)) as CanvasObject;
-    copy.id = uuidv4();
-
-    if (targetPos) {
-      if (copy.type === 'stroke') {
-        const str = copy as StrokeObject;
-        const dx = targetPos.x - str.bbox.x;
-        const dy = targetPos.y - str.bbox.y;
-        str.points = str.points.map((p) => ({ ...p, x: p.x + dx, y: p.y + dy }));
-        str.bbox = { ...str.bbox, x: str.bbox.x + dx, y: str.bbox.y + dy };
-      } else {
-        (copy as ShapeObject | TextObject).x = targetPos.x;
-        (copy as ShapeObject | TextObject).y = targetPos.y;
       }
-    } else {
-      const offset = 30;
-      if (copy.type === 'stroke') {
-        const str = copy as StrokeObject;
-        str.points = str.points.map((p) => ({ ...p, x: p.x + offset, y: p.y + offset }));
-        str.bbox = { ...str.bbox, x: str.bbox.x + offset, y: str.bbox.y + offset };
-      } else {
-        (copy as ShapeObject | TextObject).x += offset;
-        (copy as ShapeObject | TextObject).y += offset;
+
+      // 2. Web clipboard fallback if in browser or IPC returned null
+      if (!clipData && typeof navigator !== 'undefined' && navigator.clipboard) {
+        try {
+          if (navigator.clipboard.read) {
+            const items = await navigator.clipboard.read();
+            for (const item of items) {
+              const imgType = item.types.find((t) => t.startsWith('image/'));
+              if (imgType) {
+                const blob = await item.getType(imgType);
+                const dataUrl = await new Promise<string>((resolve) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result as string);
+                  reader.readAsDataURL(blob);
+                });
+                clipData = { type: 'image', dataUrl, width: 800, height: 600 };
+                break;
+              }
+            }
+          }
+          if (!clipData && navigator.clipboard.readText) {
+            const text = await navigator.clipboard.readText();
+            if (text && text.trim().length > 0) {
+              try {
+                const parsed = JSON.parse(text);
+                if (
+                  (parsed && typeof parsed === 'object' && parsed.type) ||
+                  (Array.isArray(parsed) && parsed.length > 0 && parsed[0].type)
+                ) {
+                  clipData = { type: 'drawing', data: parsed };
+                } else {
+                  clipData = { type: 'text', text: text.trim() };
+                }
+              } catch {
+                clipData = { type: 'text', text: text.trim() };
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Web clipboard read failed:', err);
+        }
       }
-    }
 
-    commandSystem.execute({
-      id: uuidv4(),
-      description: `Paste ${copy.type}`,
-      execute() {
-        docDispatch({ type: 'ADD_OBJECT', pageIndex, object: copy });
-        setSelectedObject(copy);
-      },
-      undo() {
-        docDispatch({ type: 'REMOVE_OBJECT', pageIndex, objectId: copy.id });
-        setSelectedObject(null);
-      },
-    });
+      // 3. Process system clipboard data if found
+      if (clipData) {
+        if (clipData.type === 'image' && clipData.dataUrl) {
+          const posX = targetPos ? targetPos.x : 160;
+          const posY = targetPos ? targetPos.y : 160;
+          const imgObj = createImageObject(
+            clipData.dataUrl,
+            `Clipboard_Image_${Date.now()}.png`,
+            posX,
+            posY,
+            800,
+            600,
+            clipData.width || 800,
+            clipData.height || 600
+          );
 
-    setToastMessage(`Pasted ${copy.type} on Page ${pageIndex + 1}`);
-    return copy;
-  }, [clipboardObject, docState.currentPageIndex, commandSystem]);
+          commandSystem.execute({
+            id: uuidv4(),
+            description: 'Paste image from clipboard',
+            execute() {
+              docDispatch({ type: 'ADD_OBJECT', pageIndex, object: imgObj });
+              setSelectedObject(imgObj);
+              setActiveTool('select');
+            },
+            undo() {
+              docDispatch({ type: 'REMOVE_OBJECT', pageIndex, objectId: imgObj.id });
+              setSelectedObject(null);
+            },
+          });
+
+          setToastMessage(`Pasted image from clipboard on Page ${pageIndex + 1}`);
+          return imgObj;
+        }
+
+        if (clipData.type === 'drawing' && clipData.data) {
+          const rawData = clipData.data;
+          if (Array.isArray(rawData)) {
+            const first = rawData[0];
+            const origX = first?.x ?? first?.bbox?.x ?? 100;
+            const origY = first?.y ?? first?.bbox?.y ?? 100;
+            const offset = targetPos ? { x: targetPos.x - origX, y: targetPos.y - origY } : { x: 30, y: 30 };
+            const newObjs: CanvasObject[] = rawData.map((child: any) => {
+              const c = JSON.parse(JSON.stringify(child));
+              c.id = uuidv4();
+              if (c.type === 'stroke') {
+                const str = c as StrokeObject;
+                str.points = str.points.map((p) => ({ ...p, x: p.x + offset.x, y: p.y + offset.y }));
+                str.bbox = { ...str.bbox, x: str.bbox.x + offset.x, y: str.bbox.y + offset.y };
+              } else {
+                c.x = (c.x || 0) + offset.x;
+                c.y = (c.y || 0) + offset.y;
+              }
+              return c;
+            });
+            const ids = newObjs.map((o) => o.id);
+            commandSystem.execute({
+              id: uuidv4(),
+              description: `Paste ${newObjs.length} drawing elements`,
+              execute() {
+                docDispatch({ type: 'ADD_OBJECTS', pageIndex, objects: newObjs });
+                setSelectedObject(newObjs[0] || null);
+                setActiveTool('select');
+              },
+              undo() {
+                docDispatch({ type: 'REMOVE_OBJECTS', pageIndex, objectIds: ids });
+                setSelectedObject(null);
+              },
+            });
+            setToastMessage(`Pasted ${newObjs.length} drawing elements from clipboard`);
+            return newObjs[0] || null;
+          } else if (rawData.type === 'group') {
+            const srcGroup = rawData as GroupObject;
+            const offset = targetPos ? { x: targetPos.x - srcGroup.x, y: targetPos.y - srcGroup.y } : { x: 30, y: 30 };
+            const newObjects: CanvasObject[] = srcGroup.objects.map((child) => {
+              const c = JSON.parse(JSON.stringify(child)) as CanvasObject;
+              c.id = uuidv4();
+              if (c.type === 'stroke') {
+                const str = c as StrokeObject;
+                str.points = str.points.map((p) => ({ ...p, x: p.x + offset.x, y: p.y + offset.y }));
+                str.bbox = { ...str.bbox, x: str.bbox.x + offset.x, y: str.bbox.y + offset.y };
+              } else {
+                (c as ShapeObject | TextObject).x += offset.x;
+                (c as ShapeObject | TextObject).y += offset.y;
+              }
+              return c;
+            });
+
+            const newGroup: GroupObject = {
+              ...srcGroup,
+              id: `group_${uuidv4()}`,
+              x: srcGroup.x + offset.x,
+              y: srcGroup.y + offset.y,
+              bbox: {
+                x: srcGroup.bbox.x + offset.x,
+                y: srcGroup.bbox.y + offset.y,
+                width: srcGroup.bbox.width,
+                height: srcGroup.bbox.height,
+              },
+              objects: newObjects,
+            };
+
+            const ids = newObjects.map((o) => o.id);
+            commandSystem.execute({
+              id: uuidv4(),
+              description: `Paste ${newObjects.length} objects`,
+              execute() {
+                docDispatch({ type: 'ADD_OBJECTS', pageIndex, objects: newObjects });
+                setSelectedObject(newGroup);
+                setActiveTool('select');
+              },
+              undo() {
+                docDispatch({ type: 'REMOVE_OBJECTS', pageIndex, objectIds: ids });
+                setSelectedObject(null);
+              },
+            });
+
+            setToastMessage(`Pasted ${newObjects.length} objects from clipboard`);
+            return newGroup;
+          } else {
+            const copy = JSON.parse(JSON.stringify(rawData)) as CanvasObject;
+            copy.id = uuidv4();
+            const origX = (copy as any).x ?? (copy as any).bbox?.x ?? 100;
+            const origY = (copy as any).y ?? (copy as any).bbox?.y ?? 100;
+            const offset = targetPos ? { x: targetPos.x - origX, y: targetPos.y - origY } : { x: 30, y: 30 };
+
+            if (copy.type === 'stroke') {
+              const str = copy as StrokeObject;
+              str.points = str.points.map((p) => ({ ...p, x: p.x + offset.x, y: p.y + offset.y }));
+              str.bbox = { ...str.bbox, x: str.bbox.x + offset.x, y: str.bbox.y + offset.y };
+            } else {
+              (copy as any).x = (copy as any).x !== undefined ? (copy as any).x + offset.x : offset.x;
+              (copy as any).y = (copy as any).y !== undefined ? (copy as any).y + offset.y : offset.y;
+            }
+
+            commandSystem.execute({
+              id: uuidv4(),
+              description: `Paste ${copy.type} from clipboard`,
+              execute() {
+                docDispatch({ type: 'ADD_OBJECT', pageIndex, object: copy });
+                setSelectedObject(copy);
+                setActiveTool('select');
+              },
+              undo() {
+                docDispatch({ type: 'REMOVE_OBJECT', pageIndex, objectId: copy.id });
+                setSelectedObject(null);
+              },
+            });
+
+            setToastMessage(`Pasted ${copy.type} from clipboard`);
+            return copy;
+          }
+        }
+
+        if (clipData.type === 'text' && clipData.text) {
+          const posX = targetPos ? targetPos.x : 200;
+          const posY = targetPos ? targetPos.y : 200;
+          const text = clipData.text;
+          const textObj: TextObject = {
+            id: uuidv4(),
+            type: 'text',
+            x: posX,
+            y: posY,
+            width: Math.min(800, Math.max(220, text.length * 14)),
+            height: 48,
+            content: text,
+            fontFamily: 'Inter, sans-serif',
+            fontSize: 24,
+            fontWeight: 400,
+            fontStyle: 'normal',
+            textDecoration: 'none',
+            textAlign: 'left',
+            color: '#ffffff',
+            backgroundColor: 'transparent',
+            opacity: 1,
+            rotation: 0,
+            preset: 'body',
+            locked: false,
+            layerId: 'objects',
+          };
+
+          commandSystem.execute({
+            id: uuidv4(),
+            description: 'Paste text from clipboard',
+            execute() {
+              docDispatch({ type: 'ADD_OBJECT', pageIndex, object: textObj });
+              setSelectedObject(textObj);
+              setActiveTool('select');
+            },
+            undo() {
+              docDispatch({ type: 'REMOVE_OBJECT', pageIndex, objectId: textObj.id });
+              setSelectedObject(null);
+            },
+          });
+
+          setToastMessage(`Pasted text from clipboard`);
+          return textObj;
+        }
+      }
+
+      // 4. Fallback to in-memory clipboardObject
+      if (clipboardObject) {
+        if (clipboardObject.type === 'group') {
+          const srcGroup = clipboardObject as GroupObject;
+          const offset = targetPos ? { x: targetPos.x - srcGroup.x, y: targetPos.y - srcGroup.y } : { x: 30, y: 30 };
+          const newObjects: CanvasObject[] = srcGroup.objects.map((child) => {
+            const c = JSON.parse(JSON.stringify(child)) as CanvasObject;
+            c.id = uuidv4();
+            if (c.type === 'stroke') {
+              const str = c as StrokeObject;
+              str.points = str.points.map((p) => ({ ...p, x: p.x + offset.x, y: p.y + offset.y }));
+              str.bbox = { ...str.bbox, x: str.bbox.x + offset.x, y: str.bbox.y + offset.y };
+            } else {
+              (c as ShapeObject | TextObject).x += offset.x;
+              (c as ShapeObject | TextObject).y += offset.y;
+            }
+            return c;
+          });
+
+          const newGroup: GroupObject = {
+            ...srcGroup,
+            id: `group_${uuidv4()}`,
+            x: srcGroup.x + offset.x,
+            y: srcGroup.y + offset.y,
+            bbox: {
+              x: srcGroup.bbox.x + offset.x,
+              y: srcGroup.bbox.y + offset.y,
+              width: srcGroup.bbox.width,
+              height: srcGroup.bbox.height,
+            },
+            objects: newObjects,
+          };
+
+          const ids = newObjects.map((o) => o.id);
+          commandSystem.execute({
+            id: uuidv4(),
+            description: `Paste ${newObjects.length} objects`,
+            execute() {
+              docDispatch({ type: 'ADD_OBJECTS', pageIndex, objects: newObjects });
+              setSelectedObject(newGroup);
+              setActiveTool('select');
+            },
+            undo() {
+              docDispatch({ type: 'REMOVE_OBJECTS', pageIndex, objectIds: ids });
+              setSelectedObject(null);
+            },
+          });
+
+          setToastMessage(`Pasted ${newObjects.length} objects on Page ${pageIndex + 1}`);
+          return newGroup;
+        }
+
+        const copy = JSON.parse(JSON.stringify(clipboardObject)) as CanvasObject;
+        copy.id = uuidv4();
+
+        if (targetPos) {
+          if (copy.type === 'stroke') {
+            const str = copy as StrokeObject;
+            const dx = targetPos.x - str.bbox.x;
+            const dy = targetPos.y - str.bbox.y;
+            str.points = str.points.map((p) => ({ ...p, x: p.x + dx, y: p.y + dy }));
+            str.bbox = { ...str.bbox, x: str.bbox.x + dx, y: str.bbox.y + dy };
+          } else {
+            (copy as ShapeObject | TextObject).x = targetPos.x;
+            (copy as ShapeObject | TextObject).y = targetPos.y;
+          }
+        } else {
+          const offset = { x: 30, y: 30 };
+          if (copy.type === 'stroke') {
+            const str = copy as StrokeObject;
+            str.points = str.points.map((p) => ({ ...p, x: p.x + offset.x, y: p.y + offset.y }));
+            str.bbox = { ...str.bbox, x: str.bbox.x + offset.x, y: str.bbox.y + offset.y };
+          } else {
+            (copy as ShapeObject | TextObject).x += offset.x;
+            (copy as ShapeObject | TextObject).y += offset.y;
+          }
+        }
+
+        commandSystem.execute({
+          id: uuidv4(),
+          description: `Paste ${copy.type}`,
+          execute() {
+            docDispatch({ type: 'ADD_OBJECT', pageIndex, object: copy });
+            setSelectedObject(copy);
+            setActiveTool('select');
+          },
+          undo() {
+            docDispatch({ type: 'REMOVE_OBJECT', pageIndex, objectId: copy.id });
+            setSelectedObject(null);
+          },
+        });
+
+        setToastMessage(`Pasted ${copy.type} on Page ${pageIndex + 1}`);
+        return copy;
+      }
+
+      setToastMessage('Clipboard is empty');
+      return null;
+    },
+    [clipboardObject, docState.currentPageIndex, commandSystem, setActiveTool]
+  );
 
   // ─── Layer Ordering ─────────────────────────────────────────────────────────
 
@@ -1103,7 +1390,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
     clipboardObject,
     copyObject,
     pasteObject,
-    canPaste: clipboardObject !== null,
+    canPaste: true,
     cloneMode,
     setCloneMode,
     moveObjectLayer,

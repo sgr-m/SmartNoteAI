@@ -37,18 +37,22 @@ const ALLOWED_INVOKE = new Set([
   'window:isFullScreen',
   'window:showDesktop',
   'window:restore',
+  'window:moveOverlay',
   'screen:getAllDisplays',
   'screen:getPrimaryDisplay',
   'screenshot:captureScreen',
   'screenshot:captureWindow',
   'file:writeBinary',
   'clipboard:writeImage',
+  'clipboard:read',
   'window:setIgnoreMouseEvents',
   'desktop:insertImage',
   'annotation:open',
   'annotation:close',
   'annotation:setClickThrough',
   'annotation:clear',
+  'desktop:updateToolbarBounds',
+  'desktop:setToolMode',
   'app:quit',
 ]);
 
@@ -78,6 +82,7 @@ const ALLOWED_LISTEN = new Set([
   'annotation:doClear',
   'desktop:doInsertImage',
   'desktop:resetMode',
+  'window:setPresentationMode',
 ]);
 
 // The API surface exposed to the renderer via window.electronAPI

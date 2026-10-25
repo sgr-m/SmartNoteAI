@@ -13,7 +13,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  z-index: 100;
+  z-index: 2500;
   user-select: none;
   pointer-events: none;
 }
@@ -45,6 +45,10 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), inset 0 1px 0 #ffffff;
   transition: all 0.1s ease;
   font-size: 16px;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: auto;
 }
 
 .dock-icon-btn:hover {
@@ -111,6 +115,10 @@
   cursor: pointer;
   transition: all 0.1s ease;
   position: relative;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: auto;
 }
 
 .dock-tool-btn:hover {

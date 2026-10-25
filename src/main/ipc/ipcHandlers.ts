@@ -12,6 +12,8 @@ import { FileService } from '../services/FileService';
 
 // ─── Desktop Annotation Overlay Window ──────────────────────────────────────
 let annotationWindow: BrowserWindow | null = null;
+let wasFullScreenBeforeDesktop = false;
+let wasMaximizedBeforeDesktop = false;
 
 function getPreloadPath(): string {
   const candidates = [
@@ -122,6 +124,49 @@ export function setupIpcHandlers(services: Services): void {
     }
   });
 
+  ipcMain.handle('clipboard:read', async () => {
+    try {
+      // 1. Check if image is available on clipboard
+      const img = clipboard.readImage();
+      if (!img.isEmpty()) {
+        const size = img.getSize();
+        return {
+          type: 'image',
+          dataUrl: img.toDataURL(),
+          width: size.width,
+          height: size.height,
+        };
+      }
+
+      // 2. Check if text or drawing JSON is on clipboard
+      const text = clipboard.readText();
+      if (text && text.trim().length > 0) {
+        try {
+          const parsed = JSON.parse(text);
+          if (
+            (parsed && typeof parsed === 'object' && parsed.type && (parsed.id || parsed.type === 'stroke' || parsed.type === 'shape' || parsed.type === 'image' || parsed.type === 'text' || parsed.type === 'group')) ||
+            (Array.isArray(parsed) && parsed.length > 0 && parsed[0].type)
+          ) {
+            return {
+              type: 'drawing',
+              data: parsed,
+            };
+          }
+        } catch {
+          // plain text
+        }
+
+        return {
+          type: 'text',
+          text: text.trim(),
+        };
+      }
+    } catch (err) {
+      console.error('Failed to read system clipboard:', err);
+    }
+    return null;
+  });
+
   ipcMain.handle('file:delete', async (_e, filePath: string) => {
     await fileService.deleteFile(filePath);
     return true;
@@ -198,8 +243,47 @@ export function setupIpcHandlers(services: Services): void {
   });
 
   // ─── Show Desktop / Desktop Mode ───────────────────────────────────────
+  const restoreMainWindowState = (win: BrowserWindow) => {
+    if (!win || win.isDestroyed()) return;
+
+    // Prevent duplicate restore event loops
+    win.removeAllListeners('restore');
+
+    if (win.isMinimized()) {
+      win.restore();
+    }
+    win.show();
+    win.focus();
+
+    if (wasFullScreenBeforeDesktop) {
+      // Force exit and re-entry so Electron doesn't skip setFullScreen when its internal flag was already true
+      win.setFullScreen(false);
+      win.setFullScreen(true);
+      win.webContents.send('window:setPresentationMode', true);
+
+      // Verify after DWM unminimize animation completes
+      setTimeout(() => {
+        if (!win.isDestroyed() && wasFullScreenBeforeDesktop) {
+          const display = screen.getDisplayMatching(win.getBounds());
+          const b = win.getBounds();
+          if (!win.isFullScreen() || b.width !== display.bounds.width || b.height !== display.bounds.height) {
+            win.setFullScreen(false);
+            win.setFullScreen(true);
+          }
+          win.webContents.send('window:setPresentationMode', true);
+        }
+      }, 100);
+    } else if (wasMaximizedBeforeDesktop) {
+      if (!win.isMaximized()) {
+        win.maximize();
+      }
+      win.webContents.send('window:setPresentationMode', false);
+    } else {
+      win.webContents.send('window:setPresentationMode', false);
+    }
+  };
+
   const openDesktopOverlayWindow = async (callerWin: BrowserWindow | null, callerBounds?: Rectangle | null) => {
-    // If an overlay already exists, destroy it cleanly so a fresh one with clean native hooks is created
     if (annotationWindow && !annotationWindow.isDestroyed()) {
       annotationWindow.destroy();
       annotationWindow = null;
@@ -210,17 +294,22 @@ export function setupIpcHandlers(services: Services): void {
     const { bounds } = display;
     const preloadPath = getPreloadPath();
 
+    const pillSize = 56;
+    const pillX = bounds.x + 28;
+    const pillY = bounds.y + 120;
+
     annotationWindow = new BrowserWindow({
-      x: bounds.x,
-      y: bounds.y,
-      width: bounds.width,
-      height: bounds.height,
+      x: pillX,
+      y: pillY,
+      width: pillSize,
+      height: pillSize,
       frame: false,
       transparent: true,
       alwaysOnTop: true,
       focusable: true,
-      skipTaskbar: false, // Keep visible on Windows taskbar
-      title: 'SmartBoard Studio - Desktop Overlay',
+      resizable: false,
+      skipTaskbar: true,
+      title: 'SmartBoard Studio - Return',
       icon: getAppIconPath(),
       hasShadow: false,
       backgroundColor: '#00000000',
@@ -232,8 +321,14 @@ export function setupIpcHandlers(services: Services): void {
       },
     });
 
-    annotationWindow.setAlwaysOnTop(true, 'status');
+    annotationWindow.setAlwaysOnTop(true, 'screen-saver', 1);
     annotationWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+    annotationWindow.on('blur', () => {
+      if (annotationWindow && !annotationWindow.isDestroyed()) {
+        annotationWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+      }
+    });
 
     const isDev = !app.isPackaged;
     const fallbackFile = `file://${getRendererHtmlPath()}`;
@@ -253,28 +348,33 @@ export function setupIpcHandlers(services: Services): void {
       // Failsafe: if the desktop overlay is closed, always ensure main lesson window is restored and shown
       const mainWin = services.getMainWindow?.() || callerWin;
       if (mainWin && !mainWin.isDestroyed()) {
-        if (mainWin.isMinimized()) {
-          mainWin.restore();
-        }
-        mainWin.show();
-        mainWin.focus();
+        restoreMainWindowState(mainWin);
       }
     });
 
     return annotationWindow.id;
   };
 
-  ipcMain.handle('window:showDesktop', async (e) => {
+  ipcMain.handle('window:showDesktop', async (e, options?: { isPresentationMode?: boolean }) => {
     const callerWin = BrowserWindow.fromWebContents(e.sender);
     const callerBounds = callerWin && !callerWin.isMinimized() ? callerWin.getBounds() : null;
+
+    // Preserve previous fullscreen / presentation mode state
+    wasFullScreenBeforeDesktop = Boolean(
+      options?.isPresentationMode ??
+      (callerWin ? callerWin.isFullScreen() : false)
+    );
+    wasMaximizedBeforeDesktop = callerWin ? callerWin.isMaximized() : false;
+
     await openDesktopOverlayWindow(callerWin, callerBounds);
     if (callerWin && !callerWin.isDestroyed()) {
       callerWin.removeAllListeners('restore');
-      callerWin.on('restore', () => {
+      callerWin.once('restore', () => {
         if (annotationWindow && !annotationWindow.isDestroyed()) {
           annotationWindow.destroy();
           annotationWindow = null;
         }
+        restoreMainWindowState(callerWin);
       });
       callerWin.minimize();
     }
@@ -290,21 +390,23 @@ export function setupIpcHandlers(services: Services): void {
     return true;
   });
 
+  ipcMain.handle('window:moveOverlay', (_e, { deltaX, deltaY }: { deltaX: number; deltaY: number }) => {
+    if (annotationWindow && !annotationWindow.isDestroyed()) {
+      const [x, y] = annotationWindow.getPosition();
+      annotationWindow.setPosition(Math.round(x + deltaX), Math.round(y + deltaY));
+    }
+    return true;
+  });
+
   ipcMain.handle('window:restore', async () => {
     try {
-      const mainWin = services.getMainWindow?.() || BrowserWindow.getAllWindows().find((w) => w !== annotationWindow);
-      if (mainWin && !mainWin.isDestroyed()) {
-        if (mainWin.isMinimized()) {
-          mainWin.restore();
-        }
-        mainWin.show();
-        mainWin.focus();
-        mainWin.setAlwaysOnTop(true);
-        mainWin.setAlwaysOnTop(false);
-      }
+      const mainWin = services.getMainWindow?.() || BrowserWindow.getAllWindows().find((w) => w !== annotationWindow && !w.isDestroyed());
       if (annotationWindow && !annotationWindow.isDestroyed()) {
         annotationWindow.destroy();
         annotationWindow = null;
+      }
+      if (mainWin && !mainWin.isDestroyed()) {
+        restoreMainWindowState(mainWin);
       }
     } catch (err) {
       console.error('Failed to restore main window:', err);

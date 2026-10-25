@@ -14,7 +14,8 @@ import {
   UserFolder,
 } from '../services/resourceLibraryService';
 import { exportSelectedObjectsAsImage } from '../services/documentExportService';
-import { CanvasObject, StrokeObject } from '../../shared/types';
+import { createImageObject } from '../services/documentImportService';
+import { CanvasObject, StrokeObject, TextObject } from '../../shared/types';
 import { v4 as uuidv4 } from 'uuid';
 import './ResourceLibraryModal.css';
 
@@ -23,7 +24,7 @@ interface ResourceLibraryModalProps {
 }
 
 export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): React.ReactElement {
-  const { docDispatch, docState, selectedObject, commandSystem, setToastMessage } = useAppContext();
+  const { docDispatch, docState, selectedObject, clipboardObject, commandSystem, setToastMessage } = useAppContext();
 
   const [resources, setResources] = useState<SavedResource[]>([]);
   const [folders, setFolders] = useState<UserFolder[]>([]);
@@ -204,6 +205,174 @@ export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): Re
     reader.readAsText(file);
   };
 
+  // Add something from clipboard to resource library
+  const handlePasteFromClipboard = async () => {
+    try {
+      let clipData: any = null;
+      if (window.electronAPI?.invoke) {
+        try {
+          clipData = await window.electronAPI.invoke('clipboard:read');
+        } catch (err) {
+          console.warn('IPC clipboard read failed in ResourceLibrary:', err);
+        }
+      }
+
+      if (!clipData && typeof navigator !== 'undefined' && navigator.clipboard) {
+        try {
+          if (navigator.clipboard.read) {
+            const items = await navigator.clipboard.read();
+            for (const item of items) {
+              const imgType = item.types.find((t) => t.startsWith('image/'));
+              if (imgType) {
+                const blob = await item.getType(imgType);
+                const dataUrl = await new Promise<string>((resolve) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result as string);
+                  reader.readAsDataURL(blob);
+                });
+                clipData = { type: 'image', dataUrl, width: 800, height: 600 };
+                break;
+              }
+            }
+          }
+          if (!clipData && navigator.clipboard.readText) {
+            const text = await navigator.clipboard.readText();
+            if (text && text.trim().length > 0) {
+              try {
+                const parsed = JSON.parse(text);
+                if (
+                  (parsed && typeof parsed === 'object' && parsed.type) ||
+                  (Array.isArray(parsed) && parsed.length > 0 && parsed[0].type)
+                ) {
+                  clipData = { type: 'drawing', data: parsed };
+                } else {
+                  clipData = { type: 'text', text: text.trim() };
+                }
+              } catch {
+                clipData = { type: 'text', text: text.trim() };
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Web clipboard read failed in ResourceLibrary:', err);
+        }
+      }
+
+      if (clipData) {
+        if (clipData.type === 'image' && clipData.dataUrl) {
+          const imgObj = createImageObject(
+            clipData.dataUrl,
+            `Clipboard_Image_${Date.now()}.png`,
+            100,
+            100,
+            800,
+            600,
+            clipData.width || 800,
+            clipData.height || 600
+          );
+          ResourceLibraryService.saveResource({
+            name: `Clipboard Image ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+            description: `Imported image (${clipData.width || 800}x${clipData.height || 600}) from clipboard`,
+            category: 'user-collections',
+            tags: ['clipboard', 'image'],
+            favorite: false,
+            thumbnailUrl: clipData.dataUrl,
+            objects: [imgObj],
+          });
+          loadData();
+          setToastMessage?.('Added clipboard image to Resource Library!');
+          return;
+        }
+
+        if (clipData.type === 'drawing' && clipData.data) {
+          const raw = clipData.data;
+          const objs: CanvasObject[] = Array.isArray(raw) ? raw : [raw];
+          let thumbUrl = await exportSelectedObjectsAsImage(objs, 1);
+          if (!thumbUrl) {
+            thumbUrl = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23a855f7"/></svg>';
+          }
+          ResourceLibraryService.saveResource({
+            name: `Clipboard Drawing ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+            description: `Imported ${objs.length} drawing object(s) from clipboard`,
+            category: 'user-collections',
+            tags: ['clipboard', 'drawing'],
+            favorite: false,
+            thumbnailUrl: thumbUrl,
+            objects: objs,
+          });
+          loadData();
+          setToastMessage?.(`Added ${objs.length} drawing object(s) to Resource Library!`);
+          return;
+        }
+
+        if (clipData.type === 'text' && clipData.text) {
+          const text = clipData.text;
+          const textObj: TextObject = {
+            id: uuidv4(),
+            type: 'text',
+            x: 100,
+            y: 100,
+            width: Math.min(800, Math.max(220, text.length * 14)),
+            height: 48,
+            content: text,
+            fontFamily: 'Inter, sans-serif',
+            fontSize: 24,
+            fontWeight: 400,
+            fontStyle: 'normal',
+            textDecoration: 'none',
+            textAlign: 'left',
+            color: '#ffffff',
+            backgroundColor: 'transparent',
+            opacity: 1,
+            rotation: 0,
+            preset: 'body',
+            locked: false,
+            layerId: 'objects',
+          };
+          const previewText = text.slice(0, 30).replace(/["<>]/g, '');
+          const thumbUrl = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%231e293b" rx="8"/><text x="50" y="55" fill="%23ffffff" font-family="sans-serif" font-size="12" text-anchor="middle">📝 ${previewText}</text></svg>`;
+          ResourceLibraryService.saveResource({
+            name: `Text: ${text.slice(0, 24)}${text.length > 24 ? '...' : ''}`,
+            description: text.slice(0, 100),
+            category: 'user-collections',
+            tags: ['clipboard', 'text'],
+            favorite: false,
+            thumbnailUrl: thumbUrl,
+            objects: [textObj],
+          });
+          loadData();
+          setToastMessage?.('Added clipboard text to Resource Library!');
+          return;
+        }
+      }
+
+      if (clipboardObject) {
+        const objs = clipboardObject.type === 'group' ? (clipboardObject as any).objects || [clipboardObject] : [clipboardObject];
+        let thumbUrl = await exportSelectedObjectsAsImage(objs, 1);
+        if (!thumbUrl) {
+          thumbUrl = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%2338bdf8"/></svg>';
+        }
+        ResourceLibraryService.saveResource({
+          name: `Whiteboard ${clipboardObject.type} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          description: `Imported ${clipboardObject.type} from internal clipboard`,
+          category: 'user-collections',
+          tags: ['clipboard', clipboardObject.type],
+          favorite: false,
+          thumbnailUrl: thumbUrl,
+          objects: objs,
+        });
+        loadData();
+        setToastMessage?.(`Added ${clipboardObject.type} to Resource Library!`);
+        return;
+      }
+
+      alert('Clipboard is currently empty. Copy an image, text, or drawing first, then click this button.');
+    } catch (err: any) {
+      console.error('Failed to paste from clipboard to resource library:', err);
+      alert(`Error reading clipboard: ${err?.message || err}`);
+    }
+  };
+
   // Filter logic
   const filtered = resources.filter((item) => {
     // If a specific custom folder is selected, filter by folder ID or collection name
@@ -246,6 +415,13 @@ export function ResourceLibraryModal({ onClose }: ResourceLibraryModalProps): Re
             </div>
           </div>
           <div className="res-lib-header-actions">
+            <button
+              className="btn-pkg-action btn-clipboard-action"
+              onClick={handlePasteFromClipboard}
+              title="Add text, image, or drawing from system clipboard to Resource Library"
+            >
+              📋 Add from Clipboard
+            </button>
             <button className="btn-pkg-action" onClick={handleExportCollection} title="Export collection package (.sbr)">
               📤 Export Package
             </button>

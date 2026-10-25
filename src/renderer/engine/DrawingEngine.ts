@@ -191,7 +191,7 @@ export class DrawingEngine {
     this.currentShapeStyle = {
       shapeType: 'recognition',
       fillColor: '#4facfe',
-      fillOpacity: 0.2,
+      fillOpacity: 0, // 100% transparent by default
       strokeColor: '#00f2fe',
       strokeWidth: 3,
       strokeOpacity: 1,
@@ -218,16 +218,24 @@ export class DrawingEngine {
     canvas.addEventListener('pointercancel', this.handlePointerCancel, { passive: false });
     canvas.addEventListener('pointerleave', this.handlePointerLeave, { passive: false });
     canvas.addEventListener('wheel', this.handleWheel, { passive: false });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('blur', this.handleWindowBlur);
+      window.addEventListener('focus', this.handleWindowFocus);
+    }
   }
 
   // ─── Pointer Event Handlers ───────────────────────────────────────────────
 
   private handlePointerDown = (e: PointerEvent): void => {
-    if (!e.isPrimary) return;
+    if (!e.isPrimary && e.pointerType === 'touch') return;
     this.callbacks.onInteractionStart?.();
     if (e.cancelable) e.preventDefault();
     this.isPointerDown = true;
-    this.activeCanvas.setPointerCapture(e.pointerId);
+    try {
+      this.activeCanvas.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore if pointer capture fails (synthetic/touch event)
+    }
 
     const docPt = this.eventToDocPoint(e);
     this.currentPointerPos = docPt;
@@ -275,8 +283,8 @@ export class DrawingEngine {
       }
     }
 
-    // While writing or creating shapes, explicitly keep Windows default pointer visible
-    this.activeCanvas.style.cursor = 'default';
+    // Update cursor according to active tool (crosshair for pen/shape, etc.)
+    this.updateToolCursor();
 
     switch (this.activeTool) {
       case 'pen':
@@ -427,7 +435,7 @@ export class DrawingEngine {
   };
 
   private handlePointerMove = (e: PointerEvent): void => {
-    if (!e.isPrimary) return;
+    if (!e.isPrimary && e.pointerType === 'touch') return;
     if (this.isPointerDown && e.cancelable) e.preventDefault();
     const docPt = this.eventToDocPoint(e);
     this.currentPointerPos = docPt;
@@ -466,7 +474,8 @@ export class DrawingEngine {
       case 'pen':
       case 'highlighter': {
         if (!this.activeStroke) return;
-        const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+        const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : null;
+        const events = coalesced && coalesced.length > 0 ? coalesced : [e];
         for (const ce of events) {
           const rawPt = this.eventToDocPoint(ce);
           const pt = this.snapPointToRulerIfNear(rawPt);
@@ -547,8 +556,13 @@ export class DrawingEngine {
   };
 
   private handlePointerUp = (e: PointerEvent): void => {
-    if (!e.isPrimary) return;
+    if (!e.isPrimary && e.pointerType === 'touch') return;
     this.isPointerDown = false;
+    try {
+      if (this.activeCanvas.hasPointerCapture(e.pointerId)) {
+        this.activeCanvas.releasePointerCapture(e.pointerId);
+      }
+    } catch {}
 
     if (this.isPanning) {
       this.isPanning = false;
@@ -591,7 +605,7 @@ export class DrawingEngine {
       this.resizeObjectInitial = null;
       this.clearActiveCanvas();
       this.redrawCommitted(this.committedObjects);
-      this.activeCanvas.style.cursor = 'default';
+      this.updateToolCursor();
       return;
     }
 
@@ -741,21 +755,49 @@ export class DrawingEngine {
     }
   };
 
-  private handlePointerCancel = (): void => {
+  private handlePointerCancel = (e?: PointerEvent): void => {
+    if (e && !e.isPrimary && e.pointerType === 'touch') return;
+    if (e) {
+      try {
+        if (this.activeCanvas.hasPointerCapture(e.pointerId)) {
+          this.activeCanvas.releasePointerCapture(e.pointerId);
+        }
+      } catch {}
+    }
+    this.resetInteractions();
+  };
+
+  public resetInteractions(): void {
     this.isPointerDown = false;
     this.isPanning = false;
-    this.activeStroke = null;
-    this.shapeOrigin = null;
-    this.recognitionPoints = [];
     this.isDraggingObject = false;
+    this.draggedObjectInitial = null;
     this.isResizingObject = false;
     this.activeResizeHandle = null;
-    this.eraseSession = null;
+    this.resizeObjectInitial = null;
     this.isMarqueeSelecting = false;
     this.marqueeStartPt = null;
     this.isLassoSelecting = false;
     this.lassoPoints = [];
+    this.activeStroke = null;
+    this.shapeOrigin = null;
+    this.recognitionPoints = [];
+    this.eraseSession = null;
     this.clearActiveCanvas();
+    this.redrawCommitted(this.committedObjects);
+  }
+
+  private handleWindowBlur = (): void => {
+    this.resetInteractions();
+  };
+
+  private handleWindowFocus = (): void => {
+    this.resetInteractions();
+    const w = this.activeCanvas.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 1920);
+    const h = this.activeCanvas.clientHeight || (typeof window !== 'undefined' ? window.innerHeight : 1080);
+    if (w > 0 && h > 0) {
+      this.resize(w, h);
+    }
   };
 
   private handlePointerLeave = (): void => {
@@ -1663,8 +1705,14 @@ export class DrawingEngine {
   // ─── Selection, Handle Hit Testing & Resizing ─────────────────────────────
 
   private hitTest(pt: Point): CanvasObject | null {
-    for (let i = this.committedObjects.length - 1; i >= 0; i--) {
-      const obj = this.committedObjects[i];
+    // Sort from highest layer order to lowest layer so top layers (text, shapes, drawing) are hit-tested before background media
+    const sortedObjects = [...this.committedObjects].sort((a, b) => {
+      const orderA = this.layersMap.get(a.layerId)?.order ?? 2;
+      const orderB = this.layersMap.get(b.layerId)?.order ?? 2;
+      return orderB - orderA;
+    });
+
+    for (const obj of sortedObjects) {
       if (obj.locked) continue;
       const layer = this.layersMap.get(obj.layerId);
       if (layer && (!layer.visible || layer.locked)) continue;
@@ -1944,7 +1992,7 @@ export class DrawingEngine {
 
   private updateCursorForHandle(handle: ResizeHandle | null): void {
     if (!handle) {
-      this.activeCanvas.style.cursor = 'default';
+      this.updateToolCursor();
       return;
     }
     switch (handle) {
@@ -1972,7 +2020,7 @@ export class DrawingEngine {
         this.activeCanvas.style.cursor = 'move';
         break;
       default:
-        this.activeCanvas.style.cursor = 'default';
+        this.updateToolCursor();
         break;
     }
   }
@@ -2740,7 +2788,9 @@ export class DrawingEngine {
     if (!obj) {
       this.selectedObjectId = null;
       this.selectedGroupObject = null;
-      this.clearActiveCanvas();
+      if (!this.activeStroke && !this.shapeOrigin) {
+        this.clearActiveCanvas();
+      }
     } else if (obj.type === 'group') {
       this.selectedGroupObject = obj as GroupObject;
       this.selectedObjectId = obj.id;
@@ -2816,7 +2866,14 @@ export class DrawingEngine {
       }
     }
 
-    for (const obj of objects) {
+    // Stable sort by layer order so imported-media (order 1) renders underneath drawing (order 2), shapes (order 3), text (order 4)
+    const sortedObjects = [...objects].sort((a, b) => {
+      const orderA = this.layersMap.get(a.layerId)?.order ?? 2;
+      const orderB = this.layersMap.get(b.layerId)?.order ?? 2;
+      return orderA - orderB;
+    });
+
+    for (const obj of sortedObjects) {
       if (hiddenIds.has(obj.id)) {
         continue;
       }
@@ -4368,18 +4425,38 @@ export class DrawingEngine {
     this.activeCtx.clearRect(0, 0, width, height);
   }
 
+  private getToolCursor(): string {
+    switch (this.activeTool) {
+      case 'pen':
+      case 'highlighter':
+      case 'shape':
+      case 'line':
+        return 'crosshair';
+      case 'eraser':
+        return 'cell';
+      case 'pan':
+        return 'grab';
+      case 'text':
+        return 'text';
+      default:
+        return 'default';
+    }
+  }
+
+  private updateToolCursor(): void {
+    this.activeCanvas.style.cursor = this.getToolCursor();
+  }
+
   private eventToDocPoint(e: PointerEvent): Point {
     const rect = this.activeCanvas.getBoundingClientRect();
     const dpr = this.devicePixelRatio;
     const screenX = (e.clientX - rect.left) * dpr;
     const screenY = (e.clientY - rect.top) * dpr;
     let pressure = 0.5;
-    if (typeof e.pressure === 'number') {
+    if (typeof e.pressure === 'number' && e.pressure > 0) {
       pressure = e.pressure;
-    }
-    // If stylus reports 0 on initial touch-down with pen button engaged, use a light initial touch threshold
-    if (e.pointerType === 'pen' && pressure === 0 && e.buttons > 0) {
-      pressure = 0.25;
+    } else if (e.pointerType === 'pen') {
+      pressure = e.buttons > 0 ? 0.35 : 0.5;
     }
     return {
       x: screenX / (this.zoom * dpr) - this.panX,
@@ -4399,11 +4476,20 @@ export class DrawingEngine {
 
   setActiveTool(tool: ToolId): void {
     this.activeTool = tool;
+    this.isPointerDown = false;
+    this.isDraggingObject = false;
+    this.draggedObjectInitial = null;
+    this.isResizingObject = false;
+    this.activeResizeHandle = null;
+    this.resizeObjectInitial = null;
+    this.isMarqueeSelecting = false;
+    this.marqueeStartPt = null;
+    this.isLassoSelecting = false;
+    this.lassoPoints = [];
     this.activeStroke = null;
     this.shapeOrigin = null;
     this.recognitionPoints = [];
-    this.isResizingObject = false;
-    this.activeResizeHandle = null;
+    this.eraseSession = null;
     this.clearActiveCanvas();
     if (tool !== 'select') {
       this.selectedObjectId = null;
@@ -4412,6 +4498,7 @@ export class DrawingEngine {
     }
     this.requestActiveRender();
     this.redrawCommitted(this.committedObjects);
+    this.updateToolCursor();
   }
 
   setStyle(style: Partial<StrokeStyle>): void {
@@ -4525,6 +4612,7 @@ export class DrawingEngine {
   }
 
   resize(width: number, height: number): void {
+    if (width <= 0 || height <= 0) return;
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     this.devicePixelRatio = dpr;
     for (const canvas of [this.committedCanvas, this.activeCanvas]) {
@@ -4550,6 +4638,10 @@ export class DrawingEngine {
     canvas.removeEventListener('pointercancel', this.handlePointerCancel);
     canvas.removeEventListener('pointerleave', this.handlePointerLeave);
     canvas.removeEventListener('wheel', this.handleWheel);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('blur', this.handleWindowBlur);
+      window.removeEventListener('focus', this.handleWindowFocus);
+    }
   }
 }
 

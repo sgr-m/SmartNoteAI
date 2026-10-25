@@ -26,11 +26,10 @@ let db: DatabaseService | null = null;
 let settings: SettingsService | null = null;
 
 // ─── App Configuration ───────────────────────────────────────────────────────
-// Ensure Windows Ink and digitizer pointer events deliver high-frequency pressure and cursor stays visible
-app.commandLine.appendSwitch('enable-features', 'PointerEvents,TouchEvents');
-app.commandLine.appendSwitch('disable-features', 'HideCursorWhileTyping,DirectManipulationStylus');
+// Ensure Windows Ink, digitizer pointer events, and XP-Pen / Wacom styluses deliver native pointer events
+app.commandLine.appendSwitch('enable-features', 'PointerEvents,TouchEvents,DirectManipulationStylus');
+app.commandLine.appendSwitch('disable-features', 'HideCursorWhileTyping');
 app.commandLine.appendSwitch('high-dpi-support', '1');
-app.commandLine.appendSwitch('enable-pointer-events');
 // Request high-resolution pointer events for stylus accuracy
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
@@ -78,6 +77,14 @@ async function createMainWindow(): Promise<BrowserWindow> {
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  win.on('enter-full-screen', () => {
+    win.webContents.send('window:setPresentationMode', true);
+  });
+
+  win.on('leave-full-screen', () => {
+    win.webContents.send('window:setPresentationMode', false);
   });
 
   win.once('ready-to-show', () => {

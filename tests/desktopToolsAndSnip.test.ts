@@ -134,3 +134,45 @@ describe('Laser Pointer & Presentation Durations', () => {
     expect(getFadeAlpha(12200)).toBeCloseTo(0.0);
   });
 });
+
+describe('Desktop and Board Fullscreen State Preservation', () => {
+  it('correctly detects whether fullscreen teaching mode should be restored', () => {
+    const computeRestoreState = (
+      options?: { isPresentationMode?: boolean },
+      callerIsFullScreen = false,
+      callerIsMaximized = false
+    ) => {
+      const wasFullScreen = Boolean(options?.isPresentationMode ?? callerIsFullScreen);
+      const wasMaximized = callerIsMaximized;
+      return {
+        shouldRestoreFullScreen: wasFullScreen,
+        shouldRestoreMaximized: !wasFullScreen && wasMaximized,
+      };
+    };
+
+    // Case 1: Teaching in presentation mode (full screen) -> preserves full screen on restore
+    expect(computeRestoreState({ isPresentationMode: true }, true, false)).toEqual({
+      shouldRestoreFullScreen: true,
+      shouldRestoreMaximized: false,
+    });
+
+    // Case 2: Window was in fullscreen via window chrome/F11 -> preserves full screen
+    expect(computeRestoreState(undefined, true, false)).toEqual({
+      shouldRestoreFullScreen: true,
+      shouldRestoreMaximized: false,
+    });
+
+    // Case 3: Window was maximized (not fullscreen) -> preserves maximized on restore
+    expect(computeRestoreState({ isPresentationMode: false }, false, true)).toEqual({
+      shouldRestoreFullScreen: false,
+      shouldRestoreMaximized: true,
+    });
+
+    // Case 4: Normal windowed mode -> restores windowed without forcing fullscreen
+    expect(computeRestoreState({ isPresentationMode: false }, false, false)).toEqual({
+      shouldRestoreFullScreen: false,
+      shouldRestoreMaximized: false,
+    });
+  });
+});
+

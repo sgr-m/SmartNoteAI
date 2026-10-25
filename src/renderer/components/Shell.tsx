@@ -32,14 +32,13 @@ import { DesktopAnnotationOverlay } from './DesktopAnnotationOverlay';
 import { FloatingTimerWidget } from './FloatingTimerWidget';
 import { ScreenshotModal } from './ScreenshotModal';
 import { AreaScreenshotOverlay } from './AreaScreenshotOverlay';
-import { PresentationFloatingToolbar } from './PresentationFloatingToolbar';
 import type { PresentationTool } from './PresentationFloatingToolbar';
 import { createImageObject, sanitizeSvg } from '../services/documentImportService';
 import { useAppContext } from '../context/AppContext';
 import './Shell.css';
 
 export function Shell(): React.ReactElement {
-  const { docState, docDispatch, setToastMessage } = useAppContext();
+  const { docState, docDispatch, setToastMessage, setSelectedObject, setActiveTool } = useAppContext();
   const [showPagePanel, setShowPagePanel] = useState(false);
 
   // Section 4.2 Main Modals
@@ -64,7 +63,6 @@ export function Shell(): React.ReactElement {
 
   // ─── Milestone 4: Presentation Tools State ─────────────────────────────────────
   const [activePresentationTool, setActivePresentationTool] = useState<PresentationTool | null>(null);
-  const [showFloatingToolbar, setShowFloatingToolbar] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   const [showAreaScreenshot, setShowAreaScreenshot] = useState(false);
@@ -80,11 +78,11 @@ export function Shell(): React.ReactElement {
 
   const handleDesktop = useCallback(async () => {
     if (window.electronAPI) {
-      await window.electronAPI.invoke('window:showDesktop');
+      await window.electronAPI.invoke('window:showDesktop', { isPresentationMode });
     } else {
       window.blur();
     }
-  }, []);
+  }, [isPresentationMode]);
 
   const handleReturnToBoard = useCallback(async () => {
     if (window.electronAPI) {
@@ -98,21 +96,34 @@ export function Shell(): React.ReactElement {
     setShowScreenshotModal(true);
   }, []);
 
-  // Show floating toolbar whenever entering presentation mode
-  useEffect(() => {
-    if (isPresentationMode) {
-      setShowFloatingToolbar(true);
-    }
-  }, [isPresentationMode]);
 
   const togglePresentationMode = async (force?: boolean) => {
-    const next = force !== undefined ? force : !isPresentationMode;
-    setIsPresentationMode(next);
+    let next: boolean;
+    if (force !== undefined) {
+      next = force;
+    } else if (window.electronAPI) {
+      try {
+        const isNativeFullScreen = Boolean(await window.electronAPI.invoke('window:isFullScreen'));
+        // If native window is not fullscreen, ensure single click enters fullscreen
+        if (!isNativeFullScreen) {
+          next = true;
+        } else {
+          next = !isPresentationMode;
+        }
+      } catch {
+        next = !isPresentationMode;
+      }
+    } else {
+      next = !isPresentationMode;
+    }
+
     if (window.electronAPI) {
       try {
-        await window.electronAPI.invoke('window:setFullScreen', next);
+        const actual = await window.electronAPI.invoke('window:setFullScreen', next);
+        setIsPresentationMode(Boolean(actual));
       } catch (err) {
         console.error('Failed to set fullscreen via IPC:', err);
+        setIsPresentationMode(next);
       }
     } else {
       if (next) {
@@ -120,6 +131,7 @@ export function Shell(): React.ReactElement {
       } else if (document.fullscreenElement) {
         document.exitFullscreen?.().catch(() => {});
       }
+      setIsPresentationMode(next);
     }
   };
 
@@ -163,19 +175,27 @@ export function Shell(): React.ReactElement {
       img.onload = () => {
         const imgObj = createImageObject(dataUrl, `Desktop_Snip_${Date.now()}.png`, 160, 160, 800, 600, img.width || 800, img.height || 600);
         docDispatch({ type: 'ADD_OBJECT', pageIndex: docState.currentPageIndex, object: imgObj });
+        setSelectedObject(imgObj);
+        setActiveTool('select');
         setToastMessage?.('Inserted desktop screenshot onto current page!');
       };
       img.src = dataUrl;
     });
 
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      unsubMenu?.();
-      unsubAnnotation?.();
-      unsubSpotlight?.();
-      unsubDesktopInsert?.();
-    };
-  }, [isPresentationMode, showPagePanel, activePresentationTool, docState.currentPageIndex, docDispatch, setToastMessage]);
+      const unsubPresentationMode = window.electronAPI?.on('window:setPresentationMode', (...args: unknown[]) => {
+        const mode = args[0] as boolean;
+        setIsPresentationMode(Boolean(mode));
+      });
+
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+        unsubMenu?.();
+        unsubAnnotation?.();
+        unsubSpotlight?.();
+        unsubDesktopInsert?.();
+        unsubPresentationMode?.();
+      };
+    }, [isPresentationMode, showPagePanel, activePresentationTool, docState.currentPageIndex, docDispatch, setToastMessage, setSelectedObject, setActiveTool]);
 
   // Drag and drop from Windows File Explorer (Section 11 & 13)
   const handleDragOver = (e: React.DragEvent) => {
@@ -247,6 +267,8 @@ export function Shell(): React.ReactElement {
             pageIndex: docState.currentPageIndex,
             object: imgObj,
           });
+          setSelectedObject(imgObj);
+          setActiveTool('select');
           setToastMessage?.(`Imported image: ${firstFile.name}`);
         };
         img.src = cleanDataUrl;
@@ -378,33 +400,6 @@ export function Shell(): React.ReactElement {
             <FloatingTimerWidget onClose={() => setShowTimer(false)} />
           )}
 
-          {/* Floating Presentation Toolbar (always available, auto-hides) */}
-          {showFloatingToolbar && (
-            <PresentationFloatingToolbar
-              activeTool={activePresentationTool}
-              onActivateTool={activatePresentationTool}
-              onDeactivateTool={deactivatePresentationTool}
-              onDesktop={handleDesktop}
-              onReturnToBoard={handleReturnToBoard}
-              onScreenshot={handleScreenshot}
-              onTogglePresentationMode={() => togglePresentationMode()}
-              isPresentationMode={isPresentationMode}
-              timerVisible={showTimer}
-              onToggleTimer={() => setShowTimer((t) => !t)}
-              onAreaScreenshot={() => setShowAreaScreenshot(true)}
-            />
-          )}
-
-          {/* Floating toolbar trigger tab (when not in pres mode) */}
-          {!showFloatingToolbar && (
-            <button
-              className="shell-pres-toolbar-toggle"
-              onClick={() => setShowFloatingToolbar(true)}
-              title="Show Presentation Tools"
-            >
-              🎭
-            </button>
-          )}
         </div>
       </div>
 

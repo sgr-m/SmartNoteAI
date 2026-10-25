@@ -1248,6 +1248,13 @@ export function WhiteboardCanvas(): React.ReactElement {
           copyObject(selectedObject);
         }
       } else if (e.key.toLowerCase() === 'v' && (e.ctrlKey || e.metaKey)) {
+        if (
+          (e.target as HTMLElement)?.tagName === 'INPUT' ||
+          (e.target as HTMLElement)?.tagName === 'TEXTAREA' ||
+          (e.target as HTMLElement)?.isContentEditable
+        ) {
+          return;
+        }
         e.preventDefault();
         pasteObject();
       } else if (e.key.toLowerCase() === 'x' && (e.ctrlKey || e.metaKey)) {
@@ -1260,8 +1267,25 @@ export function WhiteboardCanvas(): React.ReactElement {
         setActiveFlyout('none');
       }
     };
+
+    const handlePaste = (e: ClipboardEvent) => {
+      if (
+        (e.target as HTMLElement)?.tagName === 'INPUT' ||
+        (e.target as HTMLElement)?.tagName === 'TEXTAREA' ||
+        (e.target as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+      e.preventDefault();
+      pasteObject();
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('paste', handlePaste);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('paste', handlePaste);
+    };
   }, [
     selectedObject,
     handleDeleteSelected,
@@ -1345,13 +1369,29 @@ export function WhiteboardCanvas(): React.ReactElement {
       const rect = container.getBoundingClientRect();
       const width = Math.ceil(rect.width);
       const height = Math.ceil(rect.height);
+      if (width <= 0 || height <= 0) return;
       const dpr = window.devicePixelRatio || 1;
       engineRef.current?.setDevicePixelRatio(dpr);
       engineRef.current?.resize(width, height);
       drawBackground(width, height);
     };
 
+    const handleFocusOrVisibility = () => {
+      engineRef.current?.resetInteractions();
+      handleResize();
+      if (currentPageRef.current) {
+        engineRef.current?.redrawCommitted(
+          currentPageRef.current.objects,
+          selectedObjectRef.current?.id,
+          selectedObjectRef.current
+        );
+      }
+    };
+
     window.addEventListener('resize', handleResize);
+    window.addEventListener('focus', handleFocusOrVisibility);
+    document.addEventListener('visibilitychange', handleFocusOrVisibility);
+
     const observer = new ResizeObserver(() => {
       handleResize();
     });
@@ -1363,6 +1403,8 @@ export function WhiteboardCanvas(): React.ReactElement {
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('focus', handleFocusOrVisibility);
+      document.removeEventListener('visibilitychange', handleFocusOrVisibility);
       observer.disconnect();
     };
   }, [drawBackground]);
@@ -1475,6 +1517,11 @@ export function WhiteboardCanvas(): React.ReactElement {
               ? 'grab'
               : toolState.activeTool === 'text'
               ? 'text'
+              : toolState.activeTool === 'pen' ||
+                toolState.activeTool === 'highlighter' ||
+                toolState.activeTool === 'shape' ||
+                toolState.activeTool === 'line'
+              ? 'crosshair'
               : 'default',
         }}
       />

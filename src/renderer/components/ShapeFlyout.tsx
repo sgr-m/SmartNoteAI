@@ -28,6 +28,14 @@ const COLOR_TILES: string[] = [
   '#9966ff', '#00e5ff',            // Lilac, Cyan
 ];
 
+function hexToRgba(hex: string, alpha: number): string {
+  let c = hex.replace('#', '');
+  if (c.length === 3) c = c.split('').map(x => x + x).join('');
+  const num = parseInt(c, 16);
+  if (isNaN(num)) return `rgba(79, 172, 254, ${alpha})`;
+  return `rgba(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}, ${alpha})`;
+}
+
 const SHAPE_ITEMS: ShapeGridItem[] = [
   // Row 1
   {
@@ -266,28 +274,63 @@ export function ShapeFlyout({ onClose }: ShapeFlyoutProps): React.ReactElement {
         {/* Top Row: Metallic Slider + Preview + Color Grid */}
         <div className="flyout-top-row">
           <div className="slider-preview-col">
-            <div className="slider-track-wrapper">
-              <input
-                type="range"
-                className="metallic-slider"
-                min={1}
-                max={32}
-                value={shapeStyle.strokeWidth}
-                onChange={(e) => setShapeStyle({ strokeWidth: Number(e.target.value) })}
-                aria-label="Shape Outline Thickness"
-              />
+            <div className="shape-slider-group">
+              {/* Outline Thickness Slider */}
+              <div className="shape-slider-row">
+                <div className="shape-slider-label">
+                  <span>Outline:</span>
+                  <span className="shape-slider-val">{shapeStyle.strokeWidth}px</span>
+                </div>
+                <div className="slider-track-wrapper">
+                  <input
+                    type="range"
+                    className="metallic-slider"
+                    min={1}
+                    max={32}
+                    value={shapeStyle.strokeWidth}
+                    onChange={(e) => setShapeStyle({ strokeWidth: Number(e.target.value) })}
+                    aria-label="Shape Outline Thickness"
+                  />
+                </div>
+              </div>
+
+              {/* Fill Opacity Slider (0% to 100%) */}
+              <div className="shape-slider-row">
+                <div className="shape-slider-label">
+                  <span>Fill Opacity:</span>
+                  <span className="shape-slider-val">
+                    {shapeStyle.fillOpacity === 0 ? 'Transparent (0%)' : `${Math.round(shapeStyle.fillOpacity * 100)}%`}
+                  </span>
+                </div>
+                <div className="slider-track-wrapper">
+                  <input
+                    type="range"
+                    className="metallic-slider"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={shapeStyle.fillOpacity}
+                    onChange={(e) => setShapeStyle({ fillOpacity: Number(e.target.value) })}
+                    aria-label="Shape Fill Opacity"
+                  />
+                </div>
+              </div>
             </div>
 
-            {/* Checkered Live Stroke Preview Circle */}
-            <div className="preview-circle-container">
+            {/* Checkered Live Stroke & Fill Preview */}
+            <div
+              className="preview-circle-container"
+              title={shapeStyle.fillOpacity === 0 ? '100% Transparent fill' : `${Math.round(shapeStyle.fillOpacity * 100)}% fill opacity`}
+            >
               <div className="preview-circle-checkered">
                 <div
-                  className="preview-circle-dot"
+                  className="preview-shape-demo"
                   style={{
-                    width: Math.min(38, Math.max(3, shapeStyle.strokeWidth * 1.5)),
-                    height: Math.min(38, Math.max(3, shapeStyle.strokeWidth * 1.5)),
-                    backgroundColor: shapeStyle.strokeColor,
-                    opacity: shapeStyle.strokeOpacity,
+                    width: 36,
+                    height: 36,
+                    borderRadius: shapeStyle.shapeType === 'circle' ? '50%' : 4,
+                    border: `${Math.min(5, Math.max(2, shapeStyle.strokeWidth))}px solid ${shapeStyle.strokeColor}`,
+                    backgroundColor: shapeStyle.fillOpacity > 0 ? hexToRgba(shapeStyle.fillColor, shapeStyle.fillOpacity) : 'transparent',
                   }}
                 />
               </div>
