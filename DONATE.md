@@ -6,12 +6,20 @@ If you find this software useful, you can optionally support its continued devel
 
 ## 🇮🇳 UPI (Unified Payments Interface)
 
-To support development via any UPI-supported app (Google Pay, PhonePe, Paytm, BHIM, CRED):
+To support development via any UPI-supported app (PhonePe, Google Pay, Paytm, BHIM, CRED):
 
-- **UPI ID**: `UPI_ID`
+- **UPI ID**: `sagar-maindola@ybl`
 - **Recipient**: Sagar Maindola (Project Maintainer)
 
-> *Tip: Enter the UPI ID above in your UPI banking or payments app to make a voluntary contribution of any amount.*
+### Scan UPI QR Code:
+
+<p align="center">
+  <img src="assets/upi-qr-code.png" alt="Sagar Maindola PhonePe UPI QR Code" width="220" />
+  <br/>
+  <em>Scan using PhonePe, Google Pay, Paytm, BHIM, or any UPI banking app</em>
+</p>
+
+> *Tip: Enter the UPI ID `sagar-maindola@ybl` or scan the QR code above in your UPI payments app to make a voluntary contribution.*
 
 ---
 
