@@ -1,10 +1,22 @@
 import React from 'react';
+import { useMetrics } from '../context/MetricsContext';
+import { AnimatedCounter } from './AnimatedCounter';
 
 export const FinalCTA: React.FC = () => {
+  const { visitors, downloads, incrementDownloads } = useMetrics();
+
   return (
     <section className="section" style={{ paddingBottom: '120px' }}>
       <div className="container">
         <div className="cta-box">
+          <div className="cta-live-pill">
+            <span className="dot-green-pulse"></span>
+            <span>
+              <strong><AnimatedCounter value={downloads} /></strong> Downloads &bull;{' '}
+              <strong><AnimatedCounter value={visitors} /></strong> Website Visitors
+            </span>
+          </div>
+
           <h2>Make Your Next Lesson More Visual.</h2>
           <p>
             Explore an open-source digital whiteboard engineered for the way you teach. 
@@ -17,6 +29,7 @@ export const FinalCTA: React.FC = () => {
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-primary btn-lg"
+              onClick={incrementDownloads}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.401H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.951-1.751" />

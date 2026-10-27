@@ -1,7 +1,10 @@
 import React from 'react';
 import logoImg from '../assets/logo.png';
+import { useMetrics } from '../context/MetricsContext';
 
 export const Footer: React.FC = () => {
+  const { visitors, downloads } = useMetrics();
+
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -26,6 +29,7 @@ export const Footer: React.FC = () => {
             <h5>Product</h5>
             <ul>
               <li><a href="#features">Features</a></li>
+              <li><a href="#community-stats">Live Impact &amp; Metrics</a></li>
               <li><a href="#gallery">Application Tour</a></li>
               <li><a href="#getting-started">Installation Guide</a></li>
               <li><a href="#requirements">System Requirements</a></li>
@@ -56,8 +60,16 @@ export const Footer: React.FC = () => {
         </div>
 
         <div className="footer-bottom">
-          <div>
-            &copy; 2026 Sagar Maindola. Released under the GNU General Public License v3.0.
+          <div className="footer-bottom-left">
+            <div>
+              &copy; 2026 Sagar Maindola. Released under the GNU General Public License v3.0.
+            </div>
+            <div className="footer-live-stats-pill">
+              <span className="dot-green-pulse" aria-hidden="true"></span>
+              <span><strong>{visitors.toLocaleString()}</strong> Website Visitors</span>
+              <span className="pill-dot-sep">&bull;</span>
+              <span><strong>{downloads.toLocaleString()}</strong> Downloads</span>
+            </div>
           </div>
 
           <button className="footer-back-to-top" onClick={scrollToTop} aria-label="Scroll back to top">
@@ -71,3 +83,4 @@ export const Footer: React.FC = () => {
     </footer>
   );
 };
+

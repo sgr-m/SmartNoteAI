@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import logoImg from '../assets/logo.png';
+import { useMetrics } from '../context/MetricsContext';
 
 export const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { incrementDownloads } = useMetrics();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,6 +27,7 @@ export const Navbar: React.FC = () => {
 
           <ul className="nav-links">
             <li><a href="#features" className="nav-link">Features</a></li>
+            <li><a href="#community-stats" className="nav-link">Impact</a></li>
             <li><a href="#gallery" className="nav-link">Showcase</a></li>
             <li><a href="#getting-started" className="nav-link">Get Started</a></li>
             <li><a href="#requirements" className="nav-link">Requirements</a></li>
@@ -39,6 +42,7 @@ export const Navbar: React.FC = () => {
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-primary btn-sm"
+              onClick={incrementDownloads}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -69,6 +73,7 @@ export const Navbar: React.FC = () => {
       {mobileMenuOpen && (
         <div className="mobile-drawer" role="dialog" aria-modal="true" aria-label="Mobile Navigation">
           <a href="#features" onClick={() => setMobileMenuOpen(false)}>Features</a>
+          <a href="#community-stats" onClick={() => setMobileMenuOpen(false)}>Live Metrics &amp; Impact</a>
           <a href="#gallery" onClick={() => setMobileMenuOpen(false)}>Showcase</a>
           <a href="#getting-started" onClick={() => setMobileMenuOpen(false)}>Get Started</a>
           <a href="#requirements" onClick={() => setMobileMenuOpen(false)}>System Requirements</a>
@@ -81,7 +86,10 @@ export const Navbar: React.FC = () => {
             rel="noopener noreferrer"
             className="btn btn-primary"
             style={{ marginTop: '12px', textAlign: 'center' }}
-            onClick={() => setMobileMenuOpen(false)}
+            onClick={() => {
+              incrementDownloads();
+              setMobileMenuOpen(false);
+            }}
           >
             Download for Windows
           </a>

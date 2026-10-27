@@ -1,7 +1,11 @@
 import React from 'react';
 import heroWhiteboard from '../assets/images/hero-whiteboard.png';
+import { useMetrics } from '../context/MetricsContext';
+import { AnimatedCounter } from './AnimatedCounter';
 
 export const Hero: React.FC = () => {
+  const { visitors, downloads, isLive, incrementDownloads } = useMetrics();
+
   return (
     <section className="hero-section" id="hero">
       <div className="container">
@@ -27,6 +31,7 @@ export const Hero: React.FC = () => {
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-primary btn-lg"
+              onClick={incrementDownloads}
             >
               {/* Windows Icon */}
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -47,6 +52,44 @@ export const Hero: React.FC = () => {
               </svg>
               <span>Explore on GitHub</span>
             </a>
+          </div>
+
+          {/* Real-Time Adoption Counters Ribbon */}
+          <div className="hero-stats-ribbon">
+            <a href="#community-stats" className="hero-stat-pill" title="View software download metrics">
+              <span className="hero-stat-icon hero-stat-icon-cyan">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </span>
+              <span className="hero-stat-value">
+                <AnimatedCounter value={downloads} />
+              </span>
+              <span className="hero-stat-label">Total Downloads</span>
+            </a>
+
+            <span className="hero-stat-divider" aria-hidden="true">&bull;</span>
+
+            <a href="#community-stats" className="hero-stat-pill" title="View live website visitors">
+              <span className="hero-stat-indicator">
+                <span className="hero-stat-dot"></span>
+                <span className="hero-stat-ping"></span>
+              </span>
+              <span className="hero-stat-value">
+                <AnimatedCounter value={visitors} />
+              </span>
+              <span className="hero-stat-label">Website Visitors</span>
+            </a>
+
+            <span className="hero-stat-divider" aria-hidden="true">&bull;</span>
+
+            <div className="hero-stat-pill">
+              <span className="hero-stat-tag">
+                {isLive ? 'Live Tracked' : 'Verified GPLv3'}
+              </span>
+            </div>
           </div>
 
           <div className="hero-meta">
