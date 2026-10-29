@@ -11,131 +11,226 @@
 
 import { app, BrowserWindow, ipcMain, shell, dialog, Menu, nativeTheme, screen } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import { setupIpcHandlers } from './ipc/ipcHandlers';
 import { DatabaseService } from './services/DatabaseService';
 import { SettingsService } from './services/SettingsService';
 import { FileService } from './services/FileService';
 
-// ─── Dev vs Production URL ──────────────────────────────────────────────────
-const isDev = !app.isPackaged;
-const RENDERER_URL = isDev ? 'http://localhost:5173' : `file://${path.join(__dirname, '../renderer/index.html')}`;
+// ─── Single Instance Lock ────────────────────────────────────────────────────
+const gotTheLock = app.requestSingleInstanceLock();
 
-// ─── Global State ────────────────────────────────────────────────────────────
+if (!gotTheLock) {
+  app.quit();
+}
+
+// ─── Dev vs Production Mode ────────────────────────────────────────────────
+const isDev = !app.isPackaged;
+
+// ─── Global State ──────────────────────────────────────────────────────────
 let mainWindow: BrowserWindow | null = null;
 let db: DatabaseService | null = null;
 let settings: SettingsService | null = null;
 
-// ─── App Configuration ───────────────────────────────────────────────────────
-// Ensure Windows Ink, digitizer pointer events, and XP-Pen / Wacom styluses deliver native pointer events
-app.commandLine.appendSwitch('enable-features', 'PointerEvents,TouchEvents,DirectManipulationStylus');
-app.commandLine.appendSwitch('disable-features', 'HideCursorWhileTyping');
-app.commandLine.appendSwitch('high-dpi-support', '1');
-// Request high-resolution pointer events for stylus accuracy
-app.commandLine.appendSwitch('disable-renderer-backgrounding');
-app.commandLine.appendSwitch('disable-background-timer-throttling');
-
-// ─── Window Creation ─────────────────────────────────────────────────────────
-async function createMainWindow(): Promise<BrowserWindow> {
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width, height } = primaryDisplay.workAreaSize;
-
-  const win = new BrowserWindow({
-    title: 'SmartNoteAI',
-    width: Math.min(1600, width),
-    height: Math.min(960, height),
-    minWidth: 1024,
-    minHeight: 640,
-    show: false, // show once ready to prevent flash
-    backgroundColor: '#1a1a2e',
-    disableAutoHideCursor: true, // Keep the default Windows pointer visible at all times
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#16213e',
-      symbolColor: '#e0e0e0',
-      height: 40,
-    },
-    icon: path.join(__dirname, '../../assets/icons/icon.ico'),
-    webPreferences: {
-      preload: path.join(__dirname, '../preload/preload.js'),
-      contextIsolation: true,          // SECURITY: context isolation on
-      nodeIntegration: false,           // SECURITY: no Node in renderer
-      sandbox: false,                   // need preload access to limited node
-      webSecurity: true,
-      allowRunningInsecureContent: false,
-      // Enable high-resolution pointer events for stylus
-      experimentalFeatures: false,
-    },
-  });
-
-  // Performance: use WillNavigate to block unwanted navigation
-  win.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith('http://localhost') && !url.startsWith('file://')) {
-      e.preventDefault();
-    }
-  });
-
-  // Open external links in system browser
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
-    return { action: 'deny' };
-  });
-
-  win.on('enter-full-screen', () => {
-    win.webContents.send('window:setPresentationMode', true);
-  });
-
-  win.on('leave-full-screen', () => {
-    win.webContents.send('window:setPresentationMode', false);
-  });
-
-  win.once('ready-to-show', () => {
-    win.show();
-    if (isDev) {
-      win.webContents.openDevTools({ mode: 'detach' });
-    }
-  });
-
-  await win.loadURL(RENDERER_URL);
-  return win;
-}
-
-// ─── App Lifecycle ────────────────────────────────────────────────────────────
-app.whenReady().then(async () => {
-  // Initialize services
-  db = new DatabaseService();
-  await db.initialize();
-
-  settings = new SettingsService(db);
-  const fileService = new FileService(settings);
-  await fileService.ensureDirectories();
-
-  // Register IPC handlers with direct mainWindow accessor
-  setupIpcHandlers({ db, settings, fileService, getMainWindow: () => mainWindow });
-
-  mainWindow = await createMainWindow();
-
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-    app.quit();
-  });
-
-  // macOS: re-create window if dock icon clicked
-  app.on('activate', async () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      mainWindow = await createMainWindow();
-    }
-  });
-
-  // Set application menu
-  setupApplicationMenu();
-});
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    db?.close();
-    app.quit();
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
   }
 });
+
+  // ─── App Configuration ─────────────────────────────────────────────────────
+  // Ensure Windows Ink, digitizer pointer events, and XP-Pen / Wacom styluses deliver native pointer events
+  app.commandLine.appendSwitch('enable-features', 'PointerEvents,TouchEvents,DirectManipulationStylus');
+  app.commandLine.appendSwitch('disable-features', 'HideCursorWhileTyping');
+  app.commandLine.appendSwitch('high-dpi-support', '1');
+  // Request high-resolution pointer events for stylus accuracy
+  app.commandLine.appendSwitch('disable-renderer-backgrounding');
+  app.commandLine.appendSwitch('disable-background-timer-throttling');
+
+  // ─── Path Resolvers ────────────────────────────────────────────────────────
+  function getPreloadPath(): string {
+    const candidates = [
+      path.join(__dirname, '../preload/preload.js'),
+      path.join(__dirname, '../../preload/preload.js'),
+      path.join(app.getAppPath(), 'dist/preload/preload.js'),
+      path.join(app.getAppPath(), 'preload/preload.js'),
+    ];
+    for (const c of candidates) {
+      try {
+        if (fs.existsSync(c)) return c;
+      } catch {
+        // ignore
+      }
+    }
+    return candidates[0];
+  }
+
+  function getRendererHtmlPath(): string {
+    const candidates = [
+      path.join(__dirname, '../renderer/index.html'),
+      path.join(__dirname, '../../renderer/index.html'),
+      path.join(app.getAppPath(), 'dist/renderer/index.html'),
+      path.join(app.getAppPath(), 'renderer/index.html'),
+    ];
+    for (const c of candidates) {
+      try {
+        if (fs.existsSync(c)) return c;
+      } catch {
+        // ignore
+      }
+    }
+    return candidates[0];
+  }
+
+  function getAppIconPath(): string {
+    const candidates = [
+      path.join(__dirname, '../../assets/icons/icon.ico'),
+      path.join(__dirname, '../assets/icons/icon.ico'),
+      path.join(app.getAppPath(), 'assets/icons/icon.ico'),
+    ];
+    for (const c of candidates) {
+      try {
+        if (fs.existsSync(c)) return c;
+      } catch {
+        // ignore
+      }
+    }
+    return candidates[0];
+  }
+
+  // ─── Window Creation ───────────────────────────────────────────────────────
+  async function createMainWindow(): Promise<BrowserWindow> {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.workAreaSize;
+
+    const preloadPath = getPreloadPath();
+    const iconPath = getAppIconPath();
+
+    const win = new BrowserWindow({
+      title: 'SmartNoteAI',
+      width: Math.min(1600, width),
+      height: Math.min(960, height),
+      minWidth: 1024,
+      minHeight: 640,
+      show: true, // Show window directly to prevent hidden background zombie processes
+      backgroundColor: '#1a1a2e',
+      disableAutoHideCursor: true, // Keep the default Windows pointer visible at all times
+      frame: false, // Custom TitleBar with min/max/close controls rendered by React
+      icon: iconPath,
+      webPreferences: {
+        preload: preloadPath,
+        contextIsolation: true,          // SECURITY: context isolation on
+        nodeIntegration: false,           // SECURITY: no Node in renderer
+        sandbox: false,                   // need preload access to limited node
+        webSecurity: true,
+        allowRunningInsecureContent: false,
+        // Enable high-resolution pointer events for stylus
+        experimentalFeatures: false,
+      },
+    });
+
+    // Performance: use WillNavigate to block unwanted navigation
+    win.webContents.on('will-navigate', (e, url) => {
+      if (!url.startsWith('http://localhost') && !url.startsWith('file://')) {
+        e.preventDefault();
+      }
+    });
+
+    // Open external links in system browser
+    win.webContents.setWindowOpenHandler(({ url }) => {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    });
+
+    win.on('enter-full-screen', () => {
+      win.webContents.send('window:setPresentationMode', true);
+    });
+
+    win.on('leave-full-screen', () => {
+      win.webContents.send('window:setPresentationMode', false);
+    });
+
+    // Safety fallback: ensure window is displayed even if ready-to-show takes time
+    const showFallbackTimer = setTimeout(() => {
+      if (!win.isDestroyed() && !win.isVisible()) {
+        console.warn('[Main] ready-to-show timed out, showing window anyway');
+        win.show();
+      }
+    }, 2500);
+
+    win.once('ready-to-show', () => {
+      clearTimeout(showFallbackTimer);
+      win.show();
+      if (isDev) {
+        win.webContents.openDevTools({ mode: 'detach' });
+      }
+    });
+
+    const localHtml = getRendererHtmlPath();
+
+    if (isDev) {
+      try {
+        await win.loadURL('http://localhost:5173');
+      } catch (err) {
+        console.warn('[Main] Vite dev server at http://localhost:5173 unavailable, falling back to local build:', err);
+        try {
+          await win.loadFile(localHtml);
+        } catch (fileErr) {
+          console.error('[Main] Failed to load local html build:', fileErr);
+          win.show();
+        }
+      }
+    } else {
+      try {
+        await win.loadFile(localHtml);
+      } catch (err) {
+        console.error('[Main] Failed to load production local html:', err);
+        win.show();
+      }
+    }
+
+    return win;
+  }
+
+  // ─── App Lifecycle ──────────────────────────────────────────────────────────
+  app.whenReady().then(async () => {
+    // Initialize services
+    db = new DatabaseService();
+    await db.initialize();
+
+    settings = new SettingsService(db);
+    const fileService = new FileService(settings);
+    await fileService.ensureDirectories();
+
+    // Register IPC handlers with direct mainWindow accessor
+    setupIpcHandlers({ db, settings, fileService, getMainWindow: () => mainWindow });
+
+    mainWindow = await createMainWindow();
+
+    mainWindow.on('closed', () => {
+      mainWindow = null;
+      app.quit();
+    });
+
+    // macOS: re-create window if dock icon clicked
+    app.on('activate', async () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        mainWindow = await createMainWindow();
+      }
+    });
+
+    // Set application menu
+    setupApplicationMenu();
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      db?.close();
+      app.quit();
+    }
+  });
 
 // ─── Application Menu ─────────────────────────────────────────────────────────
 function setupApplicationMenu(): void {
@@ -170,8 +265,8 @@ function setupApplicationMenu(): void {
     {
       label: 'View',
       submenu: [
-        { label: 'Zoom In', accelerator: 'CmdOrCtrl+Equal', click: () => mainWindow?.webContents.send('menu:view:zoomin') },
-        { label: 'Zoom Out', accelerator: 'CmdOrCtrl+Minus', click: () => mainWindow?.webContents.send('menu:view:zoomout') },
+        { label: 'Zoom In', accelerator: 'CmdOrCtrl+=', click: () => mainWindow?.webContents.send('menu:view:zoomin') },
+        { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: () => mainWindow?.webContents.send('menu:view:zoomout') },
         { label: 'Fit Page', accelerator: 'CmdOrCtrl+0', click: () => mainWindow?.webContents.send('menu:view:fitpage') },
         { type: 'separator' },
         { label: 'Presentation Mode', accelerator: 'F5', click: () => mainWindow?.webContents.send('menu:view:presentation') },

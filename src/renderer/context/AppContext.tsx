@@ -6,7 +6,7 @@
 import React, { createContext, useContext, useReducer, useRef, useCallback, useEffect } from 'react';
 import { documentReducer, initialDocumentState, DocumentState, DocumentAction, serializeLesson, deserializeLesson } from '../store/documentStore';
 import { CommandSystem } from '../engine/CommandSystem';
-import { StrokeStyle, ToolId, CanvasObject, StrokeObject, ShapeObject, TextObject, GroupObject, Point, LessonDocument } from '../../shared/types';
+import { StrokeStyle, ToolId, CanvasObject, StrokeObject, ShapeObject, TextObject, ImageObject, GroupObject, Point, LessonDocument } from '../../shared/types';
 import { ShapeStyle } from '../engine/DrawingEngine';
 import { createImageObject } from '../services/documentImportService';
 import { v4 as uuidv4 } from 'uuid';
@@ -900,8 +900,8 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
 
       if (selectedObject && selectedObject.id === objectId && selectedObject.type === 'group') {
         const grp = selectedObject as GroupObject;
-        const prevGroup = grp;
-        const prevChildren = [...grp.objects];
+        const prevGroup = JSON.parse(JSON.stringify(grp)) as GroupObject;
+        const prevChildren = JSON.parse(JSON.stringify(grp.objects)) as CanvasObject[];
         const cx = grp.bbox.x + grp.bbox.width / 2;
         const cy = grp.bbox.y + grp.bbox.height / 2;
 
@@ -949,6 +949,12 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
             const newY = direction === 'vertical' ? 2 * cy - (t.y + (t.height || 40)) : t.y;
             return { ...t, x: newX, y: newY };
           }
+          if (obj.type === 'image') {
+            const img = obj as ImageObject;
+            const newX = direction === 'horizontal' ? 2 * cx - (img.x + (img.width || 100)) : img.x;
+            const newY = direction === 'vertical' ? 2 * cy - (img.y + (img.height || 100)) : img.y;
+            return { ...img, x: newX, y: newY };
+          }
           return { ...obj };
         });
 
@@ -970,7 +976,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
 
       const obj = currentObjects?.find((o) => o.id === objectId);
       if (!obj) return;
-      const prev = obj;
+      const prev = JSON.parse(JSON.stringify(obj)) as CanvasObject;
       let updated: CanvasObject;
 
       if (obj.type === 'stroke') {
@@ -1009,6 +1015,13 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
               ? (360 - (sh.rotation || 0)) % 360
               : (180 - (sh.rotation || 0) + 360) % 360,
         };
+      } else if (obj.type === 'image') {
+        const img = obj as ImageObject;
+        const cx = img.x + (img.width || 100) / 2;
+        const cy = img.y + (img.height || 100) / 2;
+        const newX = direction === 'horizontal' ? 2 * cx - (img.x + (img.width || 100)) : img.x;
+        const newY = direction === 'vertical' ? 2 * cy - (img.y + (img.height || 100)) : img.y;
+        updated = { ...img, x: newX, y: newY };
       } else {
         updated = { ...obj };
       }
@@ -1108,13 +1121,27 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
             rotation: (((t.rotation || 0) + degrees) % 360 + 360) % 360,
           };
         }
+        if (obj.type === 'image') {
+          const img = obj as ImageObject;
+          const iw = img.width || 200;
+          const ih = img.height || 200;
+          const icx = img.x + iw / 2;
+          const icy = img.y + ih / 2;
+          const newCenter = rotatePoint({ x: icx, y: icy }, cx, cy);
+          return {
+            ...img,
+            x: newCenter.x - iw / 2,
+            y: newCenter.y - ih / 2,
+            rotation: (((img.rotation || 0) + degrees) % 360 + 360) % 360,
+          };
+        }
         return { ...obj };
       };
 
       if (selectedObject && selectedObject.type === 'group' && selectedObject.id === objectId) {
         const grp = selectedObject as GroupObject;
-        const prevGroup = grp;
-        const prevChildren = grp.objects;
+        const prevGroup = JSON.parse(JSON.stringify(grp)) as GroupObject;
+        const prevChildren = JSON.parse(JSON.stringify(grp.objects)) as CanvasObject[];
         const cx = grp.bbox.x + grp.bbox.width / 2;
         const cy = grp.bbox.y + grp.bbox.height / 2;
 
@@ -1165,7 +1192,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
 
       const obj = currentObjects?.find((o) => o.id === objectId);
       if (!obj) return;
-      const prev = obj;
+      const prev = JSON.parse(JSON.stringify(obj)) as CanvasObject;
       let cx = 0, cy = 0;
       if (obj.type === 'stroke') {
         const s = obj as StrokeObject;
@@ -1179,6 +1206,10 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
         const t = obj as TextObject;
         cx = t.x + (t.width || 200) / 2;
         cy = t.y + (t.height || 40) / 2;
+      } else if (obj.type === 'image') {
+        const img = obj as ImageObject;
+        cx = img.x + (img.width || 200) / 2;
+        cy = img.y + (img.height || 200) / 2;
       }
 
       const updated = rotateSingleObj(obj, cx, cy);
@@ -1207,8 +1238,8 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
 
       if (selectedObject && selectedObject.id === objectId && selectedObject.type === 'group') {
         const grp = selectedObject as GroupObject;
-        const prevGroup = grp;
-        const prevChildren = [...grp.objects];
+        const prevGroup = JSON.parse(JSON.stringify(grp)) as GroupObject;
+        const prevChildren = JSON.parse(JSON.stringify(grp.objects)) as CanvasObject[];
         const updatedChildren: CanvasObject[] = grp.objects.map((child) => {
           if (child.type === 'stroke') {
             return { ...child, style: { ...(child as StrokeObject).style, color } };
@@ -1239,7 +1270,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
 
       const obj = currentObjects?.find((o) => o.id === objectId);
       if (!obj) return;
-      const prev = obj;
+      const prev = JSON.parse(JSON.stringify(obj)) as CanvasObject;
       let updated: CanvasObject;
 
       if (obj.type === 'stroke') {
@@ -1276,8 +1307,8 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
 
       if (selectedObject && selectedObject.id === objectId && selectedObject.type === 'group') {
         const grp = selectedObject as GroupObject;
-        const prevGroup = grp;
-        const prevChildren = [...grp.objects];
+        const prevGroup = JSON.parse(JSON.stringify(grp)) as GroupObject;
+        const prevChildren = JSON.parse(JSON.stringify(grp.objects)) as CanvasObject[];
         const updatedChildren: CanvasObject[] = grp.objects.map((child) => {
           if (child.type === 'stroke') {
             const str = child as StrokeObject;
@@ -1324,7 +1355,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
 
       const obj = currentObjects?.find((o) => o.id === objectId);
       if (!obj) return;
-      const prev = obj;
+      const prev = JSON.parse(JSON.stringify(obj)) as CanvasObject;
       let updated: CanvasObject;
 
       if (obj.type === 'stroke') {

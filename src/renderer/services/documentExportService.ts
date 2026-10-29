@@ -5,12 +5,20 @@
 
 import { jsPDF } from 'jspdf';
 import { LessonDocument, Page, CanvasObject, StrokeObject, ShapeObject, TextObject, ImageObject } from '../../shared/types';
+import { isLatexSyntax, latexToSvgDataUrl } from './latexService';
 
 export interface ExportRenderOptions {
   scale?: number; // 1 for normal, 2 for 300 DPI high-res
   includeBackground?: boolean;
   backgroundColor?: string;
   selectedLayerIds?: string[];
+  targetAspectRatio?: number; // e.g. 16/9, 4/3, etc.
+  targetWidth?: number;       // base width before scale (e.g. 1920)
+  targetHeight?: number;      // base height before scale (e.g. 1080)
+}
+
+export interface ImageExportOptions extends ExportRenderOptions {
+  aspectRatio?: '16:9' | '4:3' | 'a4' | 'original' | 'auto';
 }
 
 export interface PdfExportOptions {
@@ -25,8 +33,190 @@ export interface PdfExportOptions {
   addPagination?: boolean;
 }
 
+export interface PageBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  width: number;
+  height: number;
+}
+
+export function getRotatedBounds(x: number, y: number, w: number, h: number, rotationDeg?: number) {
+  if (!rotationDeg) {
+    return { minX: x, minY: y, maxX: x + w, maxY: y + h };
+  }
+  const rad = (rotationDeg * Math.PI) / 180;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const corners = [
+    { x, y },
+    { x: x + w, y },
+    { x: x + w, y: y + h },
+    { x, y: y + h },
+  ];
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const c of corners) {
+    const rx = cx + (c.x - cx) * cos - (c.y - cy) * sin;
+    const ry = cy + (c.x - cx) * sin + (c.y - cy) * cos;
+    minX = Math.min(minX, rx);
+    minY = Math.min(minY, ry);
+    maxX = Math.max(maxX, rx);
+    maxY = Math.max(maxY, ry);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
 /**
- * Renders a single page onto an off-screen HTML5 Canvas with full fidelity.
+ * Calculates the bounding box that encompasses all content on a slide,
+ * including objects written at the utmost left, right, top, or bottom.
+ */
+export function getPageContentBounds(page: Page, safetyMargin = 32): PageBounds {
+  const defaultW = page.width || 1920;
+  const defaultH = page.height || 1080;
+
+  if (!page.objects || page.objects.length === 0) {
+    return {
+      minX: 0,
+      minY: 0,
+      maxX: defaultW,
+      maxY: defaultH,
+      width: defaultW,
+      height: defaultH,
+    };
+  }
+
+  let objMinX = Infinity;
+  let objMinY = Infinity;
+  let objMaxX = -Infinity;
+  let objMaxY = -Infinity;
+  let foundAny = false;
+
+  const inspectObject = (obj: CanvasObject) => {
+    if (obj.type === 'stroke') {
+      const stroke = obj as StrokeObject;
+      const strokeWidth = stroke.style?.width || 3;
+      const halfW = Math.max(1, strokeWidth / 2);
+      if (stroke.points && stroke.points.length > 0) {
+        for (const pt of stroke.points) {
+          objMinX = Math.min(objMinX, pt.x - halfW);
+          objMinY = Math.min(objMinY, pt.y - halfW);
+          objMaxX = Math.max(objMaxX, pt.x + halfW);
+          objMaxY = Math.max(objMaxY, pt.y + halfW);
+          foundAny = true;
+        }
+      } else if (stroke.bbox) {
+        objMinX = Math.min(objMinX, stroke.bbox.x);
+        objMinY = Math.min(objMinY, stroke.bbox.y);
+        objMaxX = Math.max(objMaxX, stroke.bbox.x + stroke.bbox.width);
+        objMaxY = Math.max(objMaxY, stroke.bbox.y + stroke.bbox.height);
+        foundAny = true;
+      }
+    } else if (obj.type === 'shape') {
+      const shape = obj as ShapeObject;
+      const sw = (shape.strokeWidth || 3) / 2;
+      const b = getRotatedBounds(
+        shape.x - sw,
+        shape.y - sw,
+        shape.width + sw * 2,
+        shape.height + sw * 2,
+        shape.rotation
+      );
+      objMinX = Math.min(objMinX, b.minX);
+      objMinY = Math.min(objMinY, b.minY);
+      objMaxX = Math.max(objMaxX, b.maxX);
+      objMaxY = Math.max(objMaxY, b.maxY);
+      foundAny = true;
+    } else if (obj.type === 'text') {
+      const text = obj as TextObject;
+      let w = text.width;
+      let h = text.height;
+      if (!w || !h || w <= 0 || h <= 0) {
+        const lines = (text.content || '').split('\n');
+        const maxLen = Math.max(1, ...lines.map((l) => l.length));
+        const fs = text.fontSize || 24;
+        w = w || maxLen * fs * 0.65;
+        h = h || lines.length * fs * 1.3;
+      }
+      const b = getRotatedBounds(text.x, text.y, w, h, text.rotation);
+      objMinX = Math.min(objMinX, b.minX);
+      objMinY = Math.min(objMinY, b.minY);
+      objMaxX = Math.max(objMaxX, b.maxX);
+      objMaxY = Math.max(objMaxY, b.maxY);
+      foundAny = true;
+    } else if (obj.type === 'image') {
+      const img = obj as ImageObject;
+      const b = getRotatedBounds(img.x, img.y, img.width || 100, img.height || 100, img.rotation);
+      objMinX = Math.min(objMinX, b.minX);
+      objMinY = Math.min(objMinY, b.minY);
+      objMaxX = Math.max(objMaxX, b.maxX);
+      objMaxY = Math.max(objMaxY, b.maxY);
+      foundAny = true;
+    } else if (obj.type === 'group') {
+      const group = obj as any;
+      const children = group.objects || group.children || [];
+      if (children.length > 0) {
+        for (const child of children) inspectObject(child);
+      } else if (group.bbox) {
+        objMinX = Math.min(objMinX, group.bbox.x);
+        objMinY = Math.min(objMinY, group.bbox.y);
+        objMaxX = Math.max(objMaxX, group.bbox.x + group.bbox.width);
+        objMaxY = Math.max(objMaxY, group.bbox.y + group.bbox.height);
+        foundAny = true;
+      }
+    }
+  };
+
+  for (const obj of page.objects) {
+    inspectObject(obj);
+  }
+
+  if (!foundAny) {
+    return {
+      minX: 0,
+      minY: 0,
+      maxX: defaultW,
+      maxY: defaultH,
+      width: defaultW,
+      height: defaultH,
+    };
+  }
+
+  // Include safety margin so content at the utmost edge never gets clipped
+  let minX = objMinX - safetyMargin;
+  let minY = objMinY - safetyMargin;
+  let maxX = objMaxX + safetyMargin;
+  let maxY = objMaxY + safetyMargin;
+
+  // If content is located near or within the main slide canvas, union with [0, 0, defaultW, defaultH]
+  const isNearMainSlide = !(
+    maxX < -500 ||
+    minX > defaultW + 500 ||
+    maxY < -500 ||
+    minY > defaultH + 500
+  );
+
+  if (isNearMainSlide) {
+    minX = Math.min(0, minX);
+    minY = Math.min(0, minY);
+    maxX = Math.max(defaultW, maxX);
+    maxY = Math.max(defaultH, maxY);
+  }
+
+  const width = Math.max(10, maxX - minX);
+  const height = Math.max(10, maxY - minY);
+
+  return { minX, minY, maxX, maxY, width, height };
+}
+
+/**
+ * Renders a single page onto an off-screen HTML5 Canvas with full fidelity,
+ * compressing all slide content into the target screen ratio so nothing is cropped.
  */
 export async function renderPageToCanvas(
   page: Page,
@@ -35,29 +225,63 @@ export async function renderPageToCanvas(
   const scale = options.scale || 2; // Default to 2x for sharp print/export quality
   const includeBg = options.includeBackground !== false;
 
+  // 1. Calculate uncropped content bounds
+  const bounds = getPageContentBounds(page, 32);
+
+  // 2. Determine target aspect ratio and base canvas dimensions
+  let targetAspect = options.targetAspectRatio;
+  if (!targetAspect || targetAspect <= 0) {
+    if (options.targetWidth && options.targetHeight) {
+      targetAspect = options.targetWidth / options.targetHeight;
+    } else {
+      targetAspect = (page.width || 1920) / (page.height || 1080);
+    }
+  }
+
+  let baseW = options.targetWidth || 1920;
+  let baseH = options.targetHeight || Math.round(baseW / targetAspect);
+
+  if (targetAspect >= 1) {
+    baseW = options.targetWidth || 1920;
+    baseH = Math.round(baseW / targetAspect);
+  } else {
+    baseH = options.targetHeight || 1920;
+    baseW = Math.round(baseH * targetAspect);
+  }
+
+  // 3. Compress all content to fit strictly within target dimensions (preserving aspect ratio)
+  const scaleX = baseW / bounds.width;
+  const scaleY = baseH / bounds.height;
+  const fitScale = Math.min(scaleX, scaleY);
+
+  const renderedContentW = bounds.width * fitScale;
+  const renderedContentH = bounds.height * fitScale;
+  const offsetX = (baseW - renderedContentW) / 2;
+  const offsetY = (baseH - renderedContentH) / 2;
+
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(page.width * scale);
-  canvas.height = Math.round(page.height * scale);
+  canvas.width = Math.round(baseW * scale);
+  canvas.height = Math.round(baseH * scale);
 
   const ctx = canvas.getContext('2d');
   if (!ctx) return canvas;
 
   ctx.scale(scale, scale);
 
-  // 1. Draw Page Background
+  // 4. Draw Page Background across baseW x baseH
   if (includeBg && page.background) {
     const bg = page.background;
     ctx.fillStyle = bg.color || '#1a1a2e';
-    ctx.fillRect(0, 0, page.width, page.height);
+    ctx.fillRect(0, 0, baseW, baseH);
 
     if (bg.type === 'ruled') {
       const spacing = bg.gridSize || 36;
       ctx.strokeStyle = bg.lineColor || 'rgba(255, 255, 255, 0.15)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      for (let y = spacing; y < page.height; y += spacing) {
+      for (let y = spacing; y < baseH; y += spacing) {
         ctx.moveTo(0, y);
-        ctx.lineTo(page.width, y);
+        ctx.lineTo(baseW, y);
       }
       ctx.stroke();
 
@@ -66,27 +290,27 @@ export async function renderPageToCanvas(
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(120, 0);
-      ctx.lineTo(120, page.height);
+      ctx.lineTo(120, baseH);
       ctx.stroke();
     } else if (bg.type === 'grid') {
       const size = bg.gridSize || 40;
       ctx.strokeStyle = bg.lineColor || 'rgba(255, 255, 255, 0.12)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      for (let x = 0; x <= page.width; x += size) {
+      for (let x = 0; x <= baseW; x += size) {
         ctx.moveTo(x, 0);
-        ctx.lineTo(x, page.height);
+        ctx.lineTo(x, baseH);
       }
-      for (let y = 0; y <= page.height; y += size) {
+      for (let y = 0; y <= baseH; y += size) {
         ctx.moveTo(0, y);
-        ctx.lineTo(page.width, y);
+        ctx.lineTo(baseW, y);
       }
       ctx.stroke();
     } else if (bg.type === 'dotted') {
       const spacing = bg.gridSize || 32;
       ctx.fillStyle = bg.lineColor || 'rgba(255, 255, 255, 0.25)';
-      for (let x = spacing; x < page.width; x += spacing) {
-        for (let y = spacing; y < page.height; y += spacing) {
+      for (let x = spacing; x < baseW; x += spacing) {
+        for (let y = spacing; y < baseH; y += spacing) {
           ctx.beginPath();
           ctx.arc(x, y, 1.5, 0, Math.PI * 2);
           ctx.fill();
@@ -96,23 +320,34 @@ export async function renderPageToCanvas(
       await new Promise<void>((resolve) => {
         const img = new Image();
         img.onload = () => {
-          ctx.drawImage(img, 0, 0, page.width, page.height);
+          ctx.drawImage(img, 0, 0, baseW, baseH);
           resolve();
         };
         img.onerror = () => resolve();
         img.src = bg.imageUrl!;
+        if (typeof (img as any).onload === 'function' && !(img as any).complete) {
+          setTimeout(() => {
+            try { (img as any).onload?.(); } catch {}
+            resolve();
+          }, 0);
+        }
       });
     }
   } else {
     // Plain neutral white background for print if background is excluded
     ctx.fillStyle = options.backgroundColor || '#ffffff';
-    ctx.fillRect(0, 0, page.width, page.height);
+    ctx.fillRect(0, 0, baseW, baseH);
   }
 
-  // 2. Render Layer-Sorted Objects
+  // 5. Render Layer-Sorted Objects compressed to screen ratio
   const layers = page.layers && page.layers.length > 0
     ? [...page.layers].sort((a, b) => a.order - b.order)
     : [{ id: 'default', name: 'Default', visible: true, locked: false, opacity: 1, order: 0 }];
+
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(fitScale, fitScale);
+  ctx.translate(-bounds.minX, -bounds.minY);
 
   for (const layer of layers) {
     if (!layer.visible) continue;
@@ -133,14 +368,24 @@ export async function renderPageToCanvas(
       } else if (obj.type === 'shape') {
         renderShape(ctx, obj as ShapeObject);
       } else if (obj.type === 'text') {
-        renderText(ctx, obj as TextObject);
+        await renderText(ctx, obj as TextObject);
       } else if (obj.type === 'image') {
         await renderImage(ctx, obj as ImageObject);
+      } else if (obj.type === 'group') {
+        const group = obj as any;
+        const children = group.objects || group.children || [];
+        for (const child of children) {
+          if (child.type === 'stroke') renderStroke(ctx, child);
+          else if (child.type === 'shape') renderShape(ctx, child);
+          else if (child.type === 'text') await renderText(ctx, child);
+          else if (child.type === 'image') await renderImage(ctx, child);
+        }
       }
       ctx.restore();
     }
     ctx.restore();
   }
+  ctx.restore();
 
   return canvas;
 }
@@ -247,7 +492,7 @@ function renderShape(ctx: CanvasRenderingContext2D, shape: ShapeObject) {
   ctx.restore();
 }
 
-function renderText(ctx: CanvasRenderingContext2D, textObj: TextObject) {
+async function renderText(ctx: CanvasRenderingContext2D, textObj: TextObject) {
   ctx.save();
   const centerX = textObj.x + textObj.width / 2;
   const centerY = textObj.y + textObj.height / 2;
@@ -256,6 +501,46 @@ function renderText(ctx: CanvasRenderingContext2D, textObj: TextObject) {
     ctx.translate(centerX, centerY);
     ctx.rotate((textObj.rotation * Math.PI) / 180);
     ctx.translate(-centerX, -centerY);
+  }
+
+  const isLatex = textObj.isLatex || isLatexSyntax(textObj.content);
+  if (isLatex) {
+    try {
+      const fontSize = textObj.fontSize || 32;
+      const w = textObj.width || 200;
+      const h = textObj.height || 50;
+      const dataUrl = latexToSvgDataUrl(
+        textObj.content,
+        textObj.color || '#ffffff',
+        fontSize,
+        w,
+        h
+      );
+      await new Promise<void>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, textObj.x, textObj.y, w, h);
+          resolve();
+        };
+        img.onerror = () => {
+          ctx.font = `${fontSize}px KaTeX_Main, 'Cambria Math', serif`;
+          ctx.fillStyle = textObj.color || '#ffffff';
+          ctx.fillText(textObj.content, textObj.x, textObj.y);
+          resolve();
+        };
+        img.src = dataUrl;
+        if (typeof (img as any).onload === 'function' && !(img as any).complete) {
+          setTimeout(() => {
+            try { (img as any).onload?.(); } catch {}
+            resolve();
+          }, 0);
+        }
+      });
+      ctx.restore();
+      return;
+    } catch {
+      // fallback to regular text
+    }
   }
 
   ctx.font = `${textObj.fontSize || 24}px ${textObj.fontFamily || 'Inter, sans-serif'}`;
@@ -271,7 +556,7 @@ function renderText(ctx: CanvasRenderingContext2D, textObj: TextObject) {
 }
 
 async function renderImage(ctx: CanvasRenderingContext2D, imgObj: ImageObject) {
-  const dataUrl = imgObj.dataUrl;
+  const dataUrl = imgObj.dataUrl || imgObj.filePath;
   if (!dataUrl) return;
 
   await new Promise<void>((resolve) => {
@@ -293,21 +578,39 @@ async function renderImage(ctx: CanvasRenderingContext2D, imgObj: ImageObject) {
     };
     img.onerror = () => resolve();
     img.src = dataUrl;
+    if (typeof (img as any).onload === 'function' && !(img as any).complete) {
+      setTimeout(() => {
+        try { (img as any).onload?.(); } catch {}
+        resolve();
+      }, 0);
+    }
   });
 }
 
 /**
- * Export single page as a PNG or JPEG data URL
+ * Export single page as a PNG or JPEG data URL compressed to screen ratio
  */
 export async function exportPageAsImage(
   page: Page,
   format: 'png' | 'jpeg' = 'png',
-  options: ExportRenderOptions = {}
+  options: ImageExportOptions = {}
 ): Promise<string> {
-  const canvas = await renderPageToCanvas(page, options);
+  let targetAspectRatio = options.targetAspectRatio;
+  if (!targetAspectRatio) {
+    if (options.aspectRatio === '16:9') targetAspectRatio = 16 / 9;
+    else if (options.aspectRatio === '4:3') targetAspectRatio = 4 / 3;
+    else if (options.aspectRatio === 'a4') targetAspectRatio = 297 / 210;
+    else targetAspectRatio = (page.width || 1920) / (page.height || 1080);
+  }
+
+  const canvas = await renderPageToCanvas(page, {
+    ...options,
+    targetAspectRatio,
+  });
+
   return format === 'png'
     ? canvas.toDataURL('image/png')
-    : canvas.toDataURL('image/jpeg', 0.92);
+    : canvas.toDataURL('image/jpeg', 0.95);
 }
 
 /**
@@ -319,63 +622,27 @@ export async function exportSelectedObjectsAsImage(
 ): Promise<string | null> {
   if (objects.length === 0) return null;
 
-  // Calculate bounding box
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-
-  objects.forEach((obj) => {
-    if (obj.type === 'stroke') {
-      const stroke = obj as StrokeObject;
-      stroke.points?.forEach((pt) => {
-        minX = Math.min(minX, pt.x);
-        minY = Math.min(minY, pt.y);
-        maxX = Math.max(maxX, pt.x);
-        maxY = Math.max(maxY, pt.y);
-      });
-    } else {
-      minX = Math.min(minX, obj.x);
-      minY = Math.min(minY, obj.y);
-      maxX = Math.max(maxX, obj.x + obj.width);
-      maxY = Math.max(maxY, obj.y + obj.height);
-    }
-  });
-
-  const padding = 20;
-  minX = Math.max(0, minX - padding);
-  minY = Math.max(0, minY - padding);
-  maxX += padding;
-  maxY += padding;
-
-  const width = maxX - minX;
-  const height = maxY - minY;
-  if (width <= 0 || height <= 0) return null;
-
   const virtualPage: Page = {
     id: 'export-selection',
     title: 'Selection',
-    width,
-    height,
-    background: { type: 'blank', color: '#1a1a2e' },
+    width: 1920,
+    height: 1080,
+    background: { type: 'blank', color: 'transparent' },
     layers: [],
-    objects: objects.map((obj) => {
-      if (obj.type === 'stroke') {
-        const stroke = obj as StrokeObject;
-        return {
-          ...stroke,
-          points: stroke.points.map((p) => ({ ...p, x: p.x - minX, y: p.y - minY })),
-        };
-      }
-      return {
-        ...obj,
-        x: obj.x - minX,
-        y: obj.y - minY,
-      };
-    }),
+    objects,
   };
 
-  const canvas = await renderPageToCanvas(virtualPage, { scale, includeBackground: false });
+  const bounds = getPageContentBounds(virtualPage, 16);
+  const targetAspect = bounds.width / bounds.height;
+
+  const canvas = await renderPageToCanvas(virtualPage, {
+    scale,
+    includeBackground: false,
+    targetAspectRatio: targetAspect,
+    targetWidth: bounds.width,
+    targetHeight: bounds.height,
+  });
+
   return canvas.toDataURL('image/png');
 }
 
@@ -445,31 +712,17 @@ export async function exportLessonToPdf(
     }
 
     const { page, pageIndex } = pagesToExport[i];
+    const targetAspect = renderWidthMm / renderHeightMm;
     const canvas = await renderPageToCanvas(page, {
       scale,
       includeBackground: options.includeBackground !== false,
+      targetAspectRatio: targetAspect,
+      targetWidth: 1920,
     });
 
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
 
-    // Calculate scale-to-fit maintaining aspect ratio
-    const pageAspect = page.width / page.height;
-    const targetAspect = renderWidthMm / renderHeightMm;
-
-    let destWidth = renderWidthMm;
-    let destHeight = renderHeightMm;
-    let destX = margins;
-    let destY = margins;
-
-    if (pageAspect > targetAspect) {
-      destHeight = renderWidthMm / pageAspect;
-      destY = margins + (renderHeightMm - destHeight) / 2;
-    } else {
-      destWidth = renderHeightMm * pageAspect;
-      destX = margins + (renderWidthMm - destWidth) / 2;
-    }
-
-    pdf.addImage(imgData, 'JPEG', destX, destY, destWidth, destHeight, undefined, 'FAST');
+    pdf.addImage(imgData, 'JPEG', margins, margins, renderWidthMm, renderHeightMm, undefined, 'FAST');
 
     // Add pagination footer if enabled
     if (options.addPagination) {

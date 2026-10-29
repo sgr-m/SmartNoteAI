@@ -77,7 +77,7 @@ export interface DrawingEngineCallbacks {
     originalObjects: CanvasObject[]
   ) => void;
   onSelectObject?: (object: CanvasObject | null) => void;
-  onUpdateObject?: (object: CanvasObject) => void;
+  onUpdateObject?: (object: CanvasObject, prevObject?: CanvasObject) => void;
   onDuplicateClone?: (clone: CanvasObject) => void;
   onViewChange?: (zoom: number, panX: number, panY: number) => void;
   onTextClick?: (pos: Point) => void;
@@ -577,8 +577,9 @@ export class DrawingEngine {
       const minDistance = this.activeResizeHandle === 'rotate' ? 4 : 1;
 
       if (distMoved >= minDistance) {
+        const initial = this.resizeObjectInitial;
         const updated = this.applyResizeToObject(
-          this.resizeObjectInitial,
+          initial,
           this.activeResizeHandle,
           deltaX,
           deltaY,
@@ -590,14 +591,14 @@ export class DrawingEngine {
           this.selectedObjectId = grp.id;
           const childMap = new Map(grp.objects.map((o) => [o.id, o]));
           this.committedObjects = this.committedObjects.map((o) => childMap.get(o.id) || o);
-          this.callbacks.onUpdateObject?.(grp);
+          this.callbacks.onUpdateObject?.(grp, initial);
         } else {
           const idx = this.committedObjects.findIndex((o) => o.id === updated.id);
           if (idx >= 0) {
             this.committedObjects[idx] = updated;
           }
           this.selectedObjectId = updated.id;
-          this.callbacks.onUpdateObject?.(updated);
+          this.callbacks.onUpdateObject?.(updated, initial);
         }
       }
       this.isResizingObject = false;
@@ -663,21 +664,22 @@ export class DrawingEngine {
           const deltaX = pt.x - this.dragStartDocPoint.x;
           const deltaY = pt.y - this.dragStartDocPoint.y;
           if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
-            const updated = this.applyDeltaToObject(this.draggedObjectInitial, deltaX, deltaY);
+            const initial = this.draggedObjectInitial;
+            const updated = this.applyDeltaToObject(initial, deltaX, deltaY);
             if (updated.type === 'group') {
               const grp = updated as GroupObject;
               this.selectedGroupObject = grp;
               this.selectedObjectId = grp.id;
               const childMap = new Map(grp.objects.map((o) => [o.id, o]));
               this.committedObjects = this.committedObjects.map((o) => childMap.get(o.id) || o);
-              this.callbacks.onUpdateObject?.(grp);
+              this.callbacks.onUpdateObject?.(grp, initial);
             } else {
               const idx = this.committedObjects.findIndex((o) => o.id === updated.id);
               if (idx >= 0) {
                 this.committedObjects[idx] = updated;
               }
               this.selectedObjectId = updated.id;
-              this.callbacks.onUpdateObject?.(updated);
+              this.callbacks.onUpdateObject?.(updated, initial);
             }
           }
           this.isDraggingObject = false;
@@ -1807,6 +1809,21 @@ export class DrawingEngine {
     }
     if (obj.type === 'image') {
       const img = obj as ImageObject;
+      if (img.rotation && img.rotation % 360 !== 0) {
+        const rad = (img.rotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(rad));
+        const sin = Math.abs(Math.sin(rad));
+        const w = Math.abs(img.width) * cos + Math.abs(img.height) * sin;
+        const h = Math.abs(img.width) * sin + Math.abs(img.height) * cos;
+        const cx = img.x + img.width / 2;
+        const cy = img.y + img.height / 2;
+        return {
+          x: cx - w / 2,
+          y: cy - h / 2,
+          width: Math.max(10, w),
+          height: Math.max(10, h),
+        };
+      }
       return { x: img.x, y: img.y, width: img.width, height: img.height };
     }
     return { x: 0, y: 0, width: 0, height: 0 };
@@ -2262,6 +2279,73 @@ export class DrawingEngine {
 
     if (obj.type === 'text') {
       const t = obj as TextObject;
+      const isLatex = t.isLatex || isLatexSyntax(t.content);
+      const initW = t.width || (isLatex ? 200 : 200);
+      const initH = t.height || (isLatex ? 50 : 40);
+      const initFontSize = t.fontSize || (isLatex ? 32 : 20);
+
+      if (isLatex) {
+        const aspect = initW / Math.max(1, initH);
+        let width = initW;
+        let height = initH;
+        let x = t.x;
+        let y = t.y;
+        let scale = 1;
+
+        if (handle === 'se') {
+          scale = Math.max(0.2, (initW + deltaX) / initW);
+          width = Math.max(40, Math.round(initW * scale));
+          height = Math.max(20, Math.round(width / aspect));
+        } else if (handle === 'sw') {
+          scale = Math.max(0.2, (initW - deltaX) / initW);
+          const newW = Math.max(40, Math.round(initW * scale));
+          const newH = Math.max(20, Math.round(newW / aspect));
+          x = t.x + (initW - newW);
+          width = newW;
+          height = newH;
+        } else if (handle === 'ne') {
+          scale = Math.max(0.2, (initW + deltaX) / initW);
+          const newW = Math.max(40, Math.round(initW * scale));
+          const newH = Math.max(20, Math.round(newW / aspect));
+          y = t.y + (initH - newH);
+          width = newW;
+          height = newH;
+        } else if (handle === 'nw') {
+          scale = Math.max(0.2, (initW - deltaX) / initW);
+          const newW = Math.max(40, Math.round(initW * scale));
+          const newH = Math.max(20, Math.round(newW / aspect));
+          x = t.x + (initW - newW);
+          y = t.y + (initH - newH);
+          width = newW;
+          height = newH;
+        } else if (handle === 'e') {
+          scale = Math.max(0.2, (initW + deltaX) / initW);
+          width = Math.max(40, Math.round(initW * scale));
+          height = Math.max(20, Math.round(width / aspect));
+        } else if (handle === 'w') {
+          scale = Math.max(0.2, (initW - deltaX) / initW);
+          const newW = Math.max(40, Math.round(initW * scale));
+          const newH = Math.max(20, Math.round(newW / aspect));
+          x = t.x + (initW - newW);
+          width = newW;
+          height = newH;
+        } else if (handle === 's') {
+          scale = Math.max(0.2, (initH + deltaY) / initH);
+          height = Math.max(20, Math.round(initH * scale));
+          width = Math.max(40, Math.round(height * aspect));
+        } else if (handle === 'n') {
+          scale = Math.max(0.2, (initH - deltaY) / initH);
+          const newH = Math.max(20, Math.round(initH * scale));
+          const newW = Math.max(40, Math.round(newH * aspect));
+          y = t.y + (initH - newH);
+          width = newW;
+          height = newH;
+        }
+
+        const fontSize = Math.max(12, Math.min(160, Math.round(initFontSize * scale)));
+        return { ...t, x, y, width, height, fontSize };
+      }
+
       let width = t.width || 200;
       let height = t.height || 40;
       let x = t.x;
@@ -2794,10 +2878,16 @@ export class DrawingEngine {
     } else if (obj.type === 'group') {
       this.selectedGroupObject = obj as GroupObject;
       this.selectedObjectId = obj.id;
+      const childMap = new Map((obj as GroupObject).objects.map((c) => [c.id, c]));
+      this.committedObjects = this.committedObjects.map((c) => childMap.get(c.id) || c);
       this.requestActiveRender();
     } else {
       this.selectedObjectId = obj.id;
       this.selectedGroupObject = null;
+      const idx = this.committedObjects.findIndex((c) => c.id === obj.id);
+      if (idx >= 0) {
+        this.committedObjects[idx] = obj;
+      }
       this.requestActiveRender();
     }
   }
@@ -2848,7 +2938,7 @@ export class DrawingEngine {
     }
 
     this.locallyCommittedIds.clear();
-    this.committedObjects = objects;
+    this.committedObjects = [...objects];
 
     const { width, height } = this.committedCanvas;
     this.committedCtx.clearRect(0, 0, width, height);
@@ -3728,17 +3818,18 @@ export class DrawingEngine {
     // Render LaTeX Mathematical Formulas with high-fidelity vector rendering
     const isLatex = text.isLatex || isLatexSyntax(text.content);
     if (isLatex) {
-      const measured = measureLatexSize(text.content, text.fontSize);
-      const svgW = Math.max(340, Math.round(measured.width * 2));
-      const svgH = Math.max(140, Math.round(measured.height * 2));
+      const fontSize = text.fontSize || 32;
+      const measured = measureLatexSize(text.content, fontSize);
+      const targetW = text.width || measured.width;
+      const targetH = text.height || measured.height;
 
       const img = getCachedLatexImage(
         text.id,
         text.content,
         text.color || '#ffffff',
-        text.fontSize * this.zoom * this.devicePixelRatio,
-        svgW,
-        svgH,
+        fontSize,
+        targetW,
+        targetH,
         () => {
           this.requestActiveRender();
           this.requestCommittedRender();

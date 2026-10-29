@@ -50,6 +50,8 @@ export function WhiteboardCanvas(): React.ReactElement {
     setActiveTool,
     reducedMotion,
     closeAllPopups,
+    undo,
+    redo,
   } = useAppContext();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -223,46 +225,78 @@ export function WhiteboardCanvas(): React.ReactElement {
     setSelectedObject(obj);
   }, [setSelectedObject]);
 
-  const handleUpdateObject = useCallback((obj: CanvasObject) => {
-    const page = currentPageRef.current;
-    const pageIndex = currentPageIndexRef.current;
-    if (!page) return;
+  const handleUpdateObject = useCallback(
+    (obj: CanvasObject, prevObjFromEngine?: CanvasObject) => {
+      const page = currentPageRef.current;
+      const pageIndex = currentPageIndexRef.current;
+      if (!page) return;
 
-    if (obj.type === 'group') {
-      const grp = obj as GroupObject;
-      const childIds = new Set(grp.objects.map((o) => o.id));
-      const prevChildren = page.objects.filter((o) => childIds.has(o.id));
-      const updatedChildren = grp.objects;
+      if (obj.type === 'group') {
+        const grp = obj as GroupObject;
+        const initialGroup =
+          (prevObjFromEngine as GroupObject) ||
+          (selectedObjectRef.current?.type === 'group' && selectedObjectRef.current.id === grp.id
+            ? (selectedObjectRef.current as GroupObject)
+            : null);
+        const childIds = new Set(grp.objects.map((o) => o.id));
+        const prevChildren = initialGroup?.objects
+          ? JSON.parse(JSON.stringify(initialGroup.objects))
+          : JSON.parse(JSON.stringify(page.objects.filter((o) => childIds.has(o.id))));
+        const updatedChildren = JSON.parse(JSON.stringify(grp.objects));
+
+        const prevGroup: GroupObject = initialGroup
+          ? JSON.parse(JSON.stringify(initialGroup))
+          : { ...grp, objects: prevChildren };
+        const updatedGroup: GroupObject = JSON.parse(JSON.stringify(grp));
+
+        const isRotate = (prevGroup.rotation || 0) !== (updatedGroup.rotation || 0);
+        const desc = isRotate
+          ? `Rotate ${updatedChildren.length} items`
+          : `Move ${updatedChildren.length} items`;
+
+        commandSystem.execute({
+          id: uuidv4(),
+          description: desc,
+          execute() {
+            docDispatch({ type: 'UPDATE_OBJECTS', pageIndex, objects: updatedChildren });
+            setSelectedObject(updatedGroup);
+          },
+          undo() {
+            docDispatch({ type: 'UPDATE_OBJECTS', pageIndex, objects: prevChildren });
+            setSelectedObject(prevGroup);
+          },
+        });
+        return;
+      }
+
+      const initialObj =
+        prevObjFromEngine ||
+        (selectedObjectRef.current?.id === obj.id ? selectedObjectRef.current : null) ||
+        page.objects.find((o) => o.id === obj.id);
+
+      if (!initialObj) return;
+
+      const prevObj = JSON.parse(JSON.stringify(initialObj));
+      const newObj = JSON.parse(JSON.stringify(obj));
+
+      const isRotate = (prevObj.rotation || 0) !== (newObj.rotation || 0);
+      const desc = isRotate ? `Rotate ${obj.type}` : `Move ${obj.type}`;
 
       commandSystem.execute({
         id: uuidv4(),
-        description: `Move ${updatedChildren.length} items`,
+        description: desc,
         execute() {
-          docDispatch({ type: 'UPDATE_OBJECTS', pageIndex, objects: updatedChildren });
-          setSelectedObject(grp);
+          docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: newObj });
+          setSelectedObject(newObj);
         },
         undo() {
-          docDispatch({ type: 'UPDATE_OBJECTS', pageIndex, objects: prevChildren });
-          setSelectedObject({ ...grp, objects: prevChildren });
+          docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: prevObj });
+          setSelectedObject(prevObj);
         },
       });
-      return;
-    }
-
-    const prevObj = page.objects.find((o) => o.id === obj.id);
-    if (!prevObj) return;
-
-    commandSystem.execute({
-      id: uuidv4(),
-      description: `Move ${obj.type}`,
-      execute() {
-        docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: obj });
-      },
-      undo() {
-        docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: prevObj });
-      },
-    });
-  }, [commandSystem, docDispatch, setSelectedObject]);
+    },
+    [commandSystem, docDispatch, setSelectedObject]
+  );
 
   const handleDuplicateClone = useCallback(
     (clone: CanvasObject) => {
@@ -1229,7 +1263,17 @@ export function WhiteboardCanvas(): React.ReactElement {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isTypingOrInputFocused(e)) return;
 
-      if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey)) {
+      if ((e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      } else if ((e.key === 'y' || e.key === 'Y') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        redo();
+      } else if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         handleSelectAll();
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -1293,6 +1337,8 @@ export function WhiteboardCanvas(): React.ReactElement {
     handleSelectAll,
     copyObject,
     pasteObject,
+    undo,
+    redo,
   ]);
 
   // ─── Text Modal Save (Section 8) ──────────────────────────────────────────
@@ -1312,22 +1358,25 @@ export function WhiteboardCanvas(): React.ReactElement {
         description: 'Edit text',
         execute() {
           docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: updated });
+          setSelectedObject(updated);
         },
         undo() {
           docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: prev });
+          setSelectedObject(prev);
         },
       });
     } else if (textModalPos) {
+      const isLatex = textData.isLatex ?? (textData.content ? isLatexSyntax(textData.content) : false);
       const newText: TextObject = {
         id: uuidv4(),
         type: 'text',
         x: textModalPos.x,
         y: textModalPos.y,
-        width: textData.width || 200,
-        height: textData.height || 48,
+        width: textData.width || (isLatex ? 200 : 200),
+        height: textData.height || (isLatex ? 50 : 48),
         content: textData.content || '',
-        fontFamily: textData.fontFamily || 'Inter, sans-serif',
-        fontSize: textData.fontSize || 20,
+        fontFamily: textData.fontFamily || (isLatex ? "KaTeX_Main, 'Cambria Math', 'Times New Roman', serif" : 'Inter, sans-serif'),
+        fontSize: textData.fontSize || (isLatex ? 32 : 20),
         fontWeight: textData.fontWeight || 400,
         fontStyle: textData.fontStyle || 'normal',
         textDecoration: textData.textDecoration || 'none',
@@ -1336,8 +1385,8 @@ export function WhiteboardCanvas(): React.ReactElement {
         backgroundColor: textData.backgroundColor || 'transparent',
         opacity: 1,
         rotation: 0,
-        preset: textData.preset || 'body',
-        isLatex: textData.isLatex ?? (textData.content ? isLatexSyntax(textData.content) : false),
+        preset: textData.preset || (isLatex ? 'formula' : 'body'),
+        isLatex,
         locked: false,
         layerId: 'objects',
       };
@@ -1347,9 +1396,11 @@ export function WhiteboardCanvas(): React.ReactElement {
         description: 'Add text',
         execute() {
           docDispatch({ type: 'ADD_OBJECT', pageIndex, object: newText });
+          setSelectedObject(newText);
         },
         undo() {
           docDispatch({ type: 'REMOVE_OBJECT', pageIndex, objectId: newText.id });
+          setSelectedObject(null);
         },
       });
     }
@@ -2105,15 +2156,6 @@ export function WhiteboardCanvas(): React.ReactElement {
           aria-label="Fit Content"
         >
           <span>🎯</span>
-        </button>
-
-        <button
-          className={`canvas-nav-btn ${toolState.activeTool === 'pan' ? 'active-pan' : ''}`}
-          onClick={() => setActiveTool(toolState.activeTool === 'pan' ? 'pen' : 'pan')}
-          title="Toggle Pan & Roam (or hold Middle Click / Space)"
-          aria-label="Pan Tool"
-        >
-          <span>✋</span>
         </button>
       </div>
 

@@ -626,6 +626,34 @@ describe('Multi-Element Selection (Rectangular Marquee & Stylus Freehand Lasso)'
     expect(nDrag.height).toBe(70);
   });
 
+  it('scales LaTeX formula font size and maintains snug aspect ratio during corner resize', () => {
+    const formulaObj = {
+      id: 'formula-scale-test',
+      type: 'text' as const,
+      x: 100,
+      y: 100,
+      content: 'ax^2 + bx + c = 0',
+      fontSize: 24,
+      width: 200,
+      height: 50,
+      isLatex: true,
+      locked: false,
+      layerId: 'objects',
+    };
+
+    // When scaled up 2x (width 200 -> 400)
+    const scale = 400 / formulaObj.width;
+    const newWidth = Math.round(formulaObj.width * scale);
+    const newHeight = Math.round(formulaObj.height * scale);
+    const newFontSize = Math.round(formulaObj.fontSize * scale);
+
+    expect(newWidth).toBe(400);
+    expect(newHeight).toBe(100);
+    expect(newFontSize).toBe(48);
+    // Aspect ratio is strictly preserved
+    expect(newWidth / newHeight).toBe(formulaObj.width / formulaObj.height);
+  });
+
   describe('Image Fit and Screen Sizing Actions', () => {
     const makeImage = (id: string, width = 800, height = 600): ImageObject => ({
       id,

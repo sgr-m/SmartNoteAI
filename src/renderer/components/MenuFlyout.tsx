@@ -24,6 +24,7 @@ interface MenuFlyoutProps {
   onToggleTimer?: () => void;
   onScreenshot?: () => void;
   onDesktop?: () => void;
+  alignRight?: boolean;
 }
 
 export function MenuFlyout({
@@ -41,6 +42,7 @@ export function MenuFlyout({
   onToggleTimer,
   onScreenshot,
   onDesktop,
+  alignRight = false,
 }: MenuFlyoutProps): React.ReactElement {
   const { newLesson, openLesson, saveLesson, saveLessonAs } = useAppContext();
   const [activeTab, setActiveTab] = useState<'file' | 'mode' | 'import' | 'export' | 'settings' | 'help'>('file');
@@ -51,7 +53,7 @@ export function MenuFlyout({
   };
 
   return (
-    <div className="smartboard-menu-flyout" role="menu">
+    <div className={`smartboard-menu-flyout ${alignRight ? 'align-right' : ''}`} role="menu">
       <div className="menu-flyout-content">
         {/* Left Column: Main Category Buttons */}
         <div className="menu-left-column">

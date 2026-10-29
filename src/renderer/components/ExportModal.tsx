@@ -34,8 +34,9 @@ export function ExportModal({ onClose }: ExportModalProps): React.ReactElement {
 
   // Image Export State
   const [imageFormat, setImageFormat] = useState<'png' | 'jpeg'>('png');
-  const [imageScope, setImageScope] = useState<'current' | 'selection'>('current');
+  const [imageScope, setImageScope] = useState<'current' | 'all' | 'selection'>('current');
   const [imageScale, setImageScale] = useState<number>(2);
+  const [imageRatio, setImageRatio] = useState<'16:9' | '4:3' | 'a4' | 'original'>('16:9');
 
   // Progress & Feedback
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -113,13 +114,21 @@ export function ExportModal({ onClose }: ExportModalProps): React.ReactElement {
   // 2. Export Image Handler
   const handleExportImage = async () => {
     setIsExporting(true);
-    setExportProgress(20);
+    setExportProgress(10);
     setErrorMessage(null);
 
     try {
-      const currentPage = docState.lesson.pages[docState.currentPageIndex];
       const title = docState.lesson.meta?.title?.trim() || 'SmartNoteAI_Lesson';
       const cleanTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+      const targetAspectRatio =
+        imageRatio === '16:9'
+          ? 16 / 9
+          : imageRatio === '4:3'
+          ? 4 / 3
+          : imageRatio === 'a4'
+          ? 297 / 210
+          : undefined;
 
       if (imageScope === 'selection') {
         // Selection export
@@ -136,21 +145,40 @@ export function ExportModal({ onClose }: ExportModalProps): React.ReactElement {
         a.href = dataUrl;
         a.download = `${cleanTitle}_selection.${imageFormat}`;
         a.click();
+      } else if (imageScope === 'all') {
+        // All slides export
+        const pages = docState.lesson.pages;
+        for (let i = 0; i < pages.length; i++) {
+          setExportProgress(Math.round(((i + 1) / pages.length) * 90));
+          const p = pages[i];
+          const dataUrl = await exportPageAsImage(p, imageFormat, {
+            scale: imageScale,
+            includeBackground,
+            targetAspectRatio,
+          });
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = `${cleanTitle}_slide_${i + 1}.${imageFormat}`;
+          a.click();
+          await new Promise((r) => setTimeout(r, 120));
+        }
       } else {
         // Current Page export
+        const currentPage = docState.lesson.pages[docState.currentPageIndex];
         const dataUrl = await exportPageAsImage(currentPage, imageFormat, {
           scale: imageScale,
           includeBackground,
+          targetAspectRatio,
         });
 
         const a = document.createElement('a');
         a.href = dataUrl;
-        a.download = `${cleanTitle}_page_${docState.currentPageIndex + 1}.${imageFormat}`;
+        a.download = `${cleanTitle}_slide_${docState.currentPageIndex + 1}.${imageFormat}`;
         a.click();
       }
 
       setExportProgress(100);
-      setToastMessage?.(`Image exported successfully (${imageFormat.toUpperCase()})`);
+      setToastMessage?.(`Image${imageScope === 'all' ? 's' : ''} exported successfully (${imageFormat.toUpperCase()})`);
       setTimeout(() => onClose(), 500);
     } catch (err: any) {
       console.error('Image export error:', err);
@@ -370,7 +398,16 @@ export function ExportModal({ onClose }: ExportModalProps): React.ReactElement {
                     checked={imageScope === 'current'}
                     onChange={() => setImageScope('current')}
                   />
-                  <span>Current Slide (Page {docState.currentPageIndex + 1})</span>
+                  <span>Current Slide (Slide {docState.currentPageIndex + 1})</span>
+                </label>
+                <label className="export-radio-item">
+                  <input
+                    type="radio"
+                    name="imageScope"
+                    checked={imageScope === 'all'}
+                    onChange={() => setImageScope('all')}
+                  />
+                  <span>All Slides ({docState.lesson.pages.length} images)</span>
                 </label>
                 <label className="export-radio-item">
                   <input
@@ -381,6 +418,36 @@ export function ExportModal({ onClose }: ExportModalProps): React.ReactElement {
                   />
                   <span>Selected Canvas Objects Only (Cropped PNG)</span>
                 </label>
+              </div>
+            </div>
+
+            <div className="export-section">
+              <label className="export-section-title">Screen / Aspect Ratio (No Content Cropped)</label>
+              <div className="export-pill-toggle">
+                <button
+                  className={`export-pill-btn ${imageRatio === '16:9' ? 'active' : ''}`}
+                  onClick={() => setImageRatio('16:9')}
+                >
+                  16:9 Widescreen
+                </button>
+                <button
+                  className={`export-pill-btn ${imageRatio === '4:3' ? 'active' : ''}`}
+                  onClick={() => setImageRatio('4:3')}
+                >
+                  4:3 Standard
+                </button>
+                <button
+                  className={`export-pill-btn ${imageRatio === 'a4' ? 'active' : ''}`}
+                  onClick={() => setImageRatio('a4')}
+                >
+                  A4 Ratio
+                </button>
+                <button
+                  className={`export-pill-btn ${imageRatio === 'original' ? 'active' : ''}`}
+                  onClick={() => setImageRatio('original')}
+                >
+                  Slide Ratio
+                </button>
               </div>
             </div>
 

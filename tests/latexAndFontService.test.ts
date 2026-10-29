@@ -6,6 +6,9 @@ import {
   autoFormatLatexFractions,
   autoFormatMathOperators,
   measureLatexSize,
+  latexToSvgDataUrl,
+  getCachedLatexImage,
+  clearLatexImageCache,
 } from '../src/renderer/services/latexService';
 
 import { getAvailableFonts, initializeWindowsFonts } from '../src/renderer/services/fontService';
@@ -86,6 +89,56 @@ describe('latexService', () => {
     const sizeLong = measureLatexSize('r^2 \\pi \\frac{\\theta}{360} - \\sin \\frac{\\theta}{2} \\cos \\frac{\\theta}{2}', 24);
     expect(sizeLong.width).toBeGreaterThanOrEqual(180);
     expect(sizeLong.width).toBeLessThan(500); // tightly measured around 250px, NOT 1387px!
+  });
+
+  it('increases measured dimensions proportionally when fontSize increases', () => {
+    const smallSize = measureLatexSize('ax^2 + bx + c = 0', 20);
+    const largeSize = measureLatexSize('ax^2 + bx + c = 0', 60);
+
+    expect(largeSize.width).toBeGreaterThan(smallSize.width * 1.8);
+    expect(largeSize.height).toBeGreaterThan(smallSize.height * 1.8);
+  });
+
+  it('generates snug SVG Data URLs without giant artificial margins', () => {
+    const dataUrl = latexToSvgDataUrl('E = mc^2', '#ffffff', 32, 140, 48);
+    expect(dataUrl).toContain('data:image/svg+xml');
+
+    const decoded = decodeURIComponent(dataUrl);
+    expect(decoded).toContain('width="140"');
+    expect(decoded).toContain('height="48"');
+    expect(decoded).toContain('viewBox="0 0 140 48"');
+    expect(decoded).toContain('font-size: 32px');
+    expect(decoded).toContain('padding: 4px 6px');
+    // Ensure no 340px or 140px artificial blowups
+    expect(decoded).not.toContain('width="340"');
+    expect(decoded).not.toContain('padding: 24px 20px');
+  });
+
+  it('generates distinct cached images when fontSize is changed', () => {
+    clearLatexImageCache();
+    const originalImage = globalThis.Image;
+    try {
+      class MockImage {
+        src = '';
+        complete = true;
+        naturalWidth = 100;
+        naturalHeight = 50;
+        crossOrigin = '';
+        onload: (() => void) | null = null;
+      }
+      (globalThis as any).Image = MockImage;
+
+      // First render at 24px
+      const img24 = getCachedLatexImage('test-id', 'ax^2 + bx + c = 0', '#ffffff', 24, 160, 48);
+      // At 48px it must generate a distinct cached image, NOT reuse the 24px one
+      const img48 = getCachedLatexImage('test-id', 'ax^2 + bx + c = 0', '#ffffff', 48, 320, 96);
+
+      expect(img24).toBeDefined();
+      expect(img48).toBeDefined();
+      expect(img24).not.toBe(img48);
+    } finally {
+      (globalThis as any).Image = originalImage;
+    }
   });
 });
 

@@ -28,7 +28,8 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
    * Inserts authentic KaTeX formatted mathematical formula
    */
   const insertTextFormula = (latexContent: string, title?: string) => {
-    const measured = measureLatexSize(latexContent, 28);
+    const fontSize = 32;
+    const measured = measureLatexSize(latexContent, fontSize);
     const textObj: TextObject = {
       id: uuidv4(),
       type: 'text',
@@ -38,7 +39,7 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
       height: measured.height,
       content: latexContent,
       fontFamily: "KaTeX_Main, 'Cambria Math', 'Times New Roman', serif",
-      fontSize: 28,
+      fontSize,
       fontWeight: 400,
       fontStyle: 'normal',
       textDecoration: 'none',

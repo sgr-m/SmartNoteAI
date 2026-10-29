@@ -232,8 +232,8 @@ export function measureLatexSize(
   if (typeof document === 'undefined') {
     const chars = estimateLatexVisualCharCount(cleanExpr);
     return {
-      width: Math.max(60, Math.ceil(chars * fontSize * 0.62) + 24),
-      height: Math.max(36, Math.ceil(fontSize * 1.8) + 16),
+      width: Math.max(60, Math.ceil(chars * fontSize * 0.65) + 16),
+      height: Math.max(36, Math.ceil(fontSize * 1.5) + 12),
     };
   }
 
@@ -266,8 +266,8 @@ export function measureLatexSize(
 
     if (rect.width > 0) {
       const measured = {
-        width: Math.max(60, Math.ceil(rect.width) + 24),
-        height: Math.max(36, Math.ceil(rect.height) + 16),
+        width: Math.max(60, Math.ceil(rect.width) + 16),
+        height: Math.max(36, Math.ceil(rect.height) + 12),
       };
       latexSizeCache.set(cacheKey, measured);
       return measured;
@@ -276,16 +276,16 @@ export function measureLatexSize(
     // JSDOM / headless layout fallback
     const visualChars = estimateLatexVisualCharCount(cleanExpr);
     const measured = {
-      width: Math.max(60, Math.ceil(visualChars * fontSize * 0.62) + 24),
-      height: Math.max(36, Math.ceil(fontSize * 1.8) + 16),
+      width: Math.max(60, Math.ceil(visualChars * fontSize * 0.65) + 16),
+      height: Math.max(36, Math.ceil(fontSize * 1.5) + 12),
     };
     latexSizeCache.set(cacheKey, measured);
     return measured;
   } catch {
     const visualChars = estimateLatexVisualCharCount(cleanExpr);
     return {
-      width: Math.max(60, Math.ceil(visualChars * fontSize * 0.62) + 24),
-      height: Math.max(36, Math.ceil(fontSize * 1.8) + 16),
+      width: Math.max(60, Math.ceil(visualChars * fontSize * 0.65) + 16),
+      height: Math.max(36, Math.ceil(fontSize * 1.5) + 12),
     };
   }
 }
@@ -301,9 +301,9 @@ export function latexToSvgDataUrl(
   height: number
 ): string {
   const { html } = renderLatexHtml(rawText, true);
-  // Ensure generous dimensions and padding so fractions, roots, and exponents NEVER get cropped
-  const w = Math.max(340, Math.round(width));
-  const h = Math.max(140, Math.round(height));
+  // Ensure crisp dimensions that match the formula's true aspect ratio with snug, clean padding
+  const w = Math.max(60, Math.round(width));
+  const h = Math.max(36, Math.round(height));
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
     <style>
@@ -315,7 +315,7 @@ export function latexToSvgDataUrl(
       .katex-display { margin: 0 !important; }
     </style>
     <foreignObject width="100%" height="100%">
-      <div xmlns="http://www.w3.org/1999/xhtml" style="color: ${color}; font-size: ${Math.round(fontSize)}px; font-family: KaTeX_Main, 'Cambria Math', 'Times New Roman', serif; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; box-sizing: border-box; overflow: visible; padding: 24px 20px;">
+      <div xmlns="http://www.w3.org/1999/xhtml" style="color: ${color}; font-size: ${Math.round(fontSize)}px; font-family: KaTeX_Main, 'Cambria Math', 'Times New Roman', serif; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; box-sizing: border-box; overflow: visible; padding: 4px 6px;">
         ${html}
       </div>
     </foreignObject>
@@ -325,7 +325,16 @@ export function latexToSvgDataUrl(
 }
 
 /**
- * Get or load cached HTMLImageElement for canvas rendering
+ * Clear cached LaTeX images and measured sizes
+ */
+export function clearLatexImageCache(): void {
+  latexImageCache.clear();
+  latexSizeCache.clear();
+}
+
+/**
+ * Get or load cached HTMLImageElement for canvas rendering.
+ * Caches by formula expression, color, and font size so font size changes update crisply.
  */
 export function getCachedLatexImage(
   id: string,
@@ -336,26 +345,49 @@ export function getCachedLatexImage(
   height: number,
   onLoadCallback?: () => void
 ): HTMLImageElement | null {
-  // Stable cache key by ID, formula text, and color
-  const cacheKey = `${id}_${rawText}_${color}`;
+  const cleanExpr = cleanLatexExpression(rawText);
+  const roundedFont = Math.max(12, Math.round(fontSize));
+  // Stable cache key by formula text, color, and font size
+  const cacheKey = `${cleanExpr}_${color}_${roundedFont}`;
   const existing = latexImageCache.get(cacheKey);
   if (existing && existing.complete && existing.naturalWidth > 0) {
     return existing;
   }
 
+  if (typeof Image === 'undefined') {
+    return null;
+  }
+
   if (!existing) {
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    // Render at crisp high resolution with plenty of headroom
-    const baseW = Math.max(450, Math.round(width * 2));
-    const baseH = Math.max(160, Math.round(height * 2));
-    const baseFont = Math.max(36, Math.round(fontSize * 1.5));
+    // Render at crisp 2x resolution preserving the exact natural aspect ratio of the measured formula!
+    const scale = 2;
+    const baseW = Math.max(120, Math.round(width * scale));
+    const baseH = Math.max(72, Math.round(height * scale));
+    const baseFont = Math.round(roundedFont * scale);
     img.src = latexToSvgDataUrl(rawText, color, baseFont, baseW, baseH);
     img.onload = () => {
       onLoadCallback?.();
     };
+    img.onerror = (e) => {
+      console.warn('Failed to load LaTeX SVG image', e);
+      latexImageCache.delete(cacheKey);
+    };
     latexImageCache.set(cacheKey, img);
+
+    if (img.complete && img.naturalWidth > 0) {
+      return img;
+    }
+  }
+
+  // Fallback while current font-size image is loading to prevent any visual flicker during drag
+  for (const [key, cachedImg] of latexImageCache.entries()) {
+    if (key.startsWith(`${cleanExpr}_${color}_`) && cachedImg.complete && cachedImg.naturalWidth > 0) {
+      return cachedImg;
+    }
   }
 
   return null;
 }
+

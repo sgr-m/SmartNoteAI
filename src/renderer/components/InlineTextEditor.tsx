@@ -44,7 +44,7 @@ const PRESETS: TextPresetConfig[] = [
   { preset: 'subtitle', label: 'Subtitle', fontSize: 28, fontWeight: 600, color: '#94a3b8', backgroundColor: 'transparent', fontFamily: '"Segoe UI", sans-serif', icon: '🔖' },
   { preset: 'heading', label: 'Heading', fontSize: 24, fontWeight: 700, color: '#38bdf8', backgroundColor: 'transparent', fontFamily: '"Segoe UI", sans-serif', icon: '📌' },
   { preset: 'body', label: 'Body Text', fontSize: 20, fontWeight: 400, color: '#e2e8f0', backgroundColor: 'transparent', fontFamily: 'Calibri, sans-serif', icon: '📝' },
-  { preset: 'formula', label: 'Math Formula', fontSize: 24, fontWeight: 600, color: '#facc15', backgroundColor: 'rgba(250, 204, 21, 0.08)', fontFamily: '"Cambria Math", serif', icon: '∑', isLatex: true },
+  { preset: 'formula', label: 'Math Formula', fontSize: 32, fontWeight: 600, color: '#facc15', backgroundColor: 'rgba(250, 204, 21, 0.08)', fontFamily: '"Cambria Math", serif', icon: '∑', isLatex: true },
   { preset: 'definition', label: 'Definition', fontSize: 18, fontWeight: 500, color: '#4ade80', backgroundColor: 'rgba(74, 222, 128, 0.08)', fontFamily: 'Cambria, serif', icon: '📖' },
   { preset: 'important', label: 'Important Note', fontSize: 19, fontWeight: 600, color: '#fb923c', backgroundColor: 'rgba(251, 146, 60, 0.1)', fontFamily: '"Segoe UI", sans-serif', icon: '⭐' },
   { preset: 'code', label: 'Code Block', fontSize: 16, fontWeight: 400, color: '#34d399', backgroundColor: '#0f172a', fontFamily: '"Cascadia Code", monospace', icon: '💻' },
@@ -85,7 +85,23 @@ export function InlineTextEditor({
   const [content, setContent] = useState(initialText?.content ?? '');
   const [activePreset, setActivePreset] = useState<TextPreset>(initialText?.preset ?? 'body');
   const [fontFamily, setFontFamily] = useState(initialText?.fontFamily ?? '"Segoe UI", sans-serif');
-  const [fontSize, setFontSize] = useState(initialText?.fontSize ?? 22);
+  const [fontSize, setFontSize] = useState<number>(() => {
+    if (!initialText) return 22;
+    const isFormula = initialText.isLatex || isLatexSyntax(initialText.content);
+    if (isFormula) {
+      const baseFont = initialText.fontSize || 32;
+      // If formula was resized on board with custom dimensions, preserve the effective font scale
+      if (initialText.width && initialText.height) {
+        const baseMeasured = measureLatexSize(initialText.content, baseFont);
+        if (baseMeasured.width > 0 && initialText.width > baseMeasured.width * 1.15) {
+          const scaledFont = Math.round(baseFont * (initialText.width / baseMeasured.width));
+          return Math.min(160, Math.max(12, scaledFont));
+        }
+      }
+      return baseFont;
+    }
+    return initialText.fontSize ?? 22;
+  });
   const [fontWeight, setFontWeight] = useState(initialText?.fontWeight ?? 400);
   const [fontStyle, setFontStyle] = useState<'normal' | 'italic'>(initialText?.fontStyle ?? 'normal');
   const [textDecoration, setTextDecoration] = useState<'none' | 'underline' | 'line-through'>(initialText?.textDecoration ?? 'none');
@@ -302,9 +318,11 @@ export function InlineTextEditor({
             placeholder={isLatexMode ? 'Type LaTeX formula (e.g. \\frac{a}{b}, E=mc^2)...' : 'Type here on board...'}
             value={content}
             onChange={(e) => {
-              setContent(e.target.value);
-              if (isLatexSyntax(e.target.value)) {
+              const val = e.target.value;
+              setContent(val);
+              if (isLatexSyntax(val)) {
                 setIsLatexMode(true);
+                setFontSize((prev) => Math.max(28, prev));
               }
             }}
             onKeyDown={handleKeyDown}

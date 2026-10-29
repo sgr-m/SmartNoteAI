@@ -14,6 +14,11 @@
   animation: flyoutSlideUp 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.smartboard-menu-flyout.align-right {
+  left: auto;
+  right: 0;
+}
+
 @keyframes flyoutSlideUp {
   from {
     opacity: 0;
