@@ -162,6 +162,9 @@ export function cleanLatexExpression(text: string): string {
   cleaned = autoFormatLatexFractions(cleaned);
   cleaned = autoFormatMathOperators(cleaned);
 
+  // Auto-heal chemical formula subscripts accidentally nested inside \text{...}
+  cleaned = cleaned.replace(/\\text\{([A-Za-z()]+)_\{?([0-9]+)\}?\}/g, '\\mathrm{$1}_{$2}');
+
   return cleaned;
 }
 

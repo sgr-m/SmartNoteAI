@@ -80,8 +80,24 @@ export type ShapeType =
   | 'cartesianAxes'
   | 'ruler'
   | 'protractor'
-  | 'compass';
-
+  | 'compass'
+  | 'setSquare45'
+  | 'setSquare30'
+  | 'angleMeasurement'
+  | 'numberLine'
+  | 'functionPlot'
+  | 'geometry3D'
+  | 'circuitComponent'
+  | 'physicsDiagram'
+  | 'periodicElement'
+  | 'atomicModel'
+  | 'labApparatus'
+  | 'flowchartNode'
+  | 'csDiagram'
+  | 'logicGate'
+  | 'truthTable'
+  | 'karnaughMap'
+  | 'teachingTemplate';
 
 export interface ShapeObject {
   id: string;
@@ -100,6 +116,8 @@ export interface ShapeObject {
   strokeStyle: 'solid' | 'dashed' | 'dotted';
   locked: boolean;
   layerId: string;
+  label?: string;
+  params?: Record<string, any>;
 }
 
 // ─── Text ─────────────────────────────────────────────────────────────────────

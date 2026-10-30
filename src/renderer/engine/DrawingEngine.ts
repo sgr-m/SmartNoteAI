@@ -29,6 +29,7 @@ import {
 } from '../../shared/types';
 import { v4 as uuidv4 } from 'uuid';
 import { isLatexSyntax, getCachedLatexImage, measureLatexSize } from '../services/latexService';
+import { renderSubjectShape, isSubjectShape } from './subjectShapeRenderer';
 
 
 export interface ShapeStyle {
@@ -3194,6 +3195,13 @@ export class DrawingEngine {
         ctx.globalAlpha = 1;
         this.renderCompass(ctx, shape, x, y, w, h);
         break;
+
+      default:
+        if (isSubjectShape(shape.shapeType)) {
+          ctx.globalAlpha = 1;
+          renderSubjectShape(ctx, shape, x, y, w, h, this.devicePixelRatio);
+        }
+        break;
     }
     ctx.restore();
   }
@@ -3237,45 +3245,76 @@ export class DrawingEngine {
     ctx.fillStyle = '#38bdf8';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText('📈 Cartesian Coordinate Plane (X-Y)', x + 16 * dpr, y + 14 * dpr);
 
-    // 1. Grid Mesh Lines (Subtle coordinate square grid)
-    const steps = 5;
-    const stepX = (w * 0.40) / steps;
-    const stepY = (h * 0.40) / steps;
+    const xMin = shape.params?.xMin ?? -5;
+    const xMax = shape.params?.xMax ?? 5;
+    const yMin = shape.params?.yMin ?? -5;
+    const yMax = shape.params?.yMax ?? 5;
+    const step = Math.max(0.5, shape.params?.step ?? 1);
+    const showGrid = shape.params?.showGrid !== false;
+    const showDots = shape.params?.showDots !== false;
 
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.20)';
-    ctx.lineWidth = 1 * dpr;
-    ctx.setLineDash([3 * dpr, 3 * dpr]);
+    ctx.fillText(`📈 Cartesian Coordinate Plane (X: [${xMin}, ${xMax}], Y: [${yMin}, ${yMax}])`, x + 16 * dpr, y + 14 * dpr);
 
-    for (let i = -steps; i <= steps; i++) {
-      if (i === 0) continue;
+    // Plot margins
+    const padL = 46 * dpr;
+    const padR = 46 * dpr;
+    const padT = 44 * dpr;
+    const padB = 44 * dpr;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+    const plotX = x + padL;
+    const plotY = y + padT;
+
+    const rangeX = Math.max(1, xMax - xMin);
+    const rangeY = Math.max(1, yMax - yMin);
+
+    const mapX = (val: number) => plotX + ((val - xMin) / rangeX) * plotW;
+    const mapY = (val: number) => plotY + plotH - ((val - yMin) / rangeY) * plotH;
+
+    const originX = mapX(0);
+    const originY = mapY(0);
+
+    // 1. Grid Mesh Lines
+    if (showGrid) {
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.20)';
+      ctx.lineWidth = 1 * dpr;
+      ctx.setLineDash([3 * dpr, 3 * dpr]);
+
       // Vertical grid lines
-      const gx = cx + i * stepX;
-      ctx.beginPath();
-      ctx.moveTo(gx, cy - steps * stepY);
-      ctx.lineTo(gx, cy + steps * stepY);
-      ctx.stroke();
+      for (let vx = Math.ceil(xMin / step) * step; vx <= xMax; vx += step) {
+        if (Math.abs(vx) < 1e-6) continue;
+        const gx = mapX(vx);
+        ctx.beginPath();
+        ctx.moveTo(gx, plotY);
+        ctx.lineTo(gx, plotY + plotH);
+        ctx.stroke();
+      }
 
       // Horizontal grid lines
-      const gy = cy - i * stepY;
-      ctx.beginPath();
-      ctx.moveTo(cx - steps * stepX, gy);
-      ctx.lineTo(cx + steps * stepX, gy);
-      ctx.stroke();
+      for (let vy = Math.ceil(yMin / step) * step; vy <= yMax; vy += step) {
+        if (Math.abs(vy) < 1e-6) continue;
+        const gy = mapY(vy);
+        ctx.beginPath();
+        ctx.moveTo(plotX, gy);
+        ctx.lineTo(plotX + plotW, gy);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
     }
-    ctx.setLineDash([]);
 
     // 2. Coordinate Point Dots (at all grid intersections)
-    ctx.fillStyle = '#38bdf8';
-    for (let i = -steps; i <= steps; i++) {
-      for (let j = -steps; j <= steps; j++) {
-        if (i === 0 && j === 0) continue;
-        const px = cx + i * stepX;
-        const py = cy - j * stepY;
-        ctx.beginPath();
-        ctx.arc(px, py, 2.2 * dpr, 0, Math.PI * 2);
-        ctx.fill();
+    if (showDots) {
+      ctx.fillStyle = '#38bdf8';
+      for (let vx = Math.ceil(xMin / step) * step; vx <= xMax; vx += step) {
+        for (let vy = Math.ceil(yMin / step) * step; vy <= yMax; vy += step) {
+          if (Math.abs(vx) < 1e-6 && Math.abs(vy) < 1e-6) continue;
+          const px = mapX(vx);
+          const py = mapY(vy);
+          ctx.beginPath();
+          ctx.arc(px, py, 2.2 * dpr, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
 
@@ -3283,54 +3322,59 @@ export class DrawingEngine {
     ctx.strokeStyle = strokeColor;
     ctx.fillStyle = strokeColor;
     ctx.lineWidth = 2.5 * dpr;
-
     const arrowSize = 10 * dpr;
-    const xSpan = steps * stepX + 18 * dpr;
-    const ySpan = steps * stepY + 18 * dpr;
+
+    // Clamped axis positions if origin is out of view
+    const axisY = Math.max(plotY, Math.min(plotY + plotH, originY));
+    const axisX = Math.max(plotX, Math.min(plotX + plotW, originX));
 
     // X Axis
     ctx.beginPath();
-    ctx.moveTo(cx - xSpan, cy);
-    ctx.lineTo(cx + xSpan, cy);
+    ctx.moveTo(plotX - 12 * dpr, axisY);
+    ctx.lineTo(plotX + plotW + 12 * dpr, axisY);
     ctx.stroke();
 
     // Arrowhead on +X
     ctx.beginPath();
-    ctx.moveTo(cx + xSpan, cy);
-    ctx.lineTo(cx + xSpan - arrowSize, cy - arrowSize * 0.45);
-    ctx.lineTo(cx + xSpan - arrowSize, cy + arrowSize * 0.45);
+    ctx.moveTo(plotX + plotW + 16 * dpr, axisY);
+    ctx.lineTo(plotX + plotW + 16 * dpr - arrowSize, axisY - arrowSize * 0.45);
+    ctx.lineTo(plotX + plotW + 16 * dpr - arrowSize, axisY + arrowSize * 0.45);
     ctx.closePath();
     ctx.fill();
 
-    // Arrowhead on -X
-    ctx.beginPath();
-    ctx.moveTo(cx - xSpan, cy);
-    ctx.lineTo(cx - xSpan + arrowSize, cy - arrowSize * 0.45);
-    ctx.lineTo(cx - xSpan + arrowSize, cy + arrowSize * 0.45);
-    ctx.closePath();
-    ctx.fill();
+    // Arrowhead on -X (if xMin < 0)
+    if (xMin < 0) {
+      ctx.beginPath();
+      ctx.moveTo(plotX - 16 * dpr, axisY);
+      ctx.lineTo(plotX - 16 * dpr + arrowSize, axisY - arrowSize * 0.45);
+      ctx.lineTo(plotX - 16 * dpr + arrowSize, axisY + arrowSize * 0.45);
+      ctx.closePath();
+      ctx.fill();
+    }
 
     // Y Axis
     ctx.beginPath();
-    ctx.moveTo(cx, cy + ySpan);
-    ctx.lineTo(cx, cy - ySpan);
+    ctx.moveTo(axisX, plotY + plotH + 12 * dpr);
+    ctx.lineTo(axisX, plotY - 12 * dpr);
     ctx.stroke();
 
     // Arrowhead on +Y
     ctx.beginPath();
-    ctx.moveTo(cx, cy - ySpan);
-    ctx.lineTo(cx - arrowSize * 0.45, cy - ySpan + arrowSize);
-    ctx.lineTo(cx + arrowSize * 0.45, cy - ySpan + arrowSize);
+    ctx.moveTo(axisX, plotY - 16 * dpr);
+    ctx.lineTo(axisX - arrowSize * 0.45, plotY - 16 * dpr + arrowSize);
+    ctx.lineTo(axisX + arrowSize * 0.45, plotY - 16 * dpr + arrowSize);
     ctx.closePath();
     ctx.fill();
 
-    // Arrowhead on -Y
-    ctx.beginPath();
-    ctx.moveTo(cx, cy + ySpan);
-    ctx.lineTo(cx - arrowSize * 0.45, cy + ySpan - arrowSize);
-    ctx.lineTo(cx + arrowSize * 0.45, cy + ySpan - arrowSize);
-    ctx.closePath();
-    ctx.fill();
+    // Arrowhead on -Y (if yMin < 0)
+    if (yMin < 0) {
+      ctx.beginPath();
+      ctx.moveTo(axisX, plotY + plotH + 16 * dpr);
+      ctx.lineTo(axisX - arrowSize * 0.45, plotY + plotH + 16 * dpr - arrowSize);
+      ctx.lineTo(axisX + arrowSize * 0.45, plotY + plotH + 16 * dpr - arrowSize);
+      ctx.closePath();
+      ctx.fill();
+    }
 
     // 4. Numbered Ticks along X and Y
     const fontSize = Math.max(10, Math.round(11 * dpr));
@@ -3344,45 +3388,47 @@ export class DrawingEngine {
     // X axis ticks & numbers
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    for (let i = -steps; i <= steps; i++) {
-      if (i === 0) continue;
-      const tx = cx + i * stepX;
+    for (let vx = Math.ceil(xMin / step) * step; vx <= xMax; vx += step) {
+      if (Math.abs(vx) < 1e-6) continue;
+      const tx = mapX(vx);
       ctx.beginPath();
-      ctx.moveTo(tx, cy - tickHalf);
-      ctx.lineTo(tx, cy + tickHalf);
+      ctx.moveTo(tx, axisY - tickHalf);
+      ctx.lineTo(tx, axisY + tickHalf);
       ctx.stroke();
 
-      ctx.fillText(String(i), tx, cy + tickHalf + 4 * dpr);
+      ctx.fillText(String(vx), tx, axisY + tickHalf + 4 * dpr);
     }
 
     // Y axis ticks & numbers
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    for (let j = -steps; j <= steps; j++) {
-      if (j === 0) continue;
-      const ty = cy - j * stepY;
+    for (let vy = Math.ceil(yMin / step) * step; vy <= yMax; vy += step) {
+      if (Math.abs(vy) < 1e-6) continue;
+      const ty = mapY(vy);
       ctx.beginPath();
-      ctx.moveTo(cx - tickHalf, ty);
-      ctx.lineTo(cx + tickHalf, ty);
+      ctx.moveTo(axisX - tickHalf, ty);
+      ctx.lineTo(axisX + tickHalf, ty);
       ctx.stroke();
 
-      ctx.fillText(String(j), cx - tickHalf - 5 * dpr, ty);
+      ctx.fillText(String(vy), axisX - tickHalf - 5 * dpr, ty);
     }
 
     // 5. Origin (0,0) indicator
-    ctx.beginPath();
-    ctx.arc(cx, cy, 3.8 * dpr, 0, Math.PI * 2);
-    ctx.fillStyle = '#38bdf8';
-    ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5 * dpr;
-    ctx.stroke();
+    if (originX >= plotX && originX <= plotX + plotW && originY >= plotY && originY <= plotY + plotH) {
+      ctx.beginPath();
+      ctx.arc(originX, originY, 3.8 * dpr, 0, Math.PI * 2);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5 * dpr;
+      ctx.stroke();
 
-    ctx.font = `bold ${fontSize}px Inter, sans-serif`;
-    ctx.fillStyle = '#94a3b8';
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'top';
-    ctx.fillText('O(0,0)', cx - 8 * dpr, cy + 6 * dpr);
+      ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+      ctx.fillStyle = '#94a3b8';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillText('O(0,0)', originX - 6 * dpr, originY + 6 * dpr);
+    }
 
     // 6. Axis Labels "x" and "y"
     const labelFont = Math.max(13, Math.round(15 * dpr));
@@ -3390,11 +3436,11 @@ export class DrawingEngine {
     ctx.fillStyle = '#38bdf8';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('x', cx + xSpan + 5 * dpr, cy);
+    ctx.fillText('x', plotX + plotW + 20 * dpr, axisY);
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
-    ctx.fillText('y', cx, cy - ySpan - 4 * dpr);
+    ctx.fillText('y', axisX, plotY - 18 * dpr);
 
     ctx.restore();
   }

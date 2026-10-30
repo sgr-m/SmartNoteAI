@@ -6,6 +6,7 @@
 import { jsPDF } from 'jspdf';
 import { LessonDocument, Page, CanvasObject, StrokeObject, ShapeObject, TextObject, ImageObject } from '../../shared/types';
 import { isLatexSyntax, latexToSvgDataUrl } from './latexService';
+import { renderSubjectShape, isSubjectShape } from '../engine/subjectShapeRenderer';
 
 export interface ExportRenderOptions {
   scale?: number; // 1 for normal, 2 for 300 DPI high-res
@@ -473,14 +474,12 @@ function renderShape(ctx: CanvasRenderingContext2D, shape: ShapeObject) {
       ctx.closePath();
       break;
     }
-    case 'cartesianAxes':
-      ctx.rect(x, y, w, h);
-      ctx.moveTo(x, y + h / 2);
-      ctx.lineTo(x + w, y + h / 2);
-      ctx.moveTo(x + w / 2, y);
-      ctx.lineTo(x + w / 2, y + h);
-      break;
     default:
+      if (isSubjectShape(shape.shapeType)) {
+        renderSubjectShape(ctx, shape, x, y, w, h, 1);
+        ctx.restore();
+        return;
+      }
       ctx.rect(x, y, w, h);
       break;
   }

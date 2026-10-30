@@ -438,6 +438,7 @@ export function Toolbar({
             onClose={closeAllFlyouts}
             onOpenSettings={onOpenSettings}
             onOpenRecentLessons={onOpenRecentLessons}
+            onOpenSubjectTools={onOpenSubjectTools}
             onTogglePresentationMode={onTogglePresentationMode}
             onOpenAIAssistant={onOpenAIAssistant}
             onOpenRecordingStudio={onOpenRecordingStudio}
@@ -554,14 +555,14 @@ export function Toolbar({
           <div className="layers-icon-graphic">📑</div>
         </button>
 
-        {/* Subject Tools */}
+        {/* Subject Teaching Platform */}
         <button
           className="dock-icon-btn"
           onClick={() => onOpenSubjectTools?.()}
-          title="Subject Tools: Math Ruler, Protractor, Science Formulas"
-          aria-label="Subject Tools"
+          title="Subject Teaching Platform: Math, Physics, Chemistry, Computer Science, Digital Logic & Flowcharts"
+          aria-label="Subject Teaching Platform"
         >
-          <div className="tools-icon-graphic">🛠️</div>
+          <div className="tools-icon-graphic">🎓</div>
         </button>
 
         {/* Resource Library */}

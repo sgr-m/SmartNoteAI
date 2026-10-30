@@ -13,6 +13,7 @@ interface MenuFlyoutProps {
   onClose: () => void;
   onOpenSettings?: () => void;
   onOpenRecentLessons?: () => void;
+  onOpenSubjectTools?: () => void;
   onTogglePresentationMode?: () => void;
   onOpenAIAssistant?: () => void;
   onOpenRecordingStudio?: () => void;
@@ -31,6 +32,7 @@ export function MenuFlyout({
   onClose,
   onOpenSettings,
   onOpenRecentLessons,
+  onOpenSubjectTools,
   onTogglePresentationMode,
   onOpenAIAssistant,
   onOpenRecordingStudio,
@@ -195,6 +197,14 @@ export function MenuFlyout({
 
           {activeTab === 'mode' && (
             <div className="submenu-grid">
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(() => onOpenSubjectTools?.())}
+                title="Subject Teaching Platform (Math, Physics, Chemistry, CS, Digital Logic)"
+              >
+                <div className="submenu-icon-box">🎓</div>
+                <span className="submenu-label">Teaching Platform</span>
+              </button>
               <button
                 className="submenu-tile-btn"
                 onClick={() => handleAction(() => onTogglePresentationMode?.())}

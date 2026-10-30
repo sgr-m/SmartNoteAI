@@ -451,6 +451,7 @@
 .selected-text-quick-edit-pill {
   display: flex;
   align-items: center;
+  gap: 6px;
   pointer-events: auto;
   user-select: none;
   animation: fadeIn 0.15s ease-out;

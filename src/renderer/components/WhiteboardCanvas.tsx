@@ -17,6 +17,20 @@ import {
 } from '../../shared/types';
 import { InlineTextEditor } from './InlineTextEditor';
 import { AddToResourceLibraryModal } from './AddToResourceLibraryModal';
+import { AngleConstructionModal } from './subjectModals/AngleConstructionModal';
+import { CartesianPlaneModal } from './subjectModals/CartesianPlaneModal';
+import { FunctionPlotterModal } from './subjectModals/FunctionPlotterModal';
+import { NumberLineModal } from './subjectModals/NumberLineModal';
+import { Geometry3DModal } from './subjectModals/Geometry3DModal';
+import { ResistorModal } from './subjectModals/ResistorModal';
+import { CircuitDiagramModal } from './subjectModals/CircuitDiagramModal';
+import { ForceVectorModal } from './subjectModals/ForceVectorModal';
+import { FreeBodyDiagramModal } from './subjectModals/FreeBodyDiagramModal';
+import { MotionDiagramModal } from './subjectModals/MotionDiagramModal';
+import { PeriodicTableModal } from './subjectModals/PeriodicTableModal';
+import { ElementCardModal } from './subjectModals/ElementCardModal';
+import { BohrModelModal } from './subjectModals/BohrModelModal';
+import { LabApparatusModal } from './subjectModals/LabApparatusModal';
 import { isLatexSyntax } from '../services/latexService';
 import { isTypingOrInputFocused } from '../utils/keyboardUtils';
 import { v4 as uuidv4 } from 'uuid';
@@ -66,6 +80,23 @@ export function WhiteboardCanvas(): React.ReactElement {
   const [editingTextObj, setEditingTextObj] = useState<TextObject | null>(null);
   const [showAddToResourceModal, setShowAddToResourceModal] = useState(false);
   const [resourceObjectToSave, setResourceObjectToSave] = useState<CanvasObject | null>(null);
+
+  // Subject Shape Interactive Edit Modals
+  const [editingAngleShape, setEditingAngleShape] = useState<ShapeObject | null>(null);
+  const [editingCartesianShape, setEditingCartesianShape] = useState<ShapeObject | null>(null);
+  const [editingFunctionShape, setEditingFunctionShape] = useState<ShapeObject | null>(null);
+  const [editingNumberLineShape, setEditingNumberLineShape] = useState<ShapeObject | null>(null);
+  const [editingGeometry3DShape, setEditingGeometry3DShape] = useState<ShapeObject | null>(null);
+  const [editingResistorShape, setEditingResistorShape] = useState<ShapeObject | null>(null);
+  const [editingCircuitShape, setEditingCircuitShape] = useState<ShapeObject | null>(null);
+  const [editingForceVectorShape, setEditingForceVectorShape] = useState<ShapeObject | null>(null);
+  const [editingResultantShape, setEditingResultantShape] = useState<ShapeObject | null>(null);
+  const [editingFbdShape, setEditingFbdShape] = useState<ShapeObject | null>(null);
+  const [editingMotionShape, setEditingMotionShape] = useState<ShapeObject | null>(null);
+  const [editingPeriodicTableShape, setEditingPeriodicTableShape] = useState<ShapeObject | null>(null);
+  const [editingElementCardShape, setEditingElementCardShape] = useState<ShapeObject | null>(null);
+  const [editingBohrModelShape, setEditingBohrModelShape] = useState<ShapeObject | null>(null);
+  const [editingLabApparatusShape, setEditingLabApparatusShape] = useState<ShapeObject | null>(null);
 
   // Vertical Selection Pill Active Flyout Menu
   const [activeFlyout, setActiveFlyout] = useState<'none' | 'palette' | 'layer' | 'more' | 'thickness' | 'imageFit'>('none');
@@ -137,6 +168,32 @@ export function WhiteboardCanvas(): React.ReactElement {
       },
     });
   }, [commandSystem, docDispatch]);
+
+  const handleUpdateShape = useCallback((originalShape: ShapeObject, newProps: Partial<ShapeObject>) => {
+    const pageIndex = currentPageIndexRef.current;
+    const prev = originalShape;
+    const updated: ShapeObject = {
+      ...originalShape,
+      ...newProps,
+      params: {
+        ...(originalShape.params || {}),
+        ...(newProps.params || {}),
+      },
+    };
+
+    commandSystem.execute({
+      id: uuidv4(),
+      description: `Update ${originalShape.shapeType}`,
+      execute() {
+        docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: updated });
+        setSelectedObject(updated);
+      },
+      undo() {
+        docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: prev });
+        setSelectedObject(prev);
+      },
+    });
+  }, [commandSystem, docDispatch, setSelectedObject]);
 
   // Section 6.1 Geometric Stroke Splitting & Batch Eraser Command
   const handleEraseBatchComplete = useCallback(
@@ -559,6 +616,88 @@ export function WhiteboardCanvas(): React.ReactElement {
         setSelectedObject(hitText);
         setTextModalPos({ x: hitText.x, y: hitText.y });
         setEditingTextObj(hitText);
+        return;
+      }
+
+      const hitShape = [...page.objects].reverse().find((obj) => {
+        if (obj.type !== 'shape') return false;
+        const s = obj as ShapeObject;
+        const isSupportedCircuitComp =
+          s.shapeType === 'circuitComponent' &&
+          (s.params?.componentType === 'resistor' || s.params?.componentType === 'rheostat');
+        const isSupportedPhysicsDiag =
+          s.shapeType === 'physicsDiagram' &&
+          (s.params?.diagramType === 'seriesCircuit' ||
+            s.params?.diagramType === 'parallelCircuit' ||
+            s.params?.diagramType === 'forceVector' ||
+            s.params?.diagramType === 'resultantForce' ||
+            s.params?.diagramType === 'freeBodyDiagram' ||
+            s.params?.diagramType === 'motionDiagram');
+        const isSupportedChem =
+          s.shapeType === 'periodicElement' ||
+          s.shapeType === 'atomicModel' ||
+          s.shapeType === 'labApparatus';
+
+        if (
+          s.shapeType !== 'angleMeasurement' &&
+          s.shapeType !== 'cartesianAxes' &&
+          s.shapeType !== 'functionPlot' &&
+          s.shapeType !== 'numberLine' &&
+          s.shapeType !== 'geometry3D' &&
+          !isSupportedCircuitComp &&
+          !isSupportedPhysicsDiag &&
+          !isSupportedChem
+        ) {
+          return false;
+        }
+        const sw = s.width || 120;
+        const sh = s.height || 120;
+        return docX >= s.x && docX <= s.x + sw && docY >= s.y && docY <= s.y + sh;
+      }) as ShapeObject | undefined;
+
+      if (hitShape) {
+        e.preventDefault();
+        e.stopPropagation();
+        setSelectedObject(hitShape);
+        if (hitShape.shapeType === 'angleMeasurement') {
+          setEditingAngleShape(hitShape);
+        } else if (hitShape.shapeType === 'cartesianAxes') {
+          setEditingCartesianShape(hitShape);
+        } else if (hitShape.shapeType === 'functionPlot') {
+          setEditingFunctionShape(hitShape);
+        } else if (hitShape.shapeType === 'numberLine') {
+          setEditingNumberLineShape(hitShape);
+        } else if (hitShape.shapeType === 'geometry3D') {
+          setEditingGeometry3DShape(hitShape);
+        } else if (
+          hitShape.shapeType === 'circuitComponent' &&
+          (hitShape.params?.componentType === 'resistor' || hitShape.params?.componentType === 'rheostat')
+        ) {
+          setEditingResistorShape(hitShape);
+        } else if (hitShape.shapeType === 'physicsDiagram') {
+          const dt = hitShape.params?.diagramType;
+          if (dt === 'seriesCircuit' || dt === 'parallelCircuit') {
+            setEditingCircuitShape(hitShape);
+          } else if (dt === 'forceVector') {
+            setEditingForceVectorShape(hitShape);
+          } else if (dt === 'resultantForce') {
+            setEditingResultantShape(hitShape);
+          } else if (dt === 'freeBodyDiagram') {
+            setEditingFbdShape(hitShape);
+          } else if (dt === 'motionDiagram') {
+            setEditingMotionShape(hitShape);
+          }
+        } else if (hitShape.shapeType === 'periodicElement') {
+          if (hitShape.params?.mode === 'table' || hitShape.params?.mode === 'overview') {
+            setEditingPeriodicTableShape(hitShape);
+          } else {
+            setEditingElementCardShape(hitShape);
+          }
+        } else if (hitShape.shapeType === 'atomicModel') {
+          setEditingBohrModelShape(hitShape);
+        } else if (hitShape.shapeType === 'labApparatus') {
+          setEditingLabApparatusShape(hitShape);
+        }
       }
     };
 
@@ -1605,6 +1744,402 @@ export function WhiteboardCanvas(): React.ReactElement {
         </div>
       )}
 
+      {/* Quick "📐 Change Angle" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'angleMeasurement' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditingAngleShape(selectedObject as ShapeObject);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button className="quick-edit-btn" title="Change Angle Degree (or double-click)">
+            <span>📐</span>
+            <span>Change Angle ({(selectedObject as ShapeObject).params?.angle ?? 60}°)</span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "📊 Configure Axes" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'cartesianAxes' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditingCartesianShape(selectedObject as ShapeObject);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button className="quick-edit-btn" title="Configure X-Y Axes Range & Values (or double-click)">
+            <span>📊</span>
+            <span>Configure X-Y Axes [{(selectedObject as ShapeObject).params?.xMin ?? -10}..{(selectedObject as ShapeObject).params?.xMax ?? 10}]</span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "📈 Edit Function" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'functionPlot' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditingFunctionShape(selectedObject as ShapeObject);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button className="quick-edit-btn" title="Edit Function Equation (or double-click)">
+            <span>📈</span>
+            <span>Edit Function ({(selectedObject as ShapeObject).params?.equation || 'y = f(x)'})</span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "↔️ Configure Number Line" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'numberLine' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditingNumberLineShape(selectedObject as ShapeObject);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button className="quick-edit-btn" title="Configure Number Line Range & Values (or double-click)">
+            <span>↔️</span>
+            <span>Configure Range [{(selectedObject as ShapeObject).params?.min ?? -5}..{(selectedObject as ShapeObject).params?.max ?? 5}]</span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "🧊 Rotate 3D Solid" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'geometry3D' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Rotate 3D Solid on X, Y, Z Axes (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingGeometry3DShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>🧊</span>
+            <span>Rotate 3D {((selectedObject as ShapeObject).params?.solidType || 'Solid').toUpperCase()} (X:{(selectedObject as ShapeObject).params?.rotX ?? 28}°, Y:{(selectedObject as ShapeObject).params?.rotY ?? 35}°)</span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "⚡ Edit Resistor / Rheostat" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'circuitComponent' && ((selectedObject as ShapeObject).params?.componentType === 'resistor' || (selectedObject as ShapeObject).params?.componentType === 'rheostat') && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Configure Resistance Value & Multiplier (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingResistorShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>⚡</span>
+            <span>
+              {(selectedObject as ShapeObject).params?.componentType === 'rheostat' ? 'Rheostat' : 'Resistor'}: {(selectedObject as ShapeObject).params?.resistance ?? 100} {(selectedObject as ShapeObject).params?.unit || 'Ω'}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "🔄 Configure Electrical Circuit" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'physicsDiagram' && ((selectedObject as ShapeObject).params?.diagramType === 'seriesCircuit' || (selectedObject as ShapeObject).params?.diagramType === 'parallelCircuit') && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Configure Electronic Components, Voltage & Ohm's Law (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingCircuitShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>🔄</span>
+            <span>
+              {(selectedObject as ShapeObject).params?.diagramType === 'parallelCircuit' ? 'Parallel' : 'Series'} Circuit (V:{(selectedObject as ShapeObject).params?.voltage ?? 12}V, Req:{(selectedObject as ShapeObject).params?.resistance ?? 4}Ω, I:{(selectedObject as ShapeObject).params?.current ?? 3}A)
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "↗️ Configure Force Vector" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'physicsDiagram' && (selectedObject as ShapeObject).params?.diagramType === 'forceVector' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Configure Force Vector Magnitude, Angle & Components (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingForceVectorShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>↗️</span>
+            <span>
+              Force Vector: {(selectedObject as ShapeObject).params?.magnitude ?? 50} N ({(selectedObject as ShapeObject).params?.angle ?? 45}°)
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "📐 Configure Resultant Force" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'physicsDiagram' && (selectedObject as ShapeObject).params?.diagramType === 'resultantForce' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Configure Vector Addition Forces (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingResultantShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>📐</span>
+            <span>
+              Resultant Force: {(selectedObject as ShapeObject).params?.r ?? 50} N @ {(selectedObject as ShapeObject).params?.theta ?? 36.9}°
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "📦 Configure Free Body Diagram" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'physicsDiagram' && (selectedObject as ShapeObject).params?.diagramType === 'freeBodyDiagram' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Configure Mass, Incline, Applied Force & Friction (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingFbdShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>📦</span>
+            <span>
+              FBD: m={(selectedObject as ShapeObject).params?.mass ?? 5}kg{(selectedObject as ShapeObject).params?.inclineAngle ? ` @ ${(selectedObject as ShapeObject).params?.inclineAngle}°` : ''}, Fnet={(selectedObject as ShapeObject).params?.netForce ?? 0}N, a={(selectedObject as ShapeObject).params?.acceleration ?? 0}m/s²
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "🎢 Configure Projectile Motion" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'physicsDiagram' && (selectedObject as ShapeObject).params?.diagramType === 'motionDiagram' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Configure Initial Velocity, Launch Angle & Gravity (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingMotionShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>🎢</span>
+            <span>
+              Projectile: v0={(selectedObject as ShapeObject).params?.initialVelocity ?? 25}m/s, θ={(selectedObject as ShapeObject).params?.angle ?? 45}°, Range={(selectedObject as ShapeObject).params?.range ?? 0}m
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "🧪 View / Edit Complete Periodic Table" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'periodicElement' && ((selectedObject as ShapeObject).params?.mode === 'table' || (selectedObject as ShapeObject).params?.mode === 'overview') && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Open Interactive Periodic Table Explorer (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingPeriodicTableShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>🧪</span>
+            <span>Periodic Table (118 Elements)</span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "📇 Select / Edit Element Card" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'periodicElement' && (selectedObject as ShapeObject).params?.mode !== 'table' && (selectedObject as ShapeObject).params?.mode !== 'overview' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Change Element on Card (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingElementCardShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>📇</span>
+            <span>
+              Element Card: {(selectedObject as ShapeObject).params?.element?.name || 'Element'} ({(selectedObject as ShapeObject).params?.element?.symbol || 'C'}) · Z={(selectedObject as ShapeObject).params?.element?.number ?? 6}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "⚛️ Select / Edit Bohr Model Element" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'atomicModel' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Change Bohr Model Element (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingBohrModelShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>⚛️</span>
+            <span>
+              Bohr Model: {(selectedObject as ShapeObject).params?.name || 'Atom'} ({(selectedObject as ShapeObject).params?.symbol || 'O'}) · Z={(selectedObject as ShapeObject).params?.atomicNumber ?? 8}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "⚗️ Configure Laboratory Apparatus" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'labApparatus' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Configure Laboratory Apparatus (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingLabApparatusShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>⚗️</span>
+            <span>
+              {(selectedObject as ShapeObject).label || 'Laboratory Apparatus'}
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* Vertical Floating Action Toolbar / Pill (Reference Images 1, 2, 3) */}
       {toolState.activeTool === 'select' && selectedObject && selectedScreenBBox && (
         <div
@@ -2196,6 +2731,193 @@ export function WhiteboardCanvas(): React.ReactElement {
             setToastMessage(
               `Saved "${name}" to Resource Library under ${cat}${folder ? ` / ${folder}` : ''}!`
             );
+          }}
+        />
+      )}
+
+      {/* Interactive Angle Construction Edit Modal */}
+      {editingAngleShape && (
+        <AngleConstructionModal
+          existingShape={editingAngleShape}
+          onClose={() => setEditingAngleShape(null)}
+          onUpdateExisting={(updated) => {
+            handleUpdateShape(editingAngleShape, updated);
+            setEditingAngleShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Cartesian Plane Edit Modal */}
+      {editingCartesianShape && (
+        <CartesianPlaneModal
+          existingShape={editingCartesianShape}
+          onClose={() => setEditingCartesianShape(null)}
+          onUpdateExisting={(updated) => {
+            handleUpdateShape(editingCartesianShape, updated);
+            setEditingCartesianShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Function Plotter Edit Modal */}
+      {editingFunctionShape && (
+        <FunctionPlotterModal
+          existingShape={editingFunctionShape}
+          onClose={() => setEditingFunctionShape(null)}
+          onUpdateExisting={(updated) => {
+            handleUpdateShape(editingFunctionShape, updated);
+            setEditingFunctionShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Number Line Edit Modal */}
+      {editingNumberLineShape && (
+        <NumberLineModal
+          existingShape={editingNumberLineShape}
+          onClose={() => setEditingNumberLineShape(null)}
+          onUpdateExisting={(updated) => {
+            handleUpdateShape(editingNumberLineShape, updated);
+            setEditingNumberLineShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive 3D Geometry Solid & Coordinate Inspector Modal */}
+      {editingGeometry3DShape && (
+        <Geometry3DModal
+          existingShape={editingGeometry3DShape}
+          onClose={() => setEditingGeometry3DShape(null)}
+          onUpdateExisting={(updated) => {
+            handleUpdateShape(editingGeometry3DShape, updated);
+            setEditingGeometry3DShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Resistor & Variable Rheostat Edit Modal */}
+      {editingResistorShape && (
+        <ResistorModal
+          existingShape={editingResistorShape}
+          defaultMode={editingResistorShape.params?.componentType === 'rheostat' ? 'rheostat' : 'resistor'}
+          onClose={() => setEditingResistorShape(null)}
+          onUpdateExisting={(updated) => {
+            handleUpdateShape(editingResistorShape, updated);
+            setEditingResistorShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Series & Parallel Circuit Diagram Builder Modal */}
+      {editingCircuitShape && (
+        <CircuitDiagramModal
+          existingShape={editingCircuitShape}
+          defaultMode={
+            (editingCircuitShape.params?.diagramType as 'seriesCircuit' | 'parallelCircuit') ||
+            'seriesCircuit'
+          }
+          onClose={() => setEditingCircuitShape(null)}
+          onUpdateExisting={(updated) => {
+            handleUpdateShape(editingCircuitShape, updated);
+            setEditingCircuitShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Force Vector Modal */}
+      {editingForceVectorShape && (
+        <ForceVectorModal
+          existingShape={editingForceVectorShape}
+          defaultMode="forceVector"
+          onClose={() => setEditingForceVectorShape(null)}
+          onUpdateExisting={(updated) => {
+            handleUpdateShape(editingForceVectorShape, updated);
+            setEditingForceVectorShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Resultant Force Demonstration Modal */}
+      {editingResultantShape && (
+        <ForceVectorModal
+          existingShape={editingResultantShape}
+          defaultMode="resultantForce"
+          onClose={() => setEditingResultantShape(null)}
+          onUpdateExisting={(updated) => {
+            handleUpdateShape(editingResultantShape, updated);
+            setEditingResultantShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Free Body Diagram Modal */}
+      {editingFbdShape && (
+        <FreeBodyDiagramModal
+          existingShape={editingFbdShape}
+          onClose={() => setEditingFbdShape(null)}
+          onUpdateExisting={(updated) => {
+            handleUpdateShape(editingFbdShape, updated);
+            setEditingFbdShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Kinematic Motion Diagram Modal */}
+      {editingMotionShape && (
+        <MotionDiagramModal
+          existingShape={editingMotionShape}
+          onClose={() => setEditingMotionShape(null)}
+          onUpdateExisting={(updated) => {
+            handleUpdateShape(editingMotionShape, updated);
+            setEditingMotionShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Periodic Table Modal */}
+      {editingPeriodicTableShape && (
+        <PeriodicTableModal
+          existingShape={editingPeriodicTableShape}
+          onClose={() => setEditingPeriodicTableShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingPeriodicTableShape, updated);
+            setEditingPeriodicTableShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Element Placard Card Modal */}
+      {editingElementCardShape && (
+        <ElementCardModal
+          existingShape={editingElementCardShape}
+          onClose={() => setEditingElementCardShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingElementCardShape, updated);
+            setEditingElementCardShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Bohr Atomic Model Modal */}
+      {editingBohrModelShape && (
+        <BohrModelModal
+          existingShape={editingBohrModelShape}
+          onClose={() => setEditingBohrModelShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingBohrModelShape, updated);
+            setEditingBohrModelShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Laboratory Apparatus Modal */}
+      {editingLabApparatusShape && (
+        <LabApparatusModal
+          existingShape={editingLabApparatusShape}
+          onClose={() => setEditingLabApparatusShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingLabApparatusShape, updated);
+            setEditingLabApparatusShape(null);
           }}
         />
       )}

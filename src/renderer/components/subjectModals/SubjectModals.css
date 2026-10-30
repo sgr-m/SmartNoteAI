@@ -1,0 +1,660 @@
+/**
+ * Subject Modals CSS
+ * Sleek, high-contrast, dark-mode glassmorphic styling for interactive STEM tools
+ */
+
+.subject-submodal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: modalFadeIn 0.15s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.subject-submodal-card {
+  width: 90%;
+  max-width: 680px;
+  background: #111827;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #f8fafc;
+}
+
+.submodal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #0f172a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.submodal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.submodal-title span {
+  font-size: 24px;
+}
+
+.submodal-title h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.submodal-title p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.submodal-close {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.submodal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.submodal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 14px 20px;
+  background: #0f172a;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ─── Calculator Styles ─────────────────────────────────────────────────────── */
+
+.calculator-modal {
+  max-width: 440px;
+}
+
+.calc-display-panel {
+  background: #090d16;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: right;
+}
+
+.calc-history {
+  font-size: 13px;
+  color: #64748b;
+  min-height: 18px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+.calc-current {
+  font-size: 28px;
+  font-weight: 700;
+  color: #38bdf8;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.calc-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #111827;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.calc-toggle-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.calc-toggle-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.calc-mem-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.calc-buttons-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  padding: 16px;
+  background: #0b1120;
+}
+
+.calc-buttons-grid button {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #f1f5f9;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 12px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+.calc-buttons-grid button:hover {
+  background: #334155;
+  border-color: #38bdf8;
+}
+
+.calc-buttons-grid button.calc-btn-num {
+  font-weight: 600;
+  font-size: 16px;
+  background: #172033;
+}
+
+.calc-buttons-grid button.calc-btn-op {
+  background: rgba(2, 132, 199, 0.25);
+  color: #38bdf8;
+  border-color: rgba(2, 132, 199, 0.4);
+}
+
+.calc-buttons-grid button.calc-btn-action {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.calc-buttons-grid button.calc-btn-eq {
+  background: #0284c7;
+  color: #ffffff;
+  font-weight: 700;
+  grid-row: span 2;
+  font-size: 18px;
+}
+
+.calc-buttons-grid button.span-2 {
+  grid-column: span 2;
+}
+
+/* ─── Periodic Table Styles ────────────────────────────────────────────────── */
+
+.periodic-modal {
+  max-width: 880px;
+}
+
+.periodic-filter-bar {
+  padding: 12px 20px;
+  background: #0f172a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.periodic-search-input {
+  flex: 1;
+  min-width: 220px;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.periodic-category-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cat-pill {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cat-pill.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.periodic-body {
+  display: flex;
+  height: 440px;
+}
+
+.periodic-matrix-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.periodic-elements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  gap: 8px;
+}
+
+.periodic-cell {
+  background: #172033;
+  border: 1.5px solid #38bdf8;
+  border-radius: 8px;
+  padding: 6px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.periodic-cell:hover,
+.periodic-cell.selected {
+  background: #1e293b;
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.periodic-cell.selected {
+  border-color: #ffffff !important;
+  box-shadow: 0 0 0 2px #38bdf8;
+}
+
+.p-num {
+  font-size: 10px;
+  color: #94a3b8;
+  align-self: flex-start;
+  padding-left: 2px;
+}
+
+.p-sym {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 2px 0;
+}
+
+.p-name {
+  font-size: 10px;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60px;
+}
+
+.periodic-inspector {
+  width: 320px;
+  padding: 16px;
+  background: #0b1120;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.inspector-placard {
+  background: #172033;
+  border: 2px solid #38bdf8;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.placard-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.placard-symbol {
+  font-size: 42px;
+  font-weight: 800;
+  margin: 4px 0;
+}
+
+.placard-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.placard-category {
+  font-size: 10px;
+  color: #f59e0b;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+  margin-bottom: 12px;
+}
+
+.placard-details {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 10px;
+  font-size: 11px;
+  text-align: left;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  color: #cbd5e1;
+}
+
+.inspector-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* ─── Function Plotter Styles ─────────────────────────────────────────────── */
+
+.function-modal {
+  max-width: 580px;
+}
+
+.function-input-section {
+  padding: 16px 20px;
+  background: #0f172a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.func-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.func-prefix {
+  font-size: 18px;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.func-input {
+  flex: 1;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+.func-presets-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.preset-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.preset-pill.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.func-graph-preview-box {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  background: #090d16;
+}
+
+.func-range-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 12px 20px;
+  background: #0f172a;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.range-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.range-item label {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.range-item input {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* ─── Equation Balancer Styles ────────────────────────────────────────────── */
+
+.equation-balancer-modal {
+  max-width: 580px;
+}
+
+.eq-input-section {
+  padding: 16px 20px;
+  background: #0f172a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.eq-text-input {
+  width: 100%;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  margin-top: 6px;
+  margin-bottom: 10px;
+}
+
+.eq-presets-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.eq-result-card {
+  padding: 20px;
+  background: #090d16;
+  text-align: center;
+}
+
+.eq-result-label {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.eq-balanced-string {
+  font-size: 22px;
+  font-weight: 700;
+  color: #38bdf8;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  margin-bottom: 14px;
+}
+
+.eq-stoichiometry-breakdown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: #172033;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.side-breakdown {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.coef-tag {
+  background: rgba(2, 132, 199, 0.25);
+  border: 1px solid #38bdf8;
+  color: #f8fafc;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* ─── Truth Table Styles ─────────────────────────────────────────────────── */
+
+.truth-table-modal {
+  max-width: 560px;
+}
+
+.logic-gate-selector {
+  display: flex;
+  gap: 6px;
+  padding: 12px 20px;
+  background: #0f172a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: wrap;
+}
+
+.gate-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.gate-pill.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.gate-expr-banner {
+  padding: 8px 20px;
+  background: #172033;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.gate-expr-banner b {
+  color: #38bdf8;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 15px;
+}
+
+.truth-table-preview-container {
+  padding: 16px 20px;
+  background: #090d16;
+  display: flex;
+  justify-content: center;
+}
+
+.truth-preview-table {
+  width: 100%;
+  max-width: 380px;
+  border-collapse: collapse;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+.truth-preview-table th {
+  background: #1e293b;
+  color: #38bdf8;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.truth-preview-table td {
+  padding: 8px 12px;
+  font-size: 14px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #111827;
+}
+
+.truth-preview-table td.val-one {
+  color: #10b981;
+  font-weight: 700;
+}
+
+.truth-preview-table td.val-zero {
+  color: #94a3b8;
+}
