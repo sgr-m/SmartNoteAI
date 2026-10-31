@@ -300,7 +300,14 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
     case 'CLEAR_PAGE': {
       const pages = state.lesson.pages.map((p, i) => {
         if (i !== action.pageIndex) return p;
-        return { ...p, objects: [] };
+        // Keep locked objects and objects on locked layers
+        const lockedLayerIds = new Set(
+          (p.layers || []).filter((l) => l.locked).map((l) => l.id)
+        );
+        const kept = p.objects.filter(
+          (o) => o.locked || (o.layerId && lockedLayerIds.has(o.layerId))
+        );
+        return { ...p, objects: kept };
       });
       return { ...state, lesson: { ...state.lesson, pages }, isDirty: true };
     }

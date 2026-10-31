@@ -25,6 +25,15 @@ import { MotionDiagramModal } from './subjectModals/MotionDiagramModal';
 import { ElementCardModal } from './subjectModals/ElementCardModal';
 import { BohrModelModal } from './subjectModals/BohrModelModal';
 import { LabApparatusModal, ApparatusMode } from './subjectModals/LabApparatusModal';
+import { CodeEditorModal } from './subjectModals/CodeEditorModal';
+import { PseudocodeModal } from './subjectModals/PseudocodeModal';
+import { FlowchartBuilderModal } from './subjectModals/FlowchartBuilderModal';
+import { TraceTableModal } from './subjectModals/TraceTableModal';
+import { CallStackModal } from './subjectModals/CallStackModal';
+import { MemoryLayoutModal } from './subjectModals/MemoryLayoutModal';
+import { LinkedListModal } from './subjectModals/LinkedListModal';
+import { TreeGraphModal } from './subjectModals/TreeGraphModal';
+import { SortingSearchingModal } from './subjectModals/SortingSearchingModal';
 import { Solid3DType } from '../engine/geometry3DMath';
 import { executeAddMultipleObjects } from '../services/subjectModules/commonHelpers';
 import './SubjectToolsModal.css';
@@ -59,8 +68,19 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
     | 'resultantForce'
     | 'freeBodyDiagram'
     | 'motionDiagram'
+    | 'codeEditor'
+    | 'pseudocodeEditor'
+    | 'flowchartBuilder'
+    | 'traceTable'
+    | 'callStack'
+    | 'memoryLayout'
+    | 'linkedList'
+    | 'treeGraph'
+    | 'sortingSearching'
     | null
   >(null);
+  const [bridgePseudocode, setBridgePseudocode] = useState<string>('');
+  const [bridgeTitle, setBridgeTitle] = useState<string>('');
   const [selectedSolidType, setSelectedSolidType] = useState<Solid3DType>('cube');
   const [resistorMode, setResistorMode] = useState<'resistor' | 'rheostat'>('resistor');
   const [circuitMode, setCircuitMode] = useState<'seriesCircuit' | 'parallelCircuit'>('seriesCircuit');
@@ -174,6 +194,35 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
           return;
         case 'motionDiagram':
           setActiveSubmodal('motionDiagram');
+          return;
+        case 'codeEditor':
+          setActiveSubmodal('codeEditor');
+          return;
+        case 'pseudocodeEditor':
+          setActiveSubmodal('pseudocodeEditor');
+          return;
+        case 'flowchartBuilder':
+          setBridgePseudocode('');
+          setBridgeTitle('');
+          setActiveSubmodal('flowchartBuilder');
+          return;
+        case 'traceTable':
+          setActiveSubmodal('traceTable');
+          return;
+        case 'callStack':
+          setActiveSubmodal('callStack');
+          return;
+        case 'memoryLayout':
+          setActiveSubmodal('memoryLayout');
+          return;
+        case 'linkedList':
+          setActiveSubmodal('linkedList');
+          return;
+        case 'treeGraph':
+          setActiveSubmodal('treeGraph');
+          return;
+        case 'sortingSearching':
+          setActiveSubmodal('sortingSearching');
           return;
       }
     }
@@ -424,6 +473,67 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
       {activeSubmodal === 'labApparatus' && (
         <LabApparatusModal
           defaultMode={apparatusMode}
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'codeEditor' && (
+        <CodeEditorModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'pseudocodeEditor' && (
+        <PseudocodeModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+          onConvertToFlowchart={(pseudo, title) => {
+            setBridgePseudocode(pseudo);
+            setBridgeTitle(title);
+            setActiveSubmodal('flowchartBuilder');
+          }}
+        />
+      )}
+      {activeSubmodal === 'flowchartBuilder' && (
+        <FlowchartBuilderModal
+          initialPseudocode={bridgePseudocode || undefined}
+          initialTitle={bridgeTitle || undefined}
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'traceTable' && (
+        <TraceTableModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'callStack' && (
+        <CallStackModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'memoryLayout' && (
+        <MemoryLayoutModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'linkedList' && (
+        <LinkedListModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'treeGraph' && (
+        <TreeGraphModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'sortingSearching' && (
+        <SortingSearchingModal
           onClose={() => setActiveSubmodal(null)}
           onInsertSuccess={handleSubmodalInsertSuccess}
         />

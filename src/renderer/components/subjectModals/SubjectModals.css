@@ -658,3 +658,1448 @@
 .truth-preview-table td.val-zero {
   color: #94a3b8;
 }
+
+/* ─── Computer Science Subject Modals (Code, Pseudocode, Flowchart) ────────── */
+
+.cs-code-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: #0f172a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: wrap;
+}
+
+.cs-code-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cs-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.cs-file-input-wrapper {
+  display: flex;
+  align-items: center;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.cs-file-icon {
+  font-size: 14px;
+  margin-right: 6px;
+}
+
+.cs-file-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #f8fafc;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 13px;
+  width: 170px;
+}
+
+.cs-select {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: #f8fafc;
+  padding: 6px 10px;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+
+.cs-select option {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.cs-theme-toggle {
+  display: flex;
+  background: #1e293b;
+  border-radius: 6px;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cs-theme-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cs-theme-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.cs-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px;
+  background: #172033;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cs-action-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cs-chip-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cs-chip-btn:hover {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border-color: #38bdf8;
+}
+
+.cs-line-counter {
+  font-size: 12px;
+  color: #64748b;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+.cs-editor-split {
+  display: flex;
+  min-height: 400px;
+  max-height: 520px;
+  background: #0b1120;
+}
+
+.cs-editor-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cs-preview-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #090d16;
+  overflow: hidden;
+}
+
+.cs-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: #111827;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.cs-pane-tip {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: normal;
+}
+
+.cs-badge-highlight {
+  background: rgba(56, 189, 248, 0.2);
+  border: 1px solid #38bdf8;
+  color: #38bdf8;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.cs-badge-purple {
+  background: rgba(168, 85, 247, 0.2);
+  border: 1px solid #c084fc;
+  color: #c084fc;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.cs-textarea-container {
+  display: flex;
+  flex: 1;
+  overflow: auto;
+  background: #0b1120;
+}
+
+.cs-line-numbers {
+  padding: 12px 8px;
+  background: #070b14;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  user-select: none;
+  text-align: right;
+  min-width: 32px;
+}
+
+.cs-line-num {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 13px;
+  line-height: 22px;
+  color: #475569;
+}
+
+.cs-code-textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #f8fafc;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 13px;
+  line-height: 22px;
+  padding: 12px 16px;
+  resize: none;
+  white-space: pre;
+  tab-size: 4;
+}
+
+.cs-board-card-preview {
+  margin: 16px;
+  border-radius: 10px;
+  border: 1px solid;
+  overflow: auto;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+  flex: 1;
+}
+
+.cs-card-title-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.cs-window-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot-red {
+  background: #ef4444;
+}
+
+.dot-yellow {
+  background: #f59e0b;
+}
+
+.dot-green {
+  background: #10b981;
+}
+
+.cs-card-filename {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cs-card-content {
+  padding: 12px 16px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+.cs-code-preview-row {
+  display: flex;
+  line-height: 22px;
+}
+
+.cs-row-num {
+  width: 32px;
+  text-align: right;
+  margin-right: 16px;
+  user-select: none;
+}
+
+.cs-row-tokens {
+  flex: 1;
+  white-space: pre;
+}
+
+/* ─── Pseudocode Keyword Palette ─────────────────────────────────────────── */
+
+.cs-keyword-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 20px;
+  background: #172033;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
+}
+
+.cs-keyword-title {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.cs-keyword-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cs-chip-kw {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cs-chip-kw:hover {
+  background: rgba(168, 85, 247, 0.25);
+  color: #c084fc;
+  border-color: #a855f7;
+}
+
+.cs-chip-kw.kw-arrow {
+  background: rgba(244, 63, 94, 0.2);
+  border-color: #f43f5e;
+  color: #fb7185;
+  font-weight: bold;
+}
+
+.cs-flow-bridge-btn {
+  background: linear-gradient(135deg, #0284c7, #7c3aed);
+  border: 1px solid #38bdf8;
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cs-flow-bridge-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+}
+
+/* ─── Flowchart Builder Styles ───────────────────────────────────────────── */
+
+.cs-icon-btn {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.cs-convert-action-btn {
+  background: #0284c7;
+  border: none;
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cs-add-node-bar {
+  display: flex;
+  gap: 6px;
+}
+
+.cs-nodes-list {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cs-node-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.cs-node-item.selected {
+  border-color: #38bdf8;
+  background: #172554;
+}
+
+.cs-node-badge {
+  font-size: 14px;
+  color: #38bdf8;
+  width: 20px;
+  text-align: center;
+}
+
+.cs-node-label-input {
+  flex: 1;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #f8fafc;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.cs-node-type-select {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #cbd5e1;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+.cs-node-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.cs-node-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.cs-node-btn.cs-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+/* ─── CS General Shared Toolbar & Inputs ─────────────────────────────────── */
+
+.cs-modal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px;
+  background: #1e293b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cs-toolbar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cs-toolbar-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cs-modal-input,
+.cs-modal-select {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: #f8fafc;
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.cs-modal-input:focus,
+.cs-modal-select:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+.cs-action-btn-sm {
+  background: #1e293b;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.cs-action-btn-sm:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.cs-action-btn-sm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cs-action-btn-primary {
+  background: #0284c7;
+  border: 1px solid #38bdf8;
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cs-action-btn-primary:hover {
+  background: #0369a1;
+}
+
+.cs-action-btn-danger {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid #ef4444;
+  color: #f87171;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cs-action-btn-danger:hover:not(:disabled) {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.cs-action-btn-danger:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.cs-row-del-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.cs-row-del-btn:hover {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.cs-hint-note {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-left: auto;
+}
+
+.cs-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.cs-toggle-group {
+  display: flex;
+  background: #0f172a;
+  padding: 3px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cs-toggle-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cs-toggle-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* ─── 1. Trace Table Styles ──────────────────────────────────────────────── */
+
+.cs-columns-editor-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: #111827;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
+}
+
+.cs-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #38bdf8;
+}
+
+.cs-columns-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.cs-column-chip {
+  display: flex;
+  align-items: center;
+  background: #1e293b;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 4px;
+  padding: 2px 4px 2px 8px;
+}
+
+.cs-chip-input {
+  background: transparent;
+  border: none;
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  width: 70px;
+  outline: none;
+}
+
+.cs-chip-del {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+.cs-chip-del:hover {
+  color: #f87171;
+}
+
+.cs-add-col-group {
+  display: flex;
+  gap: 4px;
+}
+
+.cs-new-col-input {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: #f8fafc;
+  padding: 4px 8px;
+  font-size: 12px;
+  width: 100px;
+  outline: none;
+}
+
+.cs-trace-table-container {
+  padding: 16px 20px;
+  max-height: 380px;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.cs-editable-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.cs-editable-table th {
+  background: rgba(2, 132, 199, 0.2);
+  color: #38bdf8;
+  font-weight: 600;
+  text-align: center;
+  padding: 8px 6px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.cs-editable-table td {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 4px;
+  text-align: center;
+}
+
+.cs-editable-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.cs-row-num {
+  font-weight: 600;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.cs-cell-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #f8fafc;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 12px;
+  text-align: center;
+  outline: none;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.cs-cell-input:focus {
+  background: rgba(56, 189, 248, 0.15);
+  box-shadow: 0 0 0 1px #38bdf8;
+}
+
+.cs-cell-input.val-true {
+  color: #10b981;
+  font-weight: 700;
+}
+
+.cs-cell-input.val-false {
+  color: #f43f5e;
+  font-weight: 700;
+}
+
+.cs-cell-input.val-num {
+  color: #fbbf24;
+}
+
+.cs-table-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  background: #111827;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ─── 2. Call Stack Styles ───────────────────────────────────────────────── */
+
+.cs-stack-ops-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  background: #111827;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cs-stack-push-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.cs-stack-frames-container {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.cs-stack-indicator-label,
+.cs-stack-base-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #10b981;
+  padding: 4px 6px;
+  background: rgba(16, 185, 129, 0.08);
+  border-radius: 4px;
+}
+
+.cs-stack-base-label {
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.08);
+}
+
+.cs-frames-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cs-frame-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition: all 0.15s ease;
+}
+
+.cs-frame-card.frame-top-active {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+}
+
+.cs-frame-top-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #10b981;
+  width: 110px;
+}
+
+.cs-frame-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.cs-frame-func-input {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #34d399;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 4px 8px;
+  outline: none;
+}
+
+.cs-frame-vars-input {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  color: #94a3b8;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 11px;
+  padding: 4px 8px;
+  outline: none;
+}
+
+/* ─── 3. Memory Layout Styles ────────────────────────────────────────────── */
+
+.cs-memory-table-container {
+  padding: 16px 20px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.cs-memory-table th {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.cs-mem-addr {
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+.cs-mem-var {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.cs-mem-type {
+  color: #c084fc;
+  font-style: italic;
+}
+
+.cs-mem-val {
+  color: #ffffff;
+  background: rgba(15, 23, 42, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.cs-cell-select {
+  width: 100%;
+  background: #0f172a;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 4px;
+  color: #38bdf8;
+  font-size: 11px;
+  padding: 4px;
+  outline: none;
+}
+
+/* ─── 4. Linked List Styles ──────────────────────────────────────────────── */
+
+.cs-ll-ops-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: #111827;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cs-ll-input-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cs-ll-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cs-ll-chain-container {
+  padding: 24px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  min-height: 180px;
+}
+
+.cs-ll-head-badge {
+  background: rgba(16, 185, 129, 0.2);
+  border: 1.5px solid #10b981;
+  color: #10b981;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cs-ll-nodes-scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cs-ll-node-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.cs-ll-ptr-tag {
+  position: absolute;
+  top: -22px;
+  left: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+}
+
+.cs-ll-ptr-tag.active-ptr {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.cs-ll-node-box {
+  display: flex;
+  background: rgba(56, 189, 248, 0.12);
+  border: 2px solid #38bdf8;
+  border-radius: 6px;
+  overflow: hidden;
+  width: 90px;
+  height: 48px;
+  transition: all 0.15s ease;
+}
+
+.cs-ll-node-box.node-active {
+  border-color: #fbbf24;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+.cs-ll-node-data {
+  flex: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1.5px solid #38bdf8;
+  padding: 2px;
+}
+
+.cs-ll-data-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+
+.cs-ll-node-ptr {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #38bdf8;
+  font-size: 16px;
+}
+
+.cs-ll-addr-label {
+  position: absolute;
+  bottom: -20px;
+  left: 10px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 10px;
+  color: #64748b;
+}
+
+.cs-ll-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+}
+
+.cs-ll-arrow-forward {
+  color: #38bdf8;
+  font-size: 16px;
+}
+
+.cs-ll-arrow-backward {
+  color: #c084fc;
+  font-size: 12px;
+}
+
+.cs-ll-arrow-circular {
+  color: #10b981;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.cs-ll-null-box {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid #ef4444;
+  color: #f87171;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cs-ll-del-node {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 14px;
+  margin-left: 2px;
+}
+
+.cs-ll-del-node:hover {
+  color: #ef4444;
+}
+
+/* ─── 5. Tree & Graph Styles ─────────────────────────────────────────────── */
+
+.cs-mode-tabs-bar {
+  display: flex;
+  background: #0f172a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cs-mode-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.cs-mode-tab.active {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+  border-bottom-color: #38bdf8;
+}
+
+.cs-tree-hierarchy-box {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.cs-tree-level {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: rgba(30, 41, 59, 0.4);
+  border-radius: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cs-tree-level-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #38bdf8;
+  text-transform: uppercase;
+}
+
+.cs-tree-level-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.cs-tree-node-input-wrap {
+  display: flex;
+  align-items: center;
+  background: #0f172a;
+  border: 1.5px solid #10b981;
+  border-radius: 20px;
+  padding: 2px 8px;
+  gap: 6px;
+}
+
+.cs-tree-node-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #10b981;
+}
+
+.cs-tree-node-input {
+  width: 50px;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+
+.cs-graph-tables-grid {
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.cs-graph-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(30, 41, 59, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.cs-graph-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #38bdf8;
+}
+
+.cs-graph-add-node-bar,
+.cs-graph-add-edge-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cs-vertices-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cs-vertex-chip {
+  display: flex;
+  align-items: center;
+  background: #0f172a;
+  border: 1.5px solid #38bdf8;
+  border-radius: 16px;
+  padding: 4px 10px;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.cs-edges-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.cs-edge-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #0f172a;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  color: #f8fafc;
+}
+
+/* ─── 6. Sorting / Searching Styles ──────────────────────────────────────── */
+
+.cs-sort-generators-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: #111827;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cs-sort-vis-container {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #0f172a;
+}
+
+.cs-sort-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1e293b;
+  padding: 8px 14px;
+  border-radius: 8px;
+}
+
+.cs-step-counter {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.cs-step-counter strong {
+  color: #38bdf8;
+}
+
+.cs-sim-btn-group {
+  display: flex;
+  gap: 6px;
+}
+
+.cs-sim-btn {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cs-sim-btn:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+}
+
+.cs-sim-btn.cs-btn-highlight {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.cs-sim-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.cs-bars-stage {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 14px;
+  height: 180px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+}
+
+.cs-bar-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+  width: 44px;
+  position: relative;
+}
+
+.cs-bar-pointer-tag {
+  height: 18px;
+  font-size: 10px;
+  font-weight: 700;
+  color: transparent;
+  margin-bottom: 2px;
+}
+
+.cs-bar-pointer-tag.has-pointer {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.2);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.cs-bar-val-text {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.cs-bar-item {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.25s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s ease;
+}
+
+.cs-bar-item.bar-normal {
+  background: rgba(56, 189, 248, 0.5);
+  border: 1.5px solid #38bdf8;
+}
+
+.cs-bar-item.bar-active {
+  background: rgba(245, 158, 11, 0.85);
+  border: 1.5px solid #fbbf24;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+
+.cs-bar-item.bar-sorted {
+  background: rgba(16, 185, 129, 0.85);
+  border: 1.5px solid #10b981;
+}
+
+.cs-bar-idx-text {
+  position: absolute;
+  bottom: -22px;
+  font-size: 11px;
+  color: #64748b;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+.cs-sort-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #1e293b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 6px;
+  padding: 8px 14px;
+}
+
+.cs-status-icon {
+  font-size: 16px;
+  color: #fbbf24;
+}
+
+.cs-status-message {
+  font-size: 12px;
+  color: #f8fafc;
+  font-weight: 500;
+}
+
+

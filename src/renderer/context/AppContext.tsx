@@ -368,7 +368,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
   }, [selectedObject, docState.currentPageIndex]);
 
   const deleteSelectedObject = useCallback(() => {
-    if (!selectedObject) return;
+    if (!selectedObject || selectedObject.locked) return;
     const pageIndex = docState.currentPageIndex;
 
     if (selectedObject.type === 'group') {
@@ -407,8 +407,15 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
 
   const clearCurrentPage = useCallback(() => {
     const pageIndex = docState.currentPageIndex;
-    const prevObjects = [...docState.lesson.pages[pageIndex].objects];
-    if (prevObjects.length === 0) return;
+    const page = docState.lesson.pages[pageIndex];
+    if (!page) return;
+    const lockedLayerIds = new Set(
+      (page.layers || []).filter((l) => l.locked).map((l) => l.id)
+    );
+    const toRemove = page.objects.filter(
+      (o) => !o.locked && (!o.layerId || !lockedLayerIds.has(o.layerId))
+    );
+    if (toRemove.length === 0) return;
     commandSystem.execute({
       id: uuidv4(),
       description: 'Clear page',
@@ -416,7 +423,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
         docDispatch({ type: 'CLEAR_PAGE', pageIndex });
       },
       undo() {
-        for (const o of prevObjects) {
+        for (const o of toRemove) {
           docDispatch({ type: 'ADD_OBJECT', pageIndex, object: o });
         }
       },

@@ -31,6 +31,15 @@ import { PeriodicTableModal } from './subjectModals/PeriodicTableModal';
 import { ElementCardModal } from './subjectModals/ElementCardModal';
 import { BohrModelModal } from './subjectModals/BohrModelModal';
 import { LabApparatusModal } from './subjectModals/LabApparatusModal';
+import { CodeEditorModal } from './subjectModals/CodeEditorModal';
+import { PseudocodeModal } from './subjectModals/PseudocodeModal';
+import { FlowchartBuilderModal } from './subjectModals/FlowchartBuilderModal';
+import { TraceTableModal } from './subjectModals/TraceTableModal';
+import { CallStackModal } from './subjectModals/CallStackModal';
+import { MemoryLayoutModal } from './subjectModals/MemoryLayoutModal';
+import { LinkedListModal } from './subjectModals/LinkedListModal';
+import { TreeGraphModal } from './subjectModals/TreeGraphModal';
+import { SortingSearchingModal } from './subjectModals/SortingSearchingModal';
 import { isLatexSyntax } from '../services/latexService';
 import { isTypingOrInputFocused } from '../utils/keyboardUtils';
 import { v4 as uuidv4 } from 'uuid';
@@ -97,6 +106,15 @@ export function WhiteboardCanvas(): React.ReactElement {
   const [editingElementCardShape, setEditingElementCardShape] = useState<ShapeObject | null>(null);
   const [editingBohrModelShape, setEditingBohrModelShape] = useState<ShapeObject | null>(null);
   const [editingLabApparatusShape, setEditingLabApparatusShape] = useState<ShapeObject | null>(null);
+  const [editingCodeShape, setEditingCodeShape] = useState<ShapeObject | null>(null);
+  const [editingPseudocodeShape, setEditingPseudocodeShape] = useState<ShapeObject | null>(null);
+  const [editingFlowchartShape, setEditingFlowchartShape] = useState<ShapeObject | null>(null);
+  const [editingTraceTableShape, setEditingTraceTableShape] = useState<ShapeObject | null>(null);
+  const [editingCallStackShape, setEditingCallStackShape] = useState<ShapeObject | null>(null);
+  const [editingMemoryShape, setEditingMemoryShape] = useState<ShapeObject | null>(null);
+  const [editingLinkedListShape, setEditingLinkedListShape] = useState<ShapeObject | null>(null);
+  const [editingTreeGraphShape, setEditingTreeGraphShape] = useState<ShapeObject | null>(null);
+  const [editingSortingShape, setEditingSortingShape] = useState<ShapeObject | null>(null);
 
   // Vertical Selection Pill Active Flyout Menu
   const [activeFlyout, setActiveFlyout] = useState<'none' | 'palette' | 'layer' | 'more' | 'thickness' | 'imageFit'>('none');
@@ -637,6 +655,11 @@ export function WhiteboardCanvas(): React.ReactElement {
           s.shapeType === 'periodicElement' ||
           s.shapeType === 'atomicModel' ||
           s.shapeType === 'labApparatus';
+        const isSupportedCsDiag =
+          s.shapeType === 'csDiagram' &&
+          (s.params?.diagramType === 'codeBlock' ||
+            s.params?.diagramType === 'pseudocode' ||
+            s.params?.diagramType === 'flowchart');
 
         if (
           s.shapeType !== 'angleMeasurement' &&
@@ -646,7 +669,8 @@ export function WhiteboardCanvas(): React.ReactElement {
           s.shapeType !== 'geometry3D' &&
           !isSupportedCircuitComp &&
           !isSupportedPhysicsDiag &&
-          !isSupportedChem
+          !isSupportedChem &&
+          !isSupportedCsDiag
         ) {
           return false;
         }
@@ -697,6 +721,27 @@ export function WhiteboardCanvas(): React.ReactElement {
           setEditingBohrModelShape(hitShape);
         } else if (hitShape.shapeType === 'labApparatus') {
           setEditingLabApparatusShape(hitShape);
+        } else if (hitShape.shapeType === 'csDiagram') {
+          const dt = hitShape.params?.diagramType;
+          if (dt === 'codeBlock') {
+            setEditingCodeShape(hitShape);
+          } else if (dt === 'pseudocode') {
+            setEditingPseudocodeShape(hitShape);
+          } else if (dt === 'flowchart') {
+            setEditingFlowchartShape(hitShape);
+          } else if (dt === 'traceTable') {
+            setEditingTraceTableShape(hitShape);
+          } else if (dt === 'callStack') {
+            setEditingCallStackShape(hitShape);
+          } else if (dt === 'memoryLayout') {
+            setEditingMemoryShape(hitShape);
+          } else if (dt === 'linkedList') {
+            setEditingLinkedListShape(hitShape);
+          } else if (dt === 'binaryTree' || dt === 'graph' || dt === 'treeGraph') {
+            setEditingTreeGraphShape(hitShape);
+          } else if (dt === 'sortingArray' || dt === 'sortingSearching') {
+            setEditingSortingShape(hitShape);
+          }
         }
       }
     };
@@ -812,6 +857,10 @@ export function WhiteboardCanvas(): React.ReactElement {
 
   const handleDeleteSelected = useCallback(() => {
     if (!selectedObject) return;
+    if (selectedObject.locked) {
+      setToastMessage?.('Element is locked. Unlock it to delete.');
+      return;
+    }
     const obj = selectedObject;
     const pageIndex = currentPageIndexRef.current;
 
@@ -1126,22 +1175,59 @@ export function WhiteboardCanvas(): React.ReactElement {
   const handleToggleLockSelected = useCallback(() => {
     if (!selectedObject) return;
     const pageIndex = currentPageIndexRef.current;
+    const page = currentPageRef.current;
+    if (!page) return;
     const prev = selectedObject;
-    const updated = { ...selectedObject, locked: !selectedObject.locked };
+    const willLock = !selectedObject.locked;
 
-    commandSystem.execute({
-      id: uuidv4(),
-      description: updated.locked ? 'Lock object' : 'Unlock object',
-      execute() {
-        docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: updated });
-        setSelectedObject(updated);
-      },
-      undo() {
-        docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: prev });
-        setSelectedObject(prev);
-      },
-    });
-  }, [selectedObject, commandSystem, docDispatch, setSelectedObject]);
+    if (willLock) {
+      // When locking an element: mark it locked, set to bottom layer ('background'), and move to bottom of objects stack
+      // so any active drawing draws OVER it, not in the back of it!
+      const updated = {
+        ...selectedObject,
+        locked: true,
+        layerId: 'background',
+      };
+      const otherObjects = page.objects.filter((o) => o.id !== selectedObject.id);
+      const reorderedObjects = [updated, ...otherObjects];
+
+      commandSystem.execute({
+        id: uuidv4(),
+        description: 'Lock and move to bottom layer',
+        execute() {
+          docDispatch({ type: 'REORDER_OBJECTS', pageIndex, objects: reorderedObjects });
+          setSelectedObject(updated);
+        },
+        undo() {
+          docDispatch({ type: 'REORDER_OBJECTS', pageIndex, objects: page.objects });
+          setSelectedObject(prev);
+        },
+      });
+      setToastMessage?.('Element locked & moved to bottom layer');
+    } else {
+      const restoredLayerId =
+        prev.type === 'stroke' ? 'drawing' : prev.type === 'image' ? 'imported-media' : 'objects';
+      const updated = {
+        ...selectedObject,
+        locked: false,
+        layerId: restoredLayerId,
+      };
+
+      commandSystem.execute({
+        id: uuidv4(),
+        description: 'Unlock element',
+        execute() {
+          docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: updated });
+          setSelectedObject(updated);
+        },
+        undo() {
+          docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: prev });
+          setSelectedObject(prev);
+        },
+      });
+      setToastMessage?.('Element unlocked');
+    }
+  }, [selectedObject, commandSystem, docDispatch, setSelectedObject, setToastMessage]);
 
   // ─── Image Screen Fit & Sizing Actions ─────────────────────────────────────
   const handleImageFitAction = useCallback(
@@ -2140,6 +2226,62 @@ export function WhiteboardCanvas(): React.ReactElement {
         </div>
       )}
 
+      {/* Quick "💻 / 📝 / 🔀 Configure Computer Science Diagram" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'csDiagram' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Edit Code / Pseudocode / Flowchart (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const dt = s.params?.diagramType;
+              if (dt === 'pseudocode') setEditingPseudocodeShape(s);
+              else if (dt === 'flowchart') setEditingFlowchartShape(s);
+              else if (dt === 'traceTable') setEditingTraceTableShape(s);
+              else if (dt === 'callStack') setEditingCallStackShape(s);
+              else if (dt === 'memoryLayout') setEditingMemoryShape(s);
+              else if (dt === 'linkedList') setEditingLinkedListShape(s);
+              else if (dt === 'binaryTree' || dt === 'graph' || dt === 'treeGraph') setEditingTreeGraphShape(s);
+              else if (dt === 'sortingArray' || dt === 'sortingSearching') setEditingSortingShape(s);
+              else setEditingCodeShape(s);
+            }}
+          >
+            <span>
+              {(selectedObject as ShapeObject).params?.diagramType === 'pseudocode'
+                ? '📝'
+                : (selectedObject as ShapeObject).params?.diagramType === 'flowchart'
+                ? '🔀'
+                : (selectedObject as ShapeObject).params?.diagramType === 'traceTable'
+                ? '📊'
+                : (selectedObject as ShapeObject).params?.diagramType === 'callStack'
+                ? '📚'
+                : (selectedObject as ShapeObject).params?.diagramType === 'memoryLayout'
+                ? '🧠'
+                : (selectedObject as ShapeObject).params?.diagramType === 'linkedList'
+                ? '🔗'
+                : (selectedObject as ShapeObject).params?.diagramType === 'binaryTree' || (selectedObject as ShapeObject).params?.diagramType === 'graph'
+                ? '🌳'
+                : (selectedObject as ShapeObject).params?.diagramType === 'sortingArray'
+                ? '📶'
+                : '💻'}
+            </span>
+            <span>
+              {(selectedObject as ShapeObject).label || 'Edit Computer Science Diagram'}
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* Vertical Floating Action Toolbar / Pill (Reference Images 1, 2, 3) */}
       {toolState.activeTool === 'select' && selectedObject && selectedScreenBBox && (
         <div
@@ -2155,9 +2297,10 @@ export function WhiteboardCanvas(): React.ReactElement {
         >
           {/* 1. 🗑️ Delete */}
           <button
-            className="sel-pill-btn delete-btn"
-            onClick={handleDeleteSelected}
-            title="Delete (Delete / Backspace)"
+            className={`sel-pill-btn delete-btn ${selectedObject.locked ? 'disabled' : ''}`}
+            onClick={selectedObject.locked ? undefined : handleDeleteSelected}
+            title={selectedObject.locked ? 'Locked element cannot be deleted' : 'Delete (Delete / Backspace)'}
+            style={{ opacity: selectedObject.locked ? 0.35 : 1, cursor: selectedObject.locked ? 'not-allowed' : 'pointer' }}
             aria-label="Delete"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2918,6 +3061,114 @@ export function WhiteboardCanvas(): React.ReactElement {
           onUpdateShape={(updated) => {
             handleUpdateShape(editingLabApparatusShape, updated);
             setEditingLabApparatusShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Code Editor Modal */}
+      {editingCodeShape && (
+        <CodeEditorModal
+          existingShape={editingCodeShape}
+          onClose={() => setEditingCodeShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingCodeShape, updated);
+            setEditingCodeShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Standardized Pseudocode Modal */}
+      {editingPseudocodeShape && (
+        <PseudocodeModal
+          existingShape={editingPseudocodeShape}
+          onClose={() => setEditingPseudocodeShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingPseudocodeShape, updated);
+            setEditingPseudocodeShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Flowchart Builder Modal */}
+      {editingFlowchartShape && (
+        <FlowchartBuilderModal
+          existingShape={editingFlowchartShape}
+          onClose={() => setEditingFlowchartShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingFlowchartShape, updated);
+            setEditingFlowchartShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Algorithm Trace Table Modal */}
+      {editingTraceTableShape && (
+        <TraceTableModal
+          existingShape={editingTraceTableShape}
+          onClose={() => setEditingTraceTableShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingTraceTableShape, updated);
+            setEditingTraceTableShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Call Stack Diagram Modal */}
+      {editingCallStackShape && (
+        <CallStackModal
+          existingShape={editingCallStackShape}
+          onClose={() => setEditingCallStackShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingCallStackShape, updated);
+            setEditingCallStackShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Memory Layout & Pointer Modal */}
+      {editingMemoryShape && (
+        <MemoryLayoutModal
+          existingShape={editingMemoryShape}
+          onClose={() => setEditingMemoryShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingMemoryShape, updated);
+            setEditingMemoryShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Linked List Diagram Modal */}
+      {editingLinkedListShape && (
+        <LinkedListModal
+          existingShape={editingLinkedListShape}
+          onClose={() => setEditingLinkedListShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingLinkedListShape, updated);
+            setEditingLinkedListShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Binary Tree & Graph Modal */}
+      {editingTreeGraphShape && (
+        <TreeGraphModal
+          existingShape={editingTreeGraphShape}
+          onClose={() => setEditingTreeGraphShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingTreeGraphShape, updated);
+            setEditingTreeGraphShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Sorting / Searching Demo Modal */}
+      {editingSortingShape && (
+        <SortingSearchingModal
+          existingShape={editingSortingShape}
+          onClose={() => setEditingSortingShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingSortingShape, updated);
+            setEditingSortingShape(null);
           }}
         />
       )}

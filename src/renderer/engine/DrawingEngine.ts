@@ -389,6 +389,14 @@ export class DrawingEngine {
           this.callbacks.onSelectObject?.(hit);
           this.requestActiveRender();
 
+          // Check if object is locked (cannot be dragged or resized)
+          if (hit.locked) {
+            this.clearActiveCanvas();
+            this.renderObject(this.activeCtx, hit);
+            this.drawSelectionOutline(this.activeCtx, this.getObjectBoundingBox(hit), hit);
+            break;
+          }
+
           // Check if user clicked directly on one of the resize handles of this object
           const handle = this.hitTestResizeHandle(docPt, hit);
           if (handle) {
@@ -1717,6 +1725,7 @@ export class DrawingEngine {
 
     for (const obj of sortedObjects) {
       if (obj.locked) continue;
+      if (obj.visible === false) continue;
       const layer = this.layersMap.get(obj.layerId);
       if (layer && (!layer.visible || layer.locked)) continue;
 
@@ -2958,7 +2967,13 @@ export class DrawingEngine {
     }
 
     // Stable sort by layer order so imported-media (order 1) renders underneath drawing (order 2), shapes (order 3), text (order 4)
+    // Locked objects and locked layers automatically render at the very bottom so new drawings render OVER them!
     const sortedObjects = [...objects].sort((a, b) => {
+      const isLockedA = a.locked || (this.layersMap.get(a.layerId)?.locked ?? false);
+      const isLockedB = b.locked || (this.layersMap.get(b.layerId)?.locked ?? false);
+      if (isLockedA !== isLockedB) {
+        return isLockedA ? -1 : 1;
+      }
       const orderA = this.layersMap.get(a.layerId)?.order ?? 2;
       const orderB = this.layersMap.get(b.layerId)?.order ?? 2;
       return orderA - orderB;
@@ -2966,6 +2981,9 @@ export class DrawingEngine {
 
     for (const obj of sortedObjects) {
       if (hiddenIds.has(obj.id)) {
+        continue;
+      }
+      if (obj.visible === false) {
         continue;
       }
       const layer = this.layersMap.get(obj.layerId);

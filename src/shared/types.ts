@@ -55,6 +55,7 @@ export interface StrokeObject {
   style: StrokeStyle;
   bbox: BoundingBox;
   locked: boolean;
+  visible?: boolean;
   layerId: string;
   createdAt: number;
 }
@@ -115,6 +116,7 @@ export interface ShapeObject {
   strokeOpacity: number;
   strokeStyle: 'solid' | 'dashed' | 'dotted';
   locked: boolean;
+  visible?: boolean;
   layerId: string;
   label?: string;
   params?: Record<string, any>;
@@ -145,6 +147,7 @@ export interface TextObject {
   rotation: number;
   preset: TextPreset;
   locked: boolean;
+  visible?: boolean;
   layerId: string;
   isLatex?: boolean;
 }
@@ -163,6 +166,7 @@ export interface ImageObject {
   dataUrl?: string;   // for embedded small images
   opacity: number;
   locked: boolean;
+  visible?: boolean;
   layerId: string;
 }
 
@@ -179,6 +183,7 @@ export interface GroupObject {
   height: number;
   rotation?: number;
   locked: boolean;
+  visible?: boolean;
   layerId: string;
 }
 

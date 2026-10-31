@@ -87,6 +87,7 @@ const csTools: SubjectTool[] = [
     description: 'Classroom pseudocode format with keywords (PROCEDURE, FOR, WHILE, IF/ELSE, RETURN)',
     badge: 'Pseudocode',
     tags: ['pseudocode', 'algorithm', 'keywords', 'logic'],
+    interactiveModal: 'pseudocodeEditor',
     execute: (context) => {
       const pseudocode = `PROCEDURE LinearSearch(A, target)\n  FOR i ← 0 TO LENGTH(A) - 1 DO\n    IF A[i] = target THEN\n      RETURN i\n    END IF\n  END FOR\n  RETURN -1\nEND PROCEDURE`;
       const pseudoObj = createShape('csDiagram', 220, 160, 480, 280, {
@@ -143,6 +144,7 @@ const csTools: SubjectTool[] = [
     description: 'Execution trace table tracking iteration step, code line, variables, condition, and output',
     badge: 'Trace Table',
     tags: ['trace table', 'dry run', 'variables', 'iteration'],
+    interactiveModal: 'traceTable',
     execute: (context) => {
       const trace = createShape('csDiagram', 200, 160, 540, 320, {
         params: {
@@ -174,8 +176,9 @@ const csTools: SubjectTool[] = [
     description: 'LIFO execution stack frames with function activation records, parameters, and return addresses',
     badge: 'Stack',
     tags: ['call stack', 'stack frames', 'recursion', 'lifo', 'activation record'],
+    interactiveModal: 'callStack',
     execute: (context) => {
-      const stack = createShape('csDiagram', 240, 160, 360, 380, {
+      const stack = createShape('csDiagram', 240, 160, 420, 380, {
         params: {
           diagramType: 'callStack',
           frames: [
@@ -203,8 +206,9 @@ const csTools: SubjectTool[] = [
     description: 'Hex address grid with variable names, values, and memory pointer arrows (0x7ffe...)',
     badge: 'Memory',
     tags: ['memory', 'pointer', 'addresses', 'heap', 'stack', 'hex'],
+    interactiveModal: 'memoryLayout',
     execute: (context) => {
-      const mem = createShape('csDiagram', 200, 160, 520, 320, {
+      const mem = createShape('csDiagram', 200, 160, 560, 320, {
         params: {
           diagramType: 'memoryLayout',
           cells: [
@@ -232,12 +236,14 @@ const csTools: SubjectTool[] = [
     description: 'Singly or doubly linked list with head pointer, node data, next pointers, and NULL terminator',
     badge: 'Data Structure',
     tags: ['linked list', 'nodes', 'pointers', 'head', 'null'],
+    interactiveModal: 'linkedList',
     execute: (context) => {
-      const list = createShape('csDiagram', 180, 200, 600, 140, {
+      const list = createShape('csDiagram', 180, 200, 620, 160, {
         params: {
           diagramType: 'linkedList',
           nodes: ['12', '99', '37', '5'],
           isDoubly: false,
+          showAddresses: true,
         },
         fillColor: 'rgba(15, 23, 42, 0.92)',
         strokeColor: '#38bdf8',
@@ -257,8 +263,9 @@ const csTools: SubjectTool[] = [
     description: 'Hierarchical tree structure with root node, left/right subtrees, edge labels, and leaf nodes',
     badge: 'Tree',
     tags: ['tree', 'bst', 'graph', 'root', 'binary tree', 'edges'],
+    interactiveModal: 'treeGraph',
     execute: (context) => {
-      const tree = createShape('csDiagram', 220, 140, 480, 360, {
+      const tree = createShape('csDiagram', 220, 140, 500, 360, {
         params: {
           diagramType: 'binaryTree',
           rootVal: '50',
@@ -287,12 +294,14 @@ const csTools: SubjectTool[] = [
     description: 'Bar array comparison showing indexed elements, active pointers (low, mid, high), and swap states',
     badge: 'Algorithm',
     tags: ['sorting', 'bubble sort', 'binary search', 'array', 'pointers'],
+    interactiveModal: 'sortingSearching',
     execute: (context) => {
-      const sortDemo = createShape('csDiagram', 200, 160, 520, 320, {
+      const sortDemo = createShape('csDiagram', 200, 160, 560, 340, {
         params: {
           diagramType: 'sortingArray',
           array: [14, 33, 27, 10, 35, 19, 42, 44],
           activeIndices: [2, 3], // Comparing 27 and 10
+          statusText: 'Bubble Sort: Comparing arr[2]=27 and arr[3]=10 (27 > 10, Swap!)',
         },
         fillColor: 'rgba(15, 23, 42, 0.94)',
         strokeColor: '#38bdf8',

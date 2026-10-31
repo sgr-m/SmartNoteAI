@@ -8,6 +8,7 @@ import { ShapeObject } from '../../shared/types';
 import { compileMathFunction, evaluateMathFunction } from '../services/subjectModules/mathFunctionParser';
 import { PERIODIC_ELEMENTS, ChemicalElement } from '../services/subjectModules/chemistryModule';
 import { getSolid3DModel, transform3D, projectTo2D, Solid3DType } from './geometry3DMath';
+import { tokenizeCodeLine, getTokenColor } from '../services/subjectModules/csSyntaxHighlighter';
 
 export function isSubjectShape(shapeType: string): boolean {
   return [
@@ -3852,7 +3853,207 @@ function renderCSDiagram(
   ctx.stroke();
 
   if (diagType === 'codeBlock') {
-    // Window header dots
+    const isLight = shape.params?.theme === 'light';
+    const lang = shape.params?.language || 'python';
+    const defaultExt = lang === 'python' ? 'py' : lang === 'javascript' ? 'js' : lang === 'typescript' ? 'ts' : lang === 'java' ? 'java' : lang === 'cpp' ? 'cpp' : lang === 'sql' ? 'sql' : 'txt';
+    const fileName = shape.params?.fileName || `${lang}.${defaultExt}`;
+    const code = shape.params?.code || 'print("Hello World")';
+    const lines = code.split('\n');
+    const fontSize = Math.max(10, Math.round((shape.params?.fontSize || 13) * dpr));
+    const lineHeight = Math.max(18 * dpr, fontSize * 1.5);
+
+    // Frame styling override based on theme
+    ctx.fillStyle = isLight ? '#ffffff' : shape.fillColor || 'rgba(15, 23, 42, 0.96)';
+    ctx.strokeStyle = isLight ? '#94a3b8' : '#0284c7';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 10 * dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    // Window header bar
+    ctx.fillStyle = isLight ? 'rgba(241, 245, 249, 0.9)' : 'rgba(15, 23, 42, 0.6)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.fill();
+
+    // Header divider
+    ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)';
+    ctx.beginPath();
+    ctx.moveTo(x, y + 32 * dpr);
+    ctx.lineTo(x + w, y + 32 * dpr);
+    ctx.stroke();
+
+    // macOS Window control dots
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+
+    // File name
+    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px 'JetBrains Mono', Consolas, sans-serif`;
+    ctx.fillStyle = isLight ? '#334155' : '#94a3b8';
+    ctx.textAlign = 'left';
+    ctx.fillText(fileName, x + 65 * dpr, y + 20 * dpr);
+
+    // Language badge
+    ctx.textAlign = 'right';
+    ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+    ctx.fillStyle = isLight ? '#0284c7' : '#38bdf8';
+    ctx.fillText(lang.toUpperCase(), x + w - 16 * dpr, y + 20 * dpr);
+
+    // Gutter divider
+    const gutterW = 44 * dpr;
+    ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.06)';
+    ctx.beginPath();
+    ctx.moveTo(x + gutterW, y + 32 * dpr);
+    ctx.lineTo(x + gutterW, y + h);
+    ctx.stroke();
+
+    // Code lines with multi-token syntax highlighting
+    ctx.font = `${fontSize}px 'JetBrains Mono', Consolas, monospace`;
+    const maxVisibleLines = Math.floor((h - 42 * dpr) / lineHeight);
+
+    lines.slice(0, maxVisibleLines).forEach((line: string, i: number) => {
+      const ly = y + 46 * dpr + i * lineHeight;
+
+      // Line number in gutter
+      ctx.fillStyle = isLight ? '#94a3b8' : '#475569';
+      ctx.textAlign = 'right';
+      ctx.fillText(String(i + 1), x + gutterW - 10 * dpr, ly);
+
+      // Render syntax tokens
+      const tokens = tokenizeCodeLine(line, lang);
+      let curX = x + gutterW + 12 * dpr;
+      ctx.textAlign = 'left';
+
+      for (const tok of tokens) {
+        ctx.fillStyle = getTokenColor(tok.type, isLight ? 'light' : 'dark');
+        ctx.fillText(tok.text, curX, ly);
+        curX += ctx.measureText(tok.text).width;
+      }
+    });
+  } else if (diagType === 'pseudocode') {
+    const title = shape.params?.title || shape.label || 'Algorithm Pseudocode';
+    const standard = shape.params?.standard || 'Cambridge / Standard Pseudocode';
+    const code = shape.params?.code || 'PROCEDURE Main()\n  OUTPUT "Hello World"\nENDPROCEDURE';
+    const lines = code.split('\n');
+    const fontSize = Math.max(10, Math.round((shape.params?.fontSize || 13) * dpr));
+    const lineHeight = Math.max(18 * dpr, fontSize * 1.5);
+
+    // Frame styling with purple pseudocode accent
+    ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.96)';
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 10 * dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    // Header bar
+    ctx.fillStyle = 'rgba(168, 85, 247, 0.15)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.3)';
+    ctx.beginPath();
+    ctx.moveTo(x, y + 32 * dpr);
+    ctx.lineTo(x + w, y + 32 * dpr);
+    ctx.stroke();
+
+    // Dots
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Title
+    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px 'JetBrains Mono', Consolas, sans-serif`;
+    ctx.fillStyle = '#c084fc';
+    ctx.textAlign = 'left';
+    ctx.fillText(`📝 ${title}`, x + 65 * dpr, y + 20 * dpr);
+
+    // Standard badge
+    ctx.textAlign = 'right';
+    ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+    ctx.fillStyle = '#e9d5ff';
+    ctx.fillText(String(standard).split(' ')[0], x + w - 16 * dpr, y + 20 * dpr);
+
+    // Gutter divider
+    const gutterW = 44 * dpr;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.beginPath();
+    ctx.moveTo(x + gutterW, y + 32 * dpr);
+    ctx.lineTo(x + gutterW, y + h);
+    ctx.stroke();
+
+    // Code lines with pseudocode token highlighting
+    ctx.font = `${fontSize}px 'JetBrains Mono', Consolas, monospace`;
+    const maxVisibleLines = Math.floor((h - 42 * dpr) / lineHeight);
+
+    lines.slice(0, maxVisibleLines).forEach((line: string, i: number) => {
+      const ly = y + 46 * dpr + i * lineHeight;
+
+      // Line number
+      ctx.fillStyle = '#475569';
+      ctx.textAlign = 'right';
+      ctx.fillText(String(i + 1), x + gutterW - 10 * dpr, ly);
+
+      // Render tokens
+      const tokens = tokenizeCodeLine(line, 'pseudocode');
+      let curX = x + gutterW + 12 * dpr;
+      ctx.textAlign = 'left';
+
+      for (const tok of tokens) {
+        ctx.fillStyle = getTokenColor(tok.type, 'dark');
+        ctx.fillText(tok.text, curX, ly);
+        curX += ctx.measureText(tok.text).width;
+      }
+    });
+  } else if (diagType === 'flowchart') {
+    const title = shape.params?.title || shape.label || 'Algorithm Flowchart';
+    const nodes = shape.params?.nodes || [];
+    const edges = shape.params?.edges || [];
+
+    // Frame styling
+    ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.96)';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 10 * dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    // Header bar
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+    ctx.beginPath();
+    ctx.moveTo(x, y + 32 * dpr);
+    ctx.lineTo(x + w, y + 32 * dpr);
+    ctx.stroke();
+
+    // Dots
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
     ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
@@ -3868,99 +4069,904 @@ function renderCSDiagram(
 
     // Title
     ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = '#38bdf8';
     ctx.textAlign = 'left';
-    ctx.fillText(`${shape.params?.language || 'python'}.py`, x + 65 * dpr, y + 19 * dpr);
+    ctx.fillText(`🔀 ${title}`, x + 65 * dpr, y + 20 * dpr);
 
-    // Code lines
-    const lines = (shape.params?.code || 'print("Hello World")').split('\n');
-    const fontSize = Math.max(11, Math.round((shape.params?.fontSize || 13) * dpr));
-    ctx.font = `${fontSize}px 'JetBrains Mono', Consolas, monospace`;
+    // Render nodes within the card bounds
+    const contentY = y + 42 * dpr;
+    const contentH = h - 52 * dpr;
+    const totalNodeH = nodes.reduce((sum: number, n: any) => sum + (n.height || 60) * dpr, 0);
+    const gap = Math.max(16 * dpr, (contentH - totalNodeH) / Math.max(1, nodes.length));
 
-    lines.slice(0, 14).forEach((line: string, i: number) => {
-      const ly = y + 46 * dpr + i * 20 * dpr;
+    let curY = contentY + 10 * dpr;
+    const nodeCoords = new Map<string, { cx: number; cy: number; w: number; h: number; bottomY: number; topY: number }>();
 
-      // Line number
-      ctx.fillStyle = '#475569';
-      ctx.textAlign = 'right';
-      ctx.fillText(String(i + 1), x + 36 * dpr, ly);
+    // Calculate layout & render nodes
+    for (const node of nodes) {
+      const nw = Math.min(w - 60 * dpr, (node.type === 'decision' ? 180 : node.type === 'terminator' ? 140 : 200) * dpr);
+      const nh = (node.type === 'decision' ? 70 : node.type === 'terminator' ? 44 : 54) * dpr;
+      const nx = x + (w - nw) / 2;
+      const ny = curY;
 
-      // Code text (syntax highlights)
-      ctx.textAlign = 'left';
-      ctx.fillStyle = line.includes('def') || line.includes('return') || line.includes('if') || line.includes('while')
-        ? '#38bdf8'
-        : '#f8fafc';
-      ctx.fillText(line, x + 50 * dpr, ly);
-    });
+      nodeCoords.set(node.id, {
+        cx: nx + nw / 2,
+        cy: ny + nh / 2,
+        w: nw,
+        h: nh,
+        topY: ny,
+        bottomY: ny + nh,
+      });
+
+      // Draw node shape
+      ctx.lineWidth = 2 * dpr;
+      if (node.type === 'terminator') {
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.18)';
+        ctx.strokeStyle = '#10b981';
+        ctx.beginPath();
+        ctx.roundRect(nx, ny, nw, nh, nh / 2);
+        ctx.fill();
+        ctx.stroke();
+      } else if (node.type === 'decision') {
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.16)';
+        ctx.strokeStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.moveTo(nx + nw / 2, ny);
+        ctx.lineTo(nx + nw, ny + nh / 2);
+        ctx.lineTo(nx + nw / 2, ny + nh);
+        ctx.lineTo(nx, ny + nh / 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else if (node.type === 'inputOutput') {
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.16)';
+        ctx.strokeStyle = '#38bdf8';
+        const slant = 14 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(nx + slant, ny);
+        ctx.lineTo(nx + nw, ny);
+        ctx.lineTo(nx + nw - slant, ny + nh);
+        ctx.lineTo(nx, ny + nh);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        // Process
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+        ctx.strokeStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.roundRect(nx, ny, nw, nh, 6 * dpr);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      // Label text
+      ctx.font = `600 ${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(node.label || '', nx + nw / 2, ny + nh / 2 + 4 * dpr);
+
+      curY += nh + gap;
+    }
+
+    // Draw connecting edges
+    for (const edge of edges) {
+      const from = nodeCoords.get(edge.from);
+      const to = nodeCoords.get(edge.to);
+      if (from && to) {
+        let edgeColor = '#38bdf8';
+        if (edge.label === 'Yes' || edge.label === 'True') edgeColor = '#10b981';
+        else if (edge.label === 'No' || edge.label === 'False') edgeColor = '#f43f5e';
+
+        if (to.topY < from.bottomY) {
+          // Loopback arrow
+          const loopX = x + w - 24 * dpr;
+          ctx.strokeStyle = edgeColor;
+          ctx.lineWidth = 1.5 * dpr;
+          ctx.setLineDash([4 * dpr, 3 * dpr]);
+          ctx.beginPath();
+          ctx.moveTo(from.cx, from.bottomY);
+          ctx.lineTo(loopX, from.bottomY);
+          ctx.lineTo(loopX, to.cy);
+          ctx.lineTo(to.cx + to.w / 2, to.cy);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          drawArrow(ctx, loopX, to.cy, to.cx + to.w / 2, to.cy, edgeColor, dpr);
+        } else {
+          // Standard downward connection
+          drawArrow(ctx, from.cx, from.bottomY, to.cx, to.topY, edgeColor, dpr);
+        }
+
+        // Edge condition label
+        if (edge.label) {
+          const midY = (from.bottomY + to.topY) / 2;
+          ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+          ctx.fillStyle = edgeColor;
+          ctx.textAlign = 'left';
+          ctx.fillText(edge.label, from.cx + 8 * dpr, midY + 3 * dpr);
+        }
+      }
+    }
   } else if (diagType === 'traceTable') {
-    const cols: string[] = shape.params?.columns || ['Step', 'Line', 'Var', 'Output'];
-    const rows: string[][] = shape.params?.rows || [['1', '1', 'x=5', '-']];
-    const colW = (w - 20 * dpr) / cols.length;
+    const title = shape.params?.title || shape.label || 'Algorithm Trace Table';
+    const cols: string[] = shape.params?.columns || ['Step', 'Line', 'i', 'sum', 'Condition', 'Output'];
+    const rows: string[][] = shape.params?.rows || [
+      ['Init', '1-2', '0', '0', 'True', '-'],
+      ['1', '3-4', '1', '1', 'True', '-'],
+      ['2', '3-4', '2', '3', 'True', '-'],
+      ['3', '3-4', '3', '6', 'True', '-'],
+      ['4', '3-4', '4', '10', 'False', '10'],
+    ];
+
+    // Card Header Bar
+    ctx.fillStyle = 'rgba(2, 132, 199, 0.15)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(2, 132, 199, 0.3)';
+    ctx.beginPath();
+    ctx.moveTo(x, y + 32 * dpr);
+    ctx.lineTo(x + w, y + 32 * dpr);
+    ctx.stroke();
+
+    // Dots
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Title
+    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.textAlign = 'left';
+    ctx.fillText(`📊 ${title}`, x + 65 * dpr, y + 20 * dpr);
+
+    // Table Bounds
+    const tableX = x + 12 * dpr;
+    const tableY = y + 42 * dpr;
+    const tableW = w - 24 * dpr;
+    const colW = tableW / Math.max(1, cols.length);
+    const rowH = 24 * dpr;
 
     // Header row
     ctx.fillStyle = 'rgba(2, 132, 199, 0.25)';
-    ctx.fillRect(x + 10 * dpr, y + 10 * dpr, w - 20 * dpr, 30 * dpr);
+    ctx.beginPath();
+    ctx.roundRect(tableX, tableY, tableW, rowH, 4 * dpr);
+    ctx.fill();
 
-    ctx.font = `bold ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+    ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
     ctx.fillStyle = '#38bdf8';
     ctx.textAlign = 'center';
 
     cols.forEach((c, idx) => {
-      ctx.fillText(c, x + 10 * dpr + idx * colW + colW / 2, y + 30 * dpr);
+      ctx.fillText(c, tableX + idx * colW + colW / 2, tableY + 16 * dpr);
     });
 
     // Data rows
-    ctx.font = `${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
-    ctx.fillStyle = '#f8fafc';
+    ctx.font = `${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', Consolas, monospace`;
+    const maxRows = Math.floor((h - 50 * dpr) / rowH);
 
-    rows.slice(0, 8).forEach((row, rIdx) => {
-      const ry = y + 55 * dpr + rIdx * 24 * dpr;
+    rows.slice(0, maxRows).forEach((row, rIdx) => {
+      const ry = tableY + rowH + rIdx * rowH;
+
+      // Alternating row background
+      if (rIdx % 2 === 1) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.fillRect(tableX, ry, tableW, rowH);
+      }
+
+      // Row separator line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.beginPath();
+      ctx.moveTo(tableX, ry + rowH);
+      ctx.lineTo(tableX + tableW, ry + rowH);
+      ctx.stroke();
+
       row.forEach((val, cIdx) => {
-        ctx.fillText(String(val), x + 10 * dpr + cIdx * colW + colW / 2, ry);
+        const strVal = String(val ?? '-');
+        if (strVal.toLowerCase() === 'true') {
+          ctx.fillStyle = '#10b981';
+          ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+        } else if (strVal.toLowerCase() === 'false') {
+          ctx.fillStyle = '#f43f5e';
+          ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+        } else if (/^-?\d+(\.\d+)?$/.test(strVal)) {
+          ctx.fillStyle = '#fbbf24';
+          ctx.font = `${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+        } else {
+          ctx.fillStyle = '#f8fafc';
+          ctx.font = `${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+        }
+
+        ctx.textAlign = 'center';
+        ctx.fillText(strVal, tableX + cIdx * colW + colW / 2, ry + 16 * dpr);
       });
     });
+  } else if (diagType === 'callStack') {
+    const title = shape.params?.title || shape.label || 'Call Stack (LIFO Frames)';
+    const frames = shape.params?.frames || [
+      { func: 'factorial(n=1)', vars: 'n=1, return 1', isTop: true },
+      { func: 'factorial(n=2)', vars: 'n=2, waiting on factorial(1)' },
+      { func: 'factorial(n=3)', vars: 'n=3, waiting on factorial(2)' },
+      { func: 'main()', vars: 'result = factorial(3)' },
+    ];
+
+    // Header bar
+    ctx.fillStyle = 'rgba(168, 85, 247, 0.15)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.fill();
+
+    // Dots
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Title
+    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+    ctx.fillStyle = '#c084fc';
+    ctx.textAlign = 'left';
+    ctx.fillText(`📚 ${title}`, x + 65 * dpr, y + 20 * dpr);
+
+    // Direction badge
+    ctx.textAlign = 'right';
+    ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText('▲ PUSH / POP ▼', x + w - 16 * dpr, y + 20 * dpr);
+
+    // Render stack frames from top to bottom
+    const contentY = y + 44 * dpr;
+    const contentH = h - 54 * dpr;
+    const frameH = Math.min(60 * dpr, (contentH - 20 * dpr) / Math.max(1, frames.length));
+    const frameW = w - 48 * dpr;
+    const frameX = x + 24 * dpr;
+
+    frames.forEach((frame: any, idx: number) => {
+      const fy = contentY + idx * (frameH + 6 * dpr);
+      const isTop = idx === 0 || frame.isTop;
+
+      // Frame container box
+      ctx.fillStyle = isTop ? 'rgba(16, 185, 129, 0.16)' : 'rgba(30, 41, 59, 0.7)';
+      ctx.strokeStyle = isTop ? '#10b981' : 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = (isTop ? 2 : 1) * dpr;
+      ctx.beginPath();
+      ctx.roundRect(frameX, fy, frameW, frameH, 6 * dpr);
+      ctx.fill();
+      ctx.stroke();
+
+      // Top of stack pointer arrow
+      if (isTop) {
+        ctx.fillStyle = '#10b981';
+        ctx.font = `bold ${Math.max(8, Math.round(9 * dpr))}px Inter, sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.fillText('➔ TOP (ACTIVE)', frameX + 8 * dpr, fy + 14 * dpr);
+      }
+
+      // Function name
+      ctx.font = `bold ${Math.max(11, Math.round(12 * dpr))}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = isTop ? '#34d399' : '#f8fafc';
+      ctx.textAlign = 'left';
+      ctx.fillText(frame.func || 'anonymous()', frameX + (isTop ? 100 * dpr : 12 * dpr), fy + (isTop ? 15 * dpr : 22 * dpr));
+
+      // Variables / parameters
+      ctx.font = `${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(frame.vars || 'no locals', frameX + 12 * dpr, fy + frameH - 12 * dpr);
+    });
+  } else if (diagType === 'memoryLayout') {
+    const title = shape.params?.title || shape.label || 'Memory Layout & Pointers';
+    const cells = shape.params?.cells || [
+      { address: '0x1000', name: 'ptr', type: 'int*', value: '0x1008', pointsTo: '0x1008' },
+      { address: '0x1004', name: 'count', type: 'int', value: '42' },
+      { address: '0x1008', name: '*ptr', type: 'int', value: '99' },
+      { address: '0x100C', name: 'flag', type: 'bool', value: 'true' },
+    ];
+
+    // Header bar
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.fill();
+
+    // Dots
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Title
+    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+    ctx.fillStyle = '#fbbf24';
+    ctx.textAlign = 'left';
+    ctx.fillText(`🧠 ${title}`, x + 65 * dpr, y + 20 * dpr);
+
+    // Memory Table Headers
+    const startY = y + 44 * dpr;
+    const colAddrX = x + 20 * dpr;
+    const colNameX = x + 130 * dpr;
+    const colTypeX = x + 220 * dpr;
+    const colValX = x + 310 * dpr;
+    const rowH = 34 * dpr;
+
+    ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'left';
+    ctx.fillText('ADDRESS', colAddrX, startY + 12 * dpr);
+    ctx.fillText('VARIABLE', colNameX, startY + 12 * dpr);
+    ctx.fillText('TYPE', colTypeX, startY + 12 * dpr);
+    ctx.fillText('VALUE', colValX, startY + 12 * dpr);
+
+    // Divider
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.beginPath();
+    ctx.moveTo(x + 16 * dpr, startY + 20 * dpr);
+    ctx.lineTo(x + w - 16 * dpr, startY + 20 * dpr);
+    ctx.stroke();
+
+    const rowCoords = new Map<string, number>();
+
+    // Render cells
+    cells.forEach((cell: any, idx: number) => {
+      const cy = startY + 26 * dpr + idx * rowH;
+      rowCoords.set(cell.address, cy + 12 * dpr);
+
+      // Address tag (hex in amber)
+      ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = '#fbbf24';
+      ctx.textAlign = 'left';
+      ctx.fillText(cell.address, colAddrX, cy + 14 * dpr);
+
+      // Variable name
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText(cell.name, colNameX, cy + 14 * dpr);
+
+      // Type
+      ctx.fillStyle = '#c084fc';
+      ctx.fillText(cell.type, colTypeX, cy + 14 * dpr);
+
+      // Value box
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.strokeStyle = cell.pointsTo ? '#38bdf8' : 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 1 * dpr;
+      ctx.beginPath();
+      ctx.roundRect(colValX, cy, 90 * dpr, 24 * dpr, 4 * dpr);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(cell.value, colValX + 45 * dpr, cy + 16 * dpr);
+    });
+
+    // Draw pointer arrows (pointing from pointer cell to target cell)
+    cells.forEach((cell: any, idx: number) => {
+      if (cell.pointsTo && rowCoords.has(cell.pointsTo)) {
+        const fromY = startY + 26 * dpr + idx * rowH + 12 * dpr;
+        const toY = rowCoords.get(cell.pointsTo)!;
+        const fromX = colValX + 90 * dpr;
+        const curveX = fromX + 35 * dpr;
+
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.5 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(fromX, fromY);
+        ctx.bezierCurveTo(curveX, fromY, curveX, toY, fromX + 8 * dpr, toY);
+        ctx.stroke();
+
+        drawArrow(ctx, curveX - 4 * dpr, toY, fromX + 4 * dpr, toY, '#38bdf8', dpr);
+      }
+    });
   } else if (diagType === 'linkedList') {
-    const nodes: string[] = shape.params?.nodes || ['A', 'B', 'C'];
-    const nodeW = 80 * dpr;
+    const title = shape.params?.title || shape.label || 'Linked List';
+    const nodes: string[] = shape.params?.nodes || ['12', '99', '37', '5'];
+    const isDoubly = shape.params?.isDoubly || false;
+    const isCircular = shape.params?.isCircular || false;
+    const activeNodeIdx = shape.params?.activeNodeIndex;
+    const showAddresses = shape.params?.showAddresses ?? true;
+
+    // Header bar
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.fill();
+
+    // Dots
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Title
+    const typeLabel = isCircular ? 'Circular' : isDoubly ? 'Doubly' : 'Singly';
+    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.textAlign = 'left';
+    ctx.fillText(`🔗 ${title} (${typeLabel})`, x + 65 * dpr, y + 20 * dpr);
+
+    const nodeW = Math.min(84 * dpr, (w - 140 * dpr) / Math.max(1, nodes.length));
     const nodeH = 46 * dpr;
-    const gap = 45 * dpr;
-    const startX = x + 30 * dpr;
-    const cy = y + h / 2;
+    const gap = Math.min(45 * dpr, (w - nodeW * nodes.length - 140 * dpr) / Math.max(1, nodes.length));
+    const startX = x + 65 * dpr;
+    const cy = y + h / 2 + (isCircular ? 0 : 6 * dpr);
+
+    // HEAD pointer box
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(x + 12 * dpr, cy - 16 * dpr, 40 * dpr, 32 * dpr, 4 * dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+    ctx.fillStyle = '#10b981';
+    ctx.textAlign = 'center';
+    ctx.fillText('HEAD', x + 32 * dpr, cy + 4 * dpr);
+
+    // Arrow from HEAD to first node
+    drawArrow(ctx, x + 52 * dpr, cy, startX - 2 * dpr, cy, '#10b981', dpr);
+
+    let lastPtrX = startX;
 
     nodes.forEach((data, idx) => {
       const nx = startX + idx * (nodeW + gap);
+      const isActive = activeNodeIdx === idx;
+      const hexAddr = `0x${(0x1000 + idx * 0x20).toString(16).toUpperCase()}`;
+
+      // Active pointer badge
+      if (isActive) {
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = `bold ${Math.max(8, Math.round(9 * dpr))}px Inter, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('curr ➔', nx + nodeW / 2, cy - nodeH / 2 - 6 * dpr);
+      }
 
       // Node box
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 2 * dpr;
+      ctx.fillStyle = isActive ? 'rgba(245, 158, 11, 0.15)' : 'rgba(56, 189, 248, 0.12)';
+      ctx.strokeStyle = isActive ? '#fbbf24' : '#38bdf8';
+      ctx.lineWidth = (isActive ? 2.5 : 2) * dpr;
       ctx.beginPath();
-      ctx.rect(nx, cy - nodeH / 2, nodeW, nodeH);
+      ctx.roundRect(nx, cy - nodeH / 2, nodeW, nodeH, 6 * dpr);
       ctx.fill();
       ctx.stroke();
 
       // Split line between data and pointer
+      ctx.strokeStyle = isActive ? '#fbbf24' : '#38bdf8';
       ctx.beginPath();
-      ctx.moveTo(nx + nodeW * 0.6, cy - nodeH / 2);
-      ctx.lineTo(nx + nodeW * 0.6, cy + nodeH / 2);
+      ctx.moveTo(nx + nodeW * 0.65, cy - nodeH / 2);
+      ctx.lineTo(nx + nodeW * 0.65, cy + nodeH / 2);
       ctx.stroke();
 
       // Data label
-      ctx.font = `bold ${Math.max(12, Math.round(14 * dpr))}px Inter, sans-serif`;
+      ctx.font = `bold ${Math.max(11, Math.round(13 * dpr))}px 'JetBrains Mono', monospace`;
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
-      ctx.fillText(data, nx + nodeW * 0.3, cy + 5 * dpr);
+      ctx.fillText(String(data), nx + nodeW * 0.32, cy + 5 * dpr);
+
+      // Next bullet point
+      ctx.fillStyle = isActive ? '#fbbf24' : '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(nx + nodeW * 0.82, cy, 3 * dpr, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Hex address label
+      if (showAddresses) {
+        ctx.font = `${Math.max(8, Math.round(9 * dpr))}px 'JetBrains Mono', monospace`;
+        ctx.fillStyle = '#64748b';
+        ctx.textAlign = 'center';
+        ctx.fillText(hexAddr, nx + nodeW / 2, cy + nodeH / 2 + 14 * dpr);
+      }
 
       // Pointer arrow to next
-      const ptrX = nx + nodeW * 0.8;
+      const ptrX = nx + nodeW * 0.82;
+      lastPtrX = ptrX;
+
       if (idx < nodes.length - 1) {
-        drawArrow(ctx, ptrX, cy, nx + nodeW + gap - 4 * dpr, cy, '#38bdf8', dpr);
-      } else {
-        // NULL arrow
-        ctx.fillStyle = '#f59e0b';
-        ctx.fillText('NULL', ptrX + 35 * dpr, cy + 5 * dpr);
+        drawArrow(ctx, ptrX, cy, nx + nodeW + gap - 2 * dpr, cy, '#38bdf8', dpr);
+        if (isDoubly) {
+          // Backward arrow for doubly linked list
+          drawArrow(ctx, nx + nodeW + gap - 2 * dpr, cy + 12 * dpr, ptrX, cy + 12 * dpr, '#c084fc', dpr);
+        }
       }
     });
+
+    // Terminator: NULL or Circular Loopback
+    if (isCircular) {
+      // Loopback curve from last node pointer back to HEAD
+      const loopY = cy + nodeH / 2 + 22 * dpr;
+      const headX = x + 32 * dpr;
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 1.5 * dpr;
+      ctx.beginPath();
+      ctx.moveTo(lastPtrX, cy);
+      ctx.lineTo(lastPtrX + 16 * dpr, cy);
+      ctx.lineTo(lastPtrX + 16 * dpr, loopY);
+      ctx.lineTo(headX, loopY);
+      ctx.lineTo(headX, cy + 16 * dpr);
+      ctx.stroke();
+      drawArrow(ctx, headX, cy + 16 * dpr, headX, cy + 18 * dpr, '#10b981', dpr);
+    } else {
+      // NULL box
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 1 * dpr;
+      ctx.beginPath();
+      ctx.roundRect(lastPtrX + 16 * dpr, cy - 14 * dpr, 42 * dpr, 28 * dpr, 4 * dpr);
+      ctx.fill();
+      ctx.stroke();
+
+      drawArrow(ctx, lastPtrX, cy, lastPtrX + 14 * dpr, cy, '#ef4444', dpr);
+
+      ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = '#f87171';
+      ctx.textAlign = 'center';
+      ctx.fillText('NULL', lastPtrX + 37 * dpr, cy + 4 * dpr);
+    }
+  } else if (diagType === 'binaryTree' || diagType === 'graph' || shape.params?.graphMode === 'graph') {
+    const isGraph = diagType === 'graph' || shape.params?.graphMode === 'graph';
+
+    if (isGraph) {
+      // ─── GRAPH NETWORK RENDERING ─────────────────────────────────────────
+      const title = shape.params?.title || shape.label || 'Graph Network Topology';
+      const isDirected = shape.params?.isDirected ?? true;
+      const graphNodes = shape.params?.graphNodes || [
+        { id: 'A', label: 'A' },
+        { id: 'B', label: 'B' },
+        { id: 'C', label: 'C' },
+        { id: 'D', label: 'D' },
+        { id: 'E', label: 'E' },
+      ];
+      const graphEdges = shape.params?.graphEdges || [
+        { from: 'A', to: 'B', weight: '4' },
+        { from: 'A', to: 'C', weight: '2' },
+        { from: 'B', to: 'D', weight: '5' },
+        { from: 'C', to: 'E', weight: '10' },
+        { from: 'D', to: 'E', weight: '2' },
+      ];
+
+      // Header bar
+      ctx.fillStyle = 'rgba(14, 165, 233, 0.12)';
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+      ctx.fill();
+
+      // Dots
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath();
+      ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Title
+      ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#38bdf8';
+      ctx.textAlign = 'left';
+      ctx.fillText(`🕸 ${title} (${isDirected ? 'Directed' : 'Undirected'})`, x + 65 * dpr, y + 20 * dpr);
+
+      // Circular layout of nodes
+      const n = Math.max(1, graphNodes.length);
+      const cx = x + w / 2;
+      const cy = y + 42 * dpr + (h - 52 * dpr) / 2;
+      const radius = Math.min(w * 0.38, (h - 60 * dpr) * 0.38);
+      const nodeR = 18 * dpr;
+
+      const nodeCoords = new Map<string, { x: number; y: number; label: string }>();
+
+      graphNodes.forEach((node: any, i: number) => {
+        const theta = -Math.PI / 2 + (2 * Math.PI * i) / n;
+        const nx = cx + radius * Math.cos(theta);
+        const ny = cy + radius * Math.sin(theta);
+        nodeCoords.set(node.id, { x: nx, y: ny, label: node.label || node.id });
+      });
+
+      // Draw Edges first
+      graphEdges.forEach((edge: any) => {
+        const p1 = nodeCoords.get(edge.from);
+        const p2 = nodeCoords.get(edge.to);
+        if (p1 && p2) {
+          const dx = p2.x - p1.x;
+          const dy = p2.y - p1.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > 0) {
+            const startX = p1.x + (dx / dist) * nodeR;
+            const startY = p1.y + (dy / dist) * nodeR;
+            const endX = p2.x - (dx / dist) * nodeR;
+            const endY = p2.y - (dy / dist) * nodeR;
+
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 1.8 * dpr;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+
+            if (isDirected) {
+              drawArrow(ctx, startX, startY, endX, endY, '#38bdf8', dpr);
+            }
+
+            // Weight badge
+            if (edge.weight) {
+              const midX = (startX + endX) / 2;
+              const midY = (startY + endY) / 2;
+              ctx.fillStyle = '#0f172a';
+              ctx.strokeStyle = '#fbbf24';
+              ctx.lineWidth = 1 * dpr;
+              ctx.beginPath();
+              ctx.roundRect(midX - 12 * dpr, midY - 9 * dpr, 24 * dpr, 18 * dpr, 3 * dpr);
+              ctx.fill();
+              ctx.stroke();
+
+              ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px 'JetBrains Mono', monospace`;
+              ctx.fillStyle = '#fbbf24';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(String(edge.weight), midX, midY);
+            }
+          }
+        }
+      });
+
+      // Draw Nodes
+      nodeCoords.forEach((coords) => {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2.5 * dpr;
+        ctx.beginPath();
+        ctx.arc(coords.x, coords.y, nodeR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = `bold ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(coords.label, coords.x, coords.y);
+      });
+      ctx.textBaseline = 'alphabetic'; // reset
+    } else {
+      // ─── BINARY SEARCH TREE RENDERING ──────────────────────────────────
+      const title = shape.params?.title || shape.label || 'Binary Search Tree (BST)';
+      const rVal = shape.params?.rootVal || '50';
+      const lVal = shape.params?.leftVal || '30';
+      const rtVal = shape.params?.rightVal || '70';
+      const llVal = shape.params?.leftLeftVal || '20';
+      const lrVal = shape.params?.leftRightVal || '40';
+      const rlVal = shape.params?.rightLeftVal || '60';
+      const rrVal = shape.params?.rightRightVal || '80';
+
+      // Header bar
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.12)';
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+      ctx.fill();
+
+      // Dots
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath();
+      ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Title
+      ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#34d399';
+      ctx.textAlign = 'left';
+      ctx.fillText(`🌳 ${title}`, x + 65 * dpr, y + 20 * dpr);
+
+      // Node coordinates (3 levels)
+      const nodeR = 18 * dpr;
+      const l0Y = y + 75 * dpr;
+      const l1Y = y + 155 * dpr;
+      const l2Y = y + 235 * dpr;
+
+      const rootX = x + w / 2;
+      const leftX = x + w * 0.28;
+      const rightX = x + w * 0.72;
+
+      const llX = x + w * 0.16;
+      const lrX = x + w * 0.40;
+      const rlX = x + w * 0.60;
+      const rrX = x + w * 0.84;
+
+      // Draw branch lines first
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2 * dpr;
+
+      // Root to Level 1
+      ctx.beginPath();
+      ctx.moveTo(rootX, l0Y);
+      ctx.lineTo(leftX, l1Y);
+      ctx.moveTo(rootX, l0Y);
+      ctx.lineTo(rightX, l1Y);
+      // Level 1 to Level 2
+      ctx.moveTo(leftX, l1Y);
+      ctx.lineTo(llX, l2Y);
+      ctx.moveTo(leftX, l1Y);
+      ctx.lineTo(lrX, l2Y);
+      ctx.moveTo(rightX, l1Y);
+      ctx.lineTo(rlX, l2Y);
+      ctx.moveTo(rightX, l1Y);
+      ctx.lineTo(rrX, l2Y);
+      ctx.stroke();
+
+      // Helper to draw circular tree node
+      const drawTreeNode = (nx: number, ny: number, val: string, isRoot = false) => {
+        ctx.fillStyle = isRoot ? 'rgba(56, 189, 248, 0.25)' : 'rgba(15, 23, 42, 0.95)';
+        ctx.strokeStyle = isRoot ? '#38bdf8' : '#10b981';
+        ctx.lineWidth = (isRoot ? 2.5 : 2) * dpr;
+        ctx.beginPath();
+        ctx.arc(nx, ny, nodeR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(val), nx, ny);
+      };
+
+      // Draw all nodes
+      drawTreeNode(rootX, l0Y, rVal, true);
+      drawTreeNode(leftX, l1Y, lVal);
+      drawTreeNode(rightX, l1Y, rtVal);
+      drawTreeNode(llX, l2Y, llVal);
+      drawTreeNode(lrX, l2Y, lrVal);
+      drawTreeNode(rlX, l2Y, rlVal);
+      drawTreeNode(rrX, l2Y, rrVal);
+      ctx.textBaseline = 'alphabetic'; // reset
+    }
+  } else if (diagType === 'sortingArray') {
+    const title = shape.params?.title || shape.label || 'Sorting / Searching Demonstration';
+    const arr: number[] = shape.params?.array || [14, 33, 27, 10, 35, 19, 42, 44];
+    const activeIndices: number[] = shape.params?.activeIndices || [2, 3];
+    const sortedIndices: number[] = shape.params?.sortedIndices || [];
+    const pointers: { label: string; index: number }[] = shape.params?.pointers || [];
+    const statusText = shape.params?.statusText || 'Comparing elements: swap if left > right';
+
+    // Header bar
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.fill();
+
+    // Dots
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Title
+    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+    ctx.fillStyle = '#fbbf24';
+    ctx.textAlign = 'left';
+    ctx.fillText(`📶 ${title}`, x + 65 * dpr, y + 20 * dpr);
+
+    // Array Bars
+    const maxVal = Math.max(...arr, 50);
+    const chartY = y + 50 * dpr;
+    const chartH = 140 * dpr;
+    const barW = Math.min(42 * dpr, (w - 60 * dpr) / Math.max(1, arr.length));
+    const startX = x + (w - (barW + 8 * dpr) * arr.length) / 2;
+
+    arr.forEach((val, idx) => {
+      const bx = startX + idx * (barW + 8 * dpr);
+      const bh = Math.max(20 * dpr, (val / maxVal) * chartH);
+      const by = chartY + chartH - bh;
+
+      const isActive = activeIndices.includes(idx);
+      const isSorted = sortedIndices.includes(idx);
+      const ptr = pointers.find((p) => p.index === idx);
+
+      // Bar fill
+      ctx.fillStyle = isActive
+        ? 'rgba(245, 158, 11, 0.85)'
+        : isSorted
+        ? 'rgba(16, 185, 129, 0.85)'
+        : 'rgba(56, 189, 248, 0.45)';
+
+      ctx.strokeStyle = isActive ? '#fbbf24' : isSorted ? '#10b981' : '#38bdf8';
+      ctx.lineWidth = 1.5 * dpr;
+
+      ctx.beginPath();
+      ctx.roundRect(bx, by, barW, bh, [4 * dpr, 4 * dpr, 0, 0]);
+      ctx.fill();
+      ctx.stroke();
+
+      // Pointer badge above bar
+      if (ptr) {
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = `bold ${Math.max(8, Math.round(9 * dpr))}px Inter, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(ptr.label, bx + barW / 2, by - 16 * dpr);
+      }
+
+      // Value label on top of bar
+      ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(val), bx + barW / 2, by - 4 * dpr);
+
+      // Index label below baseline
+      ctx.font = `${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#64748b';
+      ctx.fillText(`[${idx}]`, bx + barW / 2, chartY + chartH + 16 * dpr);
+
+      // Active comparison pointer arrow
+      if (isActive) {
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillText('▲', bx + barW / 2, chartY + chartH + 28 * dpr);
+      }
+    });
+
+    // Status explanation banner at bottom
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.3)';
+    ctx.beginPath();
+    ctx.roundRect(x + 20 * dpr, y + h - 38 * dpr, w - 40 * dpr, 26 * dpr, 4 * dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = `500 ${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+    ctx.fillStyle = '#e2e8f0';
+    ctx.textAlign = 'center';
+    ctx.fillText(`⚡ ${statusText}`, x + w / 2, y + h - 21 * dpr);
   }
 }
 

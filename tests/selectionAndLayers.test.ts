@@ -818,6 +818,53 @@ describe('Multi-Element Selection (Rectangular Marquee & Stylus Freehand Lasso)'
       expect(newX + newW).toBeLessThanOrEqual(screenW);
     });
   });
+
+  describe('Locked Elements and Layer Preservation Rules', () => {
+    it('CLEAR_PAGE preserves locked elements while removing unlocked elements', () => {
+      let state = freshState();
+      const unlockedShape = makeShape('s-unlocked');
+      const lockedShape: ShapeObject = { ...makeShape('s-locked'), locked: true };
+      const unlockedStroke = makeStroke('str-unlocked');
+      const lockedStroke: StrokeObject = { ...makeStroke('str-locked'), locked: true };
+
+      state = documentReducer(state, {
+        type: 'ADD_OBJECTS',
+        pageIndex: 0,
+        objects: [unlockedShape, lockedShape, unlockedStroke, lockedStroke],
+      });
+
+      expect(state.lesson.pages[0].objects.length).toBe(4);
+
+      // Perform CLEAR_PAGE
+      state = documentReducer(state, { type: 'CLEAR_PAGE', pageIndex: 0 });
+
+      // Only locked objects should remain
+      expect(state.lesson.pages[0].objects.length).toBe(2);
+      expect(state.lesson.pages[0].objects.map((o) => o.id)).toEqual(['s-locked', 'str-locked']);
+    });
+
+    it('CLEAR_PAGE preserves objects on locked layers', () => {
+      let state = freshState();
+      const objOnLockedLayer = { ...makeShape('s-bg'), layerId: 'background' }; // background is locked by default
+      const normalObj = makeShape('s-normal'); // objects layer is unlocked
+
+      state = documentReducer(state, {
+        type: 'ADD_OBJECTS',
+        pageIndex: 0,
+        objects: [objOnLockedLayer, normalObj],
+      });
+
+      expect(state.lesson.pages[0].objects.length).toBe(2);
+
+      // Perform CLEAR_PAGE
+      state = documentReducer(state, { type: 'CLEAR_PAGE', pageIndex: 0 });
+
+      // Object on locked background layer must be preserved
+      expect(state.lesson.pages[0].objects.length).toBe(1);
+      expect(state.lesson.pages[0].objects[0].id).toBe('s-bg');
+    });
+  });
 });
+
 
 
