@@ -251,6 +251,20 @@ export class DrawingEngine {
 
     if (e.button !== 0 && e.pointerType === 'mouse') return;
 
+    // If an input/textarea currently has focus or is being edited, do not steal focus or start board operations
+    if (typeof document !== 'undefined') {
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.isContentEditable ||
+          activeEl.getAttribute?.('contenteditable') === 'true')
+      ) {
+        return;
+      }
+    }
+
     // If not in select tool, clear any lingering selection immediately
     if (this.activeTool !== 'select' && this.selectedObjectId) {
       this.selectedObjectId = null;
@@ -446,6 +460,23 @@ export class DrawingEngine {
   private handlePointerMove = (e: PointerEvent): void => {
     if (!e.isPrimary && e.pointerType === 'touch') return;
     if (this.isPointerDown && e.cancelable) e.preventDefault();
+
+    // If pointer was not pressed down on canvas (e.g. user dragged from an input/textbox), do not handle on canvas
+    if (!this.isPointerDown) {
+      if (typeof document !== 'undefined') {
+        const activeEl = document.activeElement as HTMLElement | null;
+        if (
+          activeEl &&
+          (activeEl.tagName === 'INPUT' ||
+            activeEl.tagName === 'TEXTAREA' ||
+            activeEl.isContentEditable ||
+            activeEl.getAttribute?.('contenteditable') === 'true')
+        ) {
+          return;
+        }
+      }
+    }
+
     const docPt = this.eventToDocPoint(e);
     this.currentPointerPos = docPt;
 
@@ -566,6 +597,7 @@ export class DrawingEngine {
 
   private handlePointerUp = (e: PointerEvent): void => {
     if (!e.isPrimary && e.pointerType === 'touch') return;
+    if (!this.isPointerDown) return;
     this.isPointerDown = false;
     try {
       if (this.activeCanvas.hasPointerCapture(e.pointerId)) {
@@ -1716,10 +1748,18 @@ export class DrawingEngine {
   // ─── Selection, Handle Hit Testing & Resizing ─────────────────────────────
 
   private hitTest(pt: Point): CanvasObject | null {
-    // Sort from highest layer order to lowest layer so top layers (text, shapes, drawing) are hit-tested before background media
+    // Sort from highest layer order to lowest layer so top layers (drawing, text, shapes) are hit-tested before background media
+    const getEffectiveOrder = (obj: CanvasObject): number => {
+      if (obj.layerId === 'drawing' || obj.type === 'stroke') {
+        const ord = this.layersMap.get(obj.layerId)?.order;
+        return ord !== undefined ? Math.max(ord, 10) : 10;
+      }
+      return this.layersMap.get(obj.layerId)?.order ?? 2;
+    };
+
     const sortedObjects = [...this.committedObjects].sort((a, b) => {
-      const orderA = this.layersMap.get(a.layerId)?.order ?? 2;
-      const orderB = this.layersMap.get(b.layerId)?.order ?? 2;
+      const orderA = getEffectiveOrder(a);
+      const orderB = getEffectiveOrder(b);
       return orderB - orderA;
     });
 
@@ -2966,16 +3006,23 @@ export class DrawingEngine {
       }
     }
 
-    // Stable sort by layer order so imported-media (order 1) renders underneath drawing (order 2), shapes (order 3), text (order 4)
-    // Locked objects and locked layers automatically render at the very bottom so new drawings render OVER them!
+    // Stable sort by layer order: locked elements at bottom, then media/shapes/tables, and freehand drawing always on top!
+    const getEffectiveOrder = (obj: CanvasObject): number => {
+      if (obj.layerId === 'drawing' || obj.type === 'stroke') {
+        const ord = this.layersMap.get(obj.layerId)?.order;
+        return ord !== undefined ? Math.max(ord, 10) : 10;
+      }
+      return this.layersMap.get(obj.layerId)?.order ?? 2;
+    };
+
     const sortedObjects = [...objects].sort((a, b) => {
       const isLockedA = a.locked || (this.layersMap.get(a.layerId)?.locked ?? false);
       const isLockedB = b.locked || (this.layersMap.get(b.layerId)?.locked ?? false);
       if (isLockedA !== isLockedB) {
         return isLockedA ? -1 : 1;
       }
-      const orderA = this.layersMap.get(a.layerId)?.order ?? 2;
-      const orderB = this.layersMap.get(b.layerId)?.order ?? 2;
+      const orderA = getEffectiveOrder(a);
+      const orderB = getEffectiveOrder(b);
       return orderA - orderB;
     });
 

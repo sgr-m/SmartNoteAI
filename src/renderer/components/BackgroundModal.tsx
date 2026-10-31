@@ -27,13 +27,13 @@ const DIMENSION_PRESETS: { id: PageDimensionPreset; name: string; width: number;
 ];
 
 function toValidHex(color: string): string {
-  if (!color) return '#1a1a2e';
+  if (!color) return '#1b4332';
   const trimmed = color.trim();
   if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
   if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
     return '#' + trimmed[1] + trimmed[1] + trimmed[2] + trimmed[2] + trimmed[3] + trimmed[3];
   }
-  return '#1a1a2e';
+  return '#1b4332';
 }
 
 export function BackgroundModal({ onClose }: BackgroundModalProps): React.ReactElement {
@@ -41,11 +41,11 @@ export function BackgroundModal({ onClose }: BackgroundModalProps): React.ReactE
   const currentPageIndex = docState.currentPageIndex;
   const currentPage = docState.lesson.pages[currentPageIndex];
 
-  const currentBg = currentPage?.background || { type: 'blank', color: '#1a1a2e' };
+  const currentBg = currentPage?.background || { type: 'blank', color: '#1b4332' };
 
   const [bgType, setBgType] = useState<BackgroundType>(currentBg.type || 'blank');
-  const [bgColor, setBgColor] = useState<string>(currentBg.color || '#1a1a2e');
-  const [customHexInput, setCustomHexInput] = useState<string>(currentBg.color || '#1a1a2e');
+  const [bgColor, setBgColor] = useState<string>(currentBg.color || '#1b4332');
+  const [customHexInput, setCustomHexInput] = useState<string>(currentBg.color || '#1b4332');
   const [gridSize, setGridSize] = useState<number>(currentBg.gridSize || 32);
   const [lineColor, setLineColor] = useState<string>(currentBg.lineColor || 'rgba(108, 99, 255, 0.2)');
   const [imageUrl, setImageUrl] = useState<string>(currentBg.imageUrl || '');
@@ -99,7 +99,7 @@ export function BackgroundModal({ onClose }: BackgroundModalProps): React.ReactE
   };
 
   const handleApply = () => {
-    const finalColor = bgColor.trim() || '#1a1a2e';
+    const finalColor = bgColor.trim() || '#1b4332';
     const newBackground: PageBackground = {
       type: bgType,
       color: finalColor,

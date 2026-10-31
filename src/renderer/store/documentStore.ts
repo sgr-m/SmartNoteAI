@@ -59,7 +59,7 @@ export function createDefaultPage(): Page {
     title: 'Page 1',
     width: defaultW,
     height: defaultH,
-    background: { type: 'blank', color: '#1a1a2e' },
+    background: { type: 'blank', color: '#1b4332' },
     layers: [
       { id: 'background', name: 'Background', visible: true, locked: true, opacity: 1, order: 0 },
       { id: 'imported-media', name: 'Imported Media', visible: true, locked: false, opacity: 1, order: 1 },
@@ -126,7 +126,7 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
           : state.lesson.pages[state.currentPageIndex];
       const inheritedBackground: PageBackground = refPage?.background
         ? { ...refPage.background }
-        : { type: 'blank', color: '#1a1a2e' };
+        : { type: 'blank', color: '#1b4332' };
       const defaultW = typeof window !== 'undefined' && window.innerWidth ? window.innerWidth : 1920;
       const defaultH = typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 1080;
       const inheritedWidth = refPage?.width ?? defaultW;

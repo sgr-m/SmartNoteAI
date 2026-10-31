@@ -115,7 +115,7 @@ app.on('second-instance', () => {
       minWidth: 1024,
       minHeight: 640,
       show: true, // Show window directly to prevent hidden background zombie processes
-      backgroundColor: '#1a1a2e',
+      backgroundColor: '#1b4332',
       disableAutoHideCursor: true, // Keep the default Windows pointer visible at all times
       frame: false, // Custom TitleBar with min/max/close controls rendered by React
       icon: iconPath,

@@ -45,6 +45,9 @@ export function LinkedListModal({
     existingShape?.params?.showAddresses ?? true
   );
   const [newNodeVal, setNewNodeVal] = useState<string>('');
+  const [fontSize, setFontSize] = useState<number>(
+    existingShape?.params?.fontSize || 14
+  );
 
   const currentPageIndex = docState.currentPageIndex;
 
@@ -122,6 +125,7 @@ export function LinkedListModal({
       isCircular: listType === 'circular',
       activeNodeIndex: activeNodeIdx,
       showAddresses,
+      fontSize,
     };
 
     if (existingShape && onUpdateShape) {
@@ -217,6 +221,20 @@ export function LinkedListModal({
                 Circular
               </button>
             </div>
+          </div>
+          <div className="cs-toolbar-field" style={{ width: '90px' }}>
+            <label>Font Size:</label>
+            <select
+              className="cs-modal-select"
+              value={fontSize}
+              onChange={(e) => setFontSize(Number(e.target.value))}
+            >
+              {[11, 12, 14, 16, 18, 20, 24].map((sz) => (
+                <option key={sz} value={sz}>
+                  {sz}px
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

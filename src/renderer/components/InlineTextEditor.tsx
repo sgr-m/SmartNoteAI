@@ -113,6 +113,7 @@ export function InlineTextEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editorBoxRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const isDraggingInsideEditorRef = useRef(false);
 
   const availableFonts = useMemo(() => getAvailableFonts(), []);
 
@@ -211,10 +212,42 @@ export function InlineTextEditor({
   ]);
 
   // Click outside to commit: "when it select somewhere else the popup must disappear"
+  // Protected against text selection dragging so dragging outside into the board area does not dismiss the menu
   useEffect(() => {
-    let cleanup: (() => void) | undefined;
+    let cleanupPointerDown: (() => void) | undefined;
+    let cleanupPointerUp: (() => void) | undefined;
+    let cleanupClick: (() => void) | undefined;
+
     const timer = setTimeout(() => {
-      const handleDocumentClick = (e: MouseEvent | PointerEvent) => {
+      const handleDocumentPointerDown = (e: PointerEvent) => {
+        const target = e.target as Node;
+        // If clicking inside the editor box or sidebar, mark that drag/click is inside
+        if (
+          (editorBoxRef.current && editorBoxRef.current.contains(target)) ||
+          (sidebarRef.current && sidebarRef.current.contains(target))
+        ) {
+          isDraggingInsideEditorRef.current = true;
+          return;
+        }
+
+        // If clicking outside while NOT dragging from inside, commit and close
+        if (!isDraggingInsideEditorRef.current) {
+          handleCommit();
+        }
+      };
+
+      const handleDocumentPointerUp = () => {
+        // Delay resetting so any click event synthesized immediately after mouseup does not trigger handleCommit
+        setTimeout(() => {
+          isDraggingInsideEditorRef.current = false;
+        }, 150);
+      };
+
+      const handleDocumentClick = (e: MouseEvent) => {
+        if (isDraggingInsideEditorRef.current) {
+          e.stopPropagation();
+          return;
+        }
         const target = e.target as Node;
         if (
           editorBoxRef.current &&
@@ -226,14 +259,20 @@ export function InlineTextEditor({
         }
       };
 
-      // Use pointerdown with capture so clicking elsewhere commits and closes immediately
-      window.addEventListener('pointerdown', handleDocumentClick, { capture: true });
-      cleanup = () => window.removeEventListener('pointerdown', handleDocumentClick, { capture: true });
+      window.addEventListener('pointerdown', handleDocumentPointerDown, { capture: true });
+      window.addEventListener('pointerup', handleDocumentPointerUp, { capture: true });
+      window.addEventListener('click', handleDocumentClick, { capture: true });
+
+      cleanupPointerDown = () => window.removeEventListener('pointerdown', handleDocumentPointerDown, { capture: true });
+      cleanupPointerUp = () => window.removeEventListener('pointerup', handleDocumentPointerUp, { capture: true });
+      cleanupClick = () => window.removeEventListener('click', handleDocumentClick, { capture: true });
     }, 60);
 
     return () => {
       clearTimeout(timer);
-      cleanup?.();
+      cleanupPointerDown?.();
+      cleanupPointerUp?.();
+      cleanupClick?.();
     };
   }, [handleCommit]);
 
@@ -317,6 +356,7 @@ export function InlineTextEditor({
             className="inline-board-textarea"
             placeholder={isLatexMode ? 'Type LaTeX formula (e.g. \\frac{a}{b}, E=mc^2)...' : 'Type here on board...'}
             value={content}
+            onDragStart={(e) => e.preventDefault()}
             onChange={(e) => {
               const val = e.target.value;
               setContent(val);

@@ -35,7 +35,7 @@ interface SortingSearchingModalProps {
 }
 
 // Generate simulation steps based on algorithm
-function generateSimulationSteps(algo: AlgorithmType, rawArr: number[], targetVal: number): SimStep[] {
+export function generateSimulationSteps(algo: AlgorithmType, rawArr: number[], targetVal: number): SimStep[] {
   const steps: SimStep[] = [];
   const arr = [...rawArr];
 
@@ -366,6 +366,9 @@ export function SortingSearchingModal({
   );
   const [targetVal, setTargetVal] = useState<number>(existingShape?.params?.targetVal ?? 35);
   const [stepIndex, setStepIndex] = useState<number>(existingShape?.params?.stepIndex || 0);
+  const [fontSize, setFontSize] = useState<number>(
+    existingShape?.params?.fontSize || 14
+  );
 
   const currentPageIndex = docState.currentPageIndex;
 
@@ -444,6 +447,7 @@ export function SortingSearchingModal({
       statusText: currentStep.statusText,
       stepIndex,
       targetVal,
+      fontSize,
     };
 
     if (existingShape && onUpdateShape) {
@@ -553,6 +557,21 @@ export function SortingSearchingModal({
                 setStepIndex(0);
               }}
             />
+          </div>
+
+          <div className="cs-toolbar-field" style={{ width: '90px' }}>
+            <label>Font Size:</label>
+            <select
+              className="cs-modal-select"
+              value={fontSize}
+              onChange={(e) => setFontSize(Number(e.target.value))}
+            >
+              {[11, 12, 14, 16, 18, 20, 24].map((sz) => (
+                <option key={sz} value={sz}>
+                  {sz}px
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

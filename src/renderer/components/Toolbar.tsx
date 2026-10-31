@@ -489,6 +489,17 @@ export function Toolbar({
         <div className="monitor-icon-graphic">🔦</div>
       </button>,
 
+      /* Subject Teaching Platform */
+      <button
+        key="subject-tools-btn"
+        className="dock-icon-btn"
+        onClick={() => onOpenSubjectTools?.()}
+        title="Subject Teaching Platform: Math, Physics, Chemistry, Computer Science, Digital Logic & Flowcharts"
+        aria-label="Subject Teaching Platform"
+      >
+        <div className="tools-icon-graphic">🎓</div>
+      </button>,
+
       /* Desktop Annotation Pen & Overlay */
       <button
         key="annotation-btn"
@@ -553,16 +564,6 @@ export function Toolbar({
           aria-label="Layers Manager"
         >
           <div className="layers-icon-graphic">📑</div>
-        </button>
-
-        {/* Subject Teaching Platform */}
-        <button
-          className="dock-icon-btn"
-          onClick={() => onOpenSubjectTools?.()}
-          title="Subject Teaching Platform: Math, Physics, Chemistry, Computer Science, Digital Logic & Flowcharts"
-          aria-label="Subject Teaching Platform"
-        >
-          <div className="tools-icon-graphic">🎓</div>
         </button>
 
         {/* Resource Library */}

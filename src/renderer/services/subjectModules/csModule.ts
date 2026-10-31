@@ -321,11 +321,13 @@ const csTools: SubjectTool[] = [
     description: 'Relational table schema with Primary Keys (PK), Foreign Keys (FK), and field data types',
     badge: 'Database',
     tags: ['database', 'table', 'sql', 'er diagram', 'pk', 'fk', 'schema'],
+    interactiveModal: 'databaseTable',
     execute: (context) => {
-      const table = createShape('csDiagram', 220, 160, 460, 340, {
+      const table = createShape('csDiagram', 220, 160, 480, 360, {
         params: {
           diagramType: 'databaseTable',
           tableName: 'Students',
+          fontSize: 14,
           columns: [
             { name: 'id', type: 'INT', isPK: true },
             { name: 'name', type: 'VARCHAR(100)', isPK: false },
@@ -352,13 +354,15 @@ const csTools: SubjectTool[] = [
     description: 'System bus, Control Unit, ALU, Registers (PC, MAR, MDR, ACC), and RAM Memory block',
     badge: 'Architecture',
     tags: ['cpu', 'alu', 'registers', 'ram', 'bus', 'von neumann', 'architecture'],
+    interactiveModal: 'cpuArchitecture',
     execute: (context) => {
-      const cpu = createShape('csDiagram', 180, 140, 560, 400, {
+      const cpu = createShape('csDiagram', 180, 140, 580, 420, {
         params: {
           diagramType: 'cpuArchitecture',
+          fontSize: 14,
         },
         fillColor: 'rgba(15, 23, 42, 0.94)',
-        strokeColor: '#38bdf8',
+        strokeColor: '#10b981',
         label: 'CPU & Von Neumann Architecture',
       });
       executeAddObject(context, cpu, 'Insert CPU Architecture Diagram');
@@ -375,13 +379,15 @@ const csTools: SubjectTool[] = [
     description: 'State machine cycle: Fetch ➔ Decode ➔ Execute ➔ Store ➔ Interrupt Check',
     badge: 'Cycle',
     tags: ['instruction cycle', 'fetch', 'decode', 'execute', 'cpu state'],
+    interactiveModal: 'instructionCycle',
     execute: (context) => {
-      const cycle = createShape('csDiagram', 200, 160, 500, 340, {
+      const cycle = createShape('csDiagram', 200, 160, 540, 400, {
         params: {
           diagramType: 'instructionCycle',
+          fontSize: 14,
         },
         fillColor: 'rgba(15, 23, 42, 0.94)',
-        strokeColor: '#38bdf8',
+        strokeColor: '#a855f7',
         label: 'CPU Instruction Cycle (Fetch-Decode-Execute)',
       });
       executeAddObject(context, cycle, 'Insert Instruction Cycle Diagram');
@@ -398,12 +404,14 @@ const csTools: SubjectTool[] = [
     description: 'Computer network topology layouts: Star, Mesh, Bus, Ring, Client-Server',
     badge: 'Network',
     tags: ['network', 'topology', 'star', 'mesh', 'bus', 'router', 'client'],
+    interactiveModal: 'networkTopology',
     execute: (context, options) => {
       const topoType = options?.topology || 'star';
-      const net = createShape('csDiagram', 200, 160, 500, 360, {
+      const net = createShape('csDiagram', 200, 160, 560, 400, {
         params: {
           diagramType: 'networkTopology',
           topology: topoType,
+          fontSize: 14,
         },
         fillColor: 'rgba(15, 23, 42, 0.94)',
         strokeColor: '#38bdf8',

@@ -9,6 +9,14 @@ import { compileMathFunction, evaluateMathFunction } from '../services/subjectMo
 import { PERIODIC_ELEMENTS, ChemicalElement } from '../services/subjectModules/chemistryModule';
 import { getSolid3DModel, transform3D, projectTo2D, Solid3DType } from './geometry3DMath';
 import { tokenizeCodeLine, getTokenColor } from '../services/subjectModules/csSyntaxHighlighter';
+import {
+  getKMapMintermIndex,
+  getDefaultKMapVariableNames,
+  evaluateMux,
+  evaluateAdder,
+  evaluateFlipFlopNextState,
+  evaluateCounter,
+} from '../services/subjectModules/digitalLogicModule';
 
 export function isSubjectShape(shapeType: string): boolean {
   return [
@@ -36,68 +44,82 @@ export function isSubjectShape(shapeType: string): boolean {
 export function renderSubjectShape(
   ctx: CanvasRenderingContext2D,
   shape: ShapeObject,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
+  x?: number,
+  y?: number,
+  w?: number,
+  h?: number,
   dpr = 1
 ): void {
+  // Support legacy or shorthand invocation (ctx, shape, dpr)
+  let renderX = x ?? shape.x;
+  let renderY = y ?? shape.y;
+  let renderW = w ?? shape.width;
+  let renderH = h ?? shape.height;
+  let renderDpr = dpr;
+
+  if (typeof x === 'number' && typeof y === 'undefined') {
+    renderDpr = x;
+    renderX = shape.x;
+    renderY = shape.y;
+    renderW = shape.width;
+    renderH = shape.height;
+  }
   ctx.save();
 
   switch (shape.shapeType) {
     case 'setSquare45':
-      renderSetSquare45(ctx, shape, x, y, w, h, dpr);
+      renderSetSquare45(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'setSquare30':
-      renderSetSquare30(ctx, shape, x, y, w, h, dpr);
+      renderSetSquare30(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'angleMeasurement':
-      renderAngleMeasurement(ctx, shape, x, y, w, h, dpr);
+      renderAngleMeasurement(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'cartesianAxes':
-      renderCartesianAxes(ctx, shape, x, y, w, h, dpr);
+      renderCartesianAxes(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'numberLine':
-      renderNumberLine(ctx, shape, x, y, w, h, dpr);
+      renderNumberLine(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'functionPlot':
-      renderFunctionPlot(ctx, shape, x, y, w, h, dpr);
+      renderFunctionPlot(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'geometry3D':
-      renderGeometry3D(ctx, shape, x, y, w, h, dpr);
+      renderGeometry3D(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'circuitComponent':
-      renderCircuitComponent(ctx, shape, x, y, w, h, dpr);
+      renderCircuitComponent(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'physicsDiagram':
-      renderPhysicsDiagram(ctx, shape, x, y, w, h, dpr);
+      renderPhysicsDiagram(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'periodicElement':
-      renderPeriodicElement(ctx, shape, x, y, w, h, dpr);
+      renderPeriodicElement(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'atomicModel':
-      renderAtomicModel(ctx, shape, x, y, w, h, dpr);
+      renderAtomicModel(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'labApparatus':
-      renderLabApparatus(ctx, shape, x, y, w, h, dpr);
+      renderLabApparatus(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'flowchartNode':
-      renderFlowchartNode(ctx, shape, x, y, w, h, dpr);
+      renderFlowchartNode(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'csDiagram':
-      renderCSDiagram(ctx, shape, x, y, w, h, dpr);
+      renderCSDiagram(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'logicGate':
-      renderLogicGate(ctx, shape, x, y, w, h, dpr);
+      renderLogicGate(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'truthTable':
-      renderTruthTable(ctx, shape, x, y, w, h, dpr);
+      renderTruthTable(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'karnaughMap':
-      renderKarnaughMap(ctx, shape, x, y, w, h, dpr);
+      renderKarnaughMap(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'teachingTemplate':
-      renderTeachingTemplate(ctx, shape, x, y, w, h, dpr);
+      renderTeachingTemplate(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
   }
 
@@ -3843,12 +3865,53 @@ function renderCSDiagram(
 ) {
   const diagType = shape.params?.diagramType || 'codeBlock';
 
+  // Base unscaled widths per tool (at 1x DPR) for proportional scaling
+  const defaultWidths: Record<string, number> = {
+    codeBlock: 440,
+    pseudocode: 440,
+    flowchart: 480,
+    traceTable: 540,
+    callStack: 400,
+    memoryLayout: 560,
+    linkedList: 560,
+    binaryTree: 500,
+    graph: 520,
+    sortingArray: 540,
+    sortingSearching: 540,
+    databaseTable: 480,
+    erDiagram: 480,
+    cpuArchitecture: 580,
+    vonNeumann: 580,
+    instructionCycle: 540,
+    networkTopology: 560,
+  };
+
+  const baseW = (defaultWidths[diagType] || 500) * dpr;
+  // Calculate proportional resize scale factor based on current width w relative to base width
+  const resizeScale = Math.max(0.45, Math.min(3.8, w / baseW));
+
+  // Base font size configurable from shape params (defaults to 14)
+  const customFontSize =
+    typeof shape.params?.fontSize === 'number' && shape.params.fontSize > 0
+      ? shape.params.fontSize
+      : 14;
+
+  // Scale fonts proportionally with both the font size option and the corner drag scale
+  const effectiveFontScale = (customFontSize / 14) * resizeScale;
+  const sf = (basePx: number) => Math.max(7, Math.round(basePx * effectiveFontScale * dpr));
+  const sc = (basePx: number) => Math.round(basePx * resizeScale * dpr);
+
+  // Common Header Bar Height and Dot Sizes
+  const barH = Math.max(28 * dpr, sc(32));
+  const dotR = Math.max(3.5 * dpr, sc(4.5));
+  const dotY = y + barH / 2;
+
   // Base Dark Slate Frame
   ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.96)';
   ctx.strokeStyle = '#0284c7';
-  ctx.lineWidth = 1.5 * dpr;
+  ctx.lineWidth = Math.max(1, Math.round(1.5 * dpr));
   ctx.beginPath();
-  ctx.roundRect(x, y, w, h, 10 * dpr);
+  ctx.roundRect(x, y, w, h, Math.round(10 * dpr));
   ctx.fill();
   ctx.stroke();
 
@@ -3859,8 +3922,8 @@ function renderCSDiagram(
     const fileName = shape.params?.fileName || `${lang}.${defaultExt}`;
     const code = shape.params?.code || 'print("Hello World")';
     const lines = code.split('\n');
-    const fontSize = Math.max(10, Math.round((shape.params?.fontSize || 13) * dpr));
-    const lineHeight = Math.max(18 * dpr, fontSize * 1.5);
+    const fontSize = sf(customFontSize || 13);
+    const lineHeight = Math.max(16 * dpr, Math.round(fontSize * 1.5));
 
     // Frame styling override based on theme
     ctx.fillStyle = isLight ? '#ffffff' : shape.fillColor || 'rgba(15, 23, 42, 0.96)';
@@ -3874,65 +3937,67 @@ function renderCSDiagram(
     // Window header bar
     ctx.fillStyle = isLight ? 'rgba(241, 245, 249, 0.9)' : 'rgba(15, 23, 42, 0.6)';
     ctx.beginPath();
-    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
     ctx.fill();
 
     // Header divider
     ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)';
     ctx.beginPath();
-    ctx.moveTo(x, y + 32 * dpr);
-    ctx.lineTo(x + w, y + 32 * dpr);
+    ctx.moveTo(x, y + barH);
+    ctx.lineTo(x + w, y + barH);
     ctx.stroke();
 
     // macOS Window control dots
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
-    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#10b981';
     ctx.beginPath();
-    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
 
     // File name
-    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px 'JetBrains Mono', Consolas, sans-serif`;
+    ctx.font = `600 ${sf(12)}px 'JetBrains Mono', Consolas, sans-serif`;
     ctx.fillStyle = isLight ? '#334155' : '#94a3b8';
     ctx.textAlign = 'left';
-    ctx.fillText(fileName, x + 65 * dpr, y + 20 * dpr);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(fileName, x + sc(60), dotY);
 
     // Language badge
     ctx.textAlign = 'right';
-    ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+    ctx.font = `bold ${sf(9)}px Inter, sans-serif`;
     ctx.fillStyle = isLight ? '#0284c7' : '#38bdf8';
-    ctx.fillText(lang.toUpperCase(), x + w - 16 * dpr, y + 20 * dpr);
+    ctx.fillText(lang.toUpperCase(), x + w - sc(16), dotY);
+    ctx.textBaseline = 'alphabetic';
 
     // Gutter divider
-    const gutterW = 44 * dpr;
+    const gutterW = Math.max(34 * dpr, sc(44));
     ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.06)';
     ctx.beginPath();
-    ctx.moveTo(x + gutterW, y + 32 * dpr);
+    ctx.moveTo(x + gutterW, y + barH);
     ctx.lineTo(x + gutterW, y + h);
     ctx.stroke();
 
     // Code lines with multi-token syntax highlighting
     ctx.font = `${fontSize}px 'JetBrains Mono', Consolas, monospace`;
-    const maxVisibleLines = Math.floor((h - 42 * dpr) / lineHeight);
+    const maxVisibleLines = Math.floor((h - barH - 10 * dpr) / lineHeight);
 
     lines.slice(0, maxVisibleLines).forEach((line: string, i: number) => {
-      const ly = y + 46 * dpr + i * lineHeight;
+      const ly = y + barH + 16 * dpr + i * lineHeight;
 
       // Line number in gutter
       ctx.fillStyle = isLight ? '#94a3b8' : '#475569';
       ctx.textAlign = 'right';
-      ctx.fillText(String(i + 1), x + gutterW - 10 * dpr, ly);
+      ctx.fillText(String(i + 1), x + gutterW - 8 * dpr, ly);
 
       // Render syntax tokens
       const tokens = tokenizeCodeLine(line, lang);
-      let curX = x + gutterW + 12 * dpr;
+      let curX = x + gutterW + 10 * dpr;
       ctx.textAlign = 'left';
 
       for (const tok of tokens) {
@@ -3946,8 +4011,8 @@ function renderCSDiagram(
     const standard = shape.params?.standard || 'Cambridge / Standard Pseudocode';
     const code = shape.params?.code || 'PROCEDURE Main()\n  OUTPUT "Hello World"\nENDPROCEDURE';
     const lines = code.split('\n');
-    const fontSize = Math.max(10, Math.round((shape.params?.fontSize || 13) * dpr));
-    const lineHeight = Math.max(18 * dpr, fontSize * 1.5);
+    const fontSize = sf(customFontSize || 13);
+    const lineHeight = Math.max(16 * dpr, Math.round(fontSize * 1.5));
 
     // Frame styling with purple pseudocode accent
     ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.96)';
@@ -3961,64 +4026,66 @@ function renderCSDiagram(
     // Header bar
     ctx.fillStyle = 'rgba(168, 85, 247, 0.15)';
     ctx.beginPath();
-    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
     ctx.fill();
 
     ctx.strokeStyle = 'rgba(168, 85, 247, 0.3)';
     ctx.beginPath();
-    ctx.moveTo(x, y + 32 * dpr);
-    ctx.lineTo(x + w, y + 32 * dpr);
+    ctx.moveTo(x, y + barH);
+    ctx.lineTo(x + w, y + barH);
     ctx.stroke();
 
     // Dots
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
-    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#10b981';
     ctx.beginPath();
-    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
 
     // Title
-    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px 'JetBrains Mono', Consolas, sans-serif`;
+    ctx.font = `600 ${sf(12)}px 'JetBrains Mono', Consolas, sans-serif`;
     ctx.fillStyle = '#c084fc';
     ctx.textAlign = 'left';
-    ctx.fillText(`📝 ${title}`, x + 65 * dpr, y + 20 * dpr);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`📝 ${title}`, x + sc(60), dotY);
 
     // Standard badge
     ctx.textAlign = 'right';
-    ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+    ctx.font = `bold ${sf(9)}px Inter, sans-serif`;
     ctx.fillStyle = '#e9d5ff';
-    ctx.fillText(String(standard).split(' ')[0], x + w - 16 * dpr, y + 20 * dpr);
+    ctx.fillText(String(standard).split(' ')[0], x + w - sc(16), dotY);
+    ctx.textBaseline = 'alphabetic';
 
     // Gutter divider
-    const gutterW = 44 * dpr;
+    const gutterW = Math.max(34 * dpr, sc(44));
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
     ctx.beginPath();
-    ctx.moveTo(x + gutterW, y + 32 * dpr);
+    ctx.moveTo(x + gutterW, y + barH);
     ctx.lineTo(x + gutterW, y + h);
     ctx.stroke();
 
     // Code lines with pseudocode token highlighting
     ctx.font = `${fontSize}px 'JetBrains Mono', Consolas, monospace`;
-    const maxVisibleLines = Math.floor((h - 42 * dpr) / lineHeight);
+    const maxVisibleLines = Math.floor((h - barH - 10 * dpr) / lineHeight);
 
     lines.slice(0, maxVisibleLines).forEach((line: string, i: number) => {
-      const ly = y + 46 * dpr + i * lineHeight;
+      const ly = y + barH + 16 * dpr + i * lineHeight;
 
       // Line number
       ctx.fillStyle = '#475569';
       ctx.textAlign = 'right';
-      ctx.fillText(String(i + 1), x + gutterW - 10 * dpr, ly);
+      ctx.fillText(String(i + 1), x + gutterW - 8 * dpr, ly);
 
       // Render tokens
       const tokens = tokenizeCodeLine(line, 'pseudocode');
-      let curX = x + gutterW + 12 * dpr;
+      let curX = x + gutterW + 10 * dpr;
       ctx.textAlign = 'left';
 
       for (const tok of tokens) {
@@ -4044,48 +4111,50 @@ function renderCSDiagram(
     // Header bar
     ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
     ctx.beginPath();
-    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
     ctx.fill();
 
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
     ctx.beginPath();
-    ctx.moveTo(x, y + 32 * dpr);
-    ctx.lineTo(x + w, y + 32 * dpr);
+    ctx.moveTo(x, y + barH);
+    ctx.lineTo(x + w, y + barH);
     ctx.stroke();
 
     // Dots
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
-    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#10b981';
     ctx.beginPath();
-    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
 
     // Title
-    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+    ctx.font = `600 ${sf(12)}px Inter, sans-serif`;
     ctx.fillStyle = '#38bdf8';
     ctx.textAlign = 'left';
-    ctx.fillText(`🔀 ${title}`, x + 65 * dpr, y + 20 * dpr);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`🔀 ${title}`, x + sc(60), dotY);
+    ctx.textBaseline = 'alphabetic';
 
     // Render nodes within the card bounds
-    const contentY = y + 42 * dpr;
-    const contentH = h - 52 * dpr;
-    const totalNodeH = nodes.reduce((sum: number, n: any) => sum + (n.height || 60) * dpr, 0);
-    const gap = Math.max(16 * dpr, (contentH - totalNodeH) / Math.max(1, nodes.length));
+    const contentY = y + barH + 10 * dpr;
+    const contentH = h - barH - 20 * dpr;
+    const totalNodeH = nodes.reduce((sum: number, n: any) => sum + sc(n.height || (n.type === 'decision' ? 64 : n.type === 'terminator' ? 40 : 50)), 0);
+    const gap = Math.max(12 * dpr, (contentH - totalNodeH) / Math.max(1, nodes.length));
 
-    let curY = contentY + 10 * dpr;
+    let curY = contentY + 6 * dpr;
     const nodeCoords = new Map<string, { cx: number; cy: number; w: number; h: number; bottomY: number; topY: number }>();
 
     // Calculate layout & render nodes
     for (const node of nodes) {
-      const nw = Math.min(w - 60 * dpr, (node.type === 'decision' ? 180 : node.type === 'terminator' ? 140 : 200) * dpr);
-      const nh = (node.type === 'decision' ? 70 : node.type === 'terminator' ? 44 : 54) * dpr;
+      const nw = Math.min(w - sc(36), sc(node.type === 'decision' ? 180 : node.type === 'terminator' ? 140 : 200));
+      const nh = sc(node.type === 'decision' ? 64 : node.type === 'terminator' ? 40 : 50);
       const nx = x + (w - nw) / 2;
       const ny = curY;
 
@@ -4121,7 +4190,7 @@ function renderCSDiagram(
       } else if (node.type === 'inputOutput') {
         ctx.fillStyle = 'rgba(56, 189, 248, 0.16)';
         ctx.strokeStyle = '#38bdf8';
-        const slant = 14 * dpr;
+        const slant = sc(14);
         ctx.beginPath();
         ctx.moveTo(nx + slant, ny);
         ctx.lineTo(nx + nw, ny);
@@ -4141,10 +4210,12 @@ function renderCSDiagram(
       }
 
       // Label text
-      ctx.font = `600 ${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+      ctx.font = `600 ${sf(11)}px Inter, sans-serif`;
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
-      ctx.fillText(node.label || '', nx + nw / 2, ny + nh / 2 + 4 * dpr);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.label || '', nx + nw / 2, ny + nh / 2);
+      ctx.textBaseline = 'alphabetic';
 
       curY += nh + gap;
     }
@@ -4160,7 +4231,7 @@ function renderCSDiagram(
 
         if (to.topY < from.bottomY) {
           // Loopback arrow
-          const loopX = x + w - 24 * dpr;
+          const loopX = x + w - sc(24);
           ctx.strokeStyle = edgeColor;
           ctx.lineWidth = 1.5 * dpr;
           ctx.setLineDash([4 * dpr, 3 * dpr]);
@@ -4180,7 +4251,7 @@ function renderCSDiagram(
         // Edge condition label
         if (edge.label) {
           const midY = (from.bottomY + to.topY) / 2;
-          ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+          ctx.font = `bold ${sf(9.5)}px Inter, sans-serif`;
           ctx.fillStyle = edgeColor;
           ctx.textAlign = 'left';
           ctx.fillText(edge.label, from.cx + 8 * dpr, midY + 3 * dpr);
@@ -4201,41 +4272,43 @@ function renderCSDiagram(
     // Card Header Bar
     ctx.fillStyle = 'rgba(2, 132, 199, 0.15)';
     ctx.beginPath();
-    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
     ctx.fill();
 
     ctx.strokeStyle = 'rgba(2, 132, 199, 0.3)';
     ctx.beginPath();
-    ctx.moveTo(x, y + 32 * dpr);
-    ctx.lineTo(x + w, y + 32 * dpr);
+    ctx.moveTo(x, y + barH);
+    ctx.lineTo(x + w, y + barH);
     ctx.stroke();
 
     // Dots
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
-    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#10b981';
     ctx.beginPath();
-    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
 
     // Title
-    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+    ctx.font = `600 ${sf(12)}px Inter, sans-serif`;
     ctx.fillStyle = '#38bdf8';
     ctx.textAlign = 'left';
-    ctx.fillText(`📊 ${title}`, x + 65 * dpr, y + 20 * dpr);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`📊 ${title}`, x + sc(60), dotY);
+    ctx.textBaseline = 'alphabetic';
 
     // Table Bounds
     const tableX = x + 12 * dpr;
-    const tableY = y + 42 * dpr;
+    const tableY = y + barH + 10 * dpr;
     const tableW = w - 24 * dpr;
     const colW = tableW / Math.max(1, cols.length);
-    const rowH = 24 * dpr;
+    const rowH = Math.max(22 * dpr, sc(26));
 
     // Header row
     ctx.fillStyle = 'rgba(2, 132, 199, 0.25)';
@@ -4243,17 +4316,18 @@ function renderCSDiagram(
     ctx.roundRect(tableX, tableY, tableW, rowH, 4 * dpr);
     ctx.fill();
 
-    ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+    ctx.font = `bold ${sf(11)}px Inter, sans-serif`;
     ctx.fillStyle = '#38bdf8';
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
 
     cols.forEach((c, idx) => {
-      ctx.fillText(c, tableX + idx * colW + colW / 2, tableY + 16 * dpr);
+      ctx.fillText(c, tableX + idx * colW + colW / 2, tableY + rowH / 2);
     });
 
     // Data rows
-    ctx.font = `${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', Consolas, monospace`;
-    const maxRows = Math.floor((h - 50 * dpr) / rowH);
+    ctx.font = `${sf(11)}px 'JetBrains Mono', Consolas, monospace`;
+    const maxRows = Math.floor((h - barH - 16 * dpr) / rowH);
 
     rows.slice(0, maxRows).forEach((row, rIdx) => {
       const ry = tableY + rowH + rIdx * rowH;
@@ -4275,22 +4349,24 @@ function renderCSDiagram(
         const strVal = String(val ?? '-');
         if (strVal.toLowerCase() === 'true') {
           ctx.fillStyle = '#10b981';
-          ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+          ctx.font = `bold ${sf(11)}px 'JetBrains Mono', monospace`;
         } else if (strVal.toLowerCase() === 'false') {
           ctx.fillStyle = '#f43f5e';
-          ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+          ctx.font = `bold ${sf(11)}px 'JetBrains Mono', monospace`;
         } else if (/^-?\d+(\.\d+)?$/.test(strVal)) {
           ctx.fillStyle = '#fbbf24';
-          ctx.font = `${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+          ctx.font = `${sf(11)}px 'JetBrains Mono', monospace`;
         } else {
           ctx.fillStyle = '#f8fafc';
-          ctx.font = `${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+          ctx.font = `${sf(11)}px 'JetBrains Mono', monospace`;
         }
 
         ctx.textAlign = 'center';
-        ctx.fillText(strVal, tableX + cIdx * colW + colW / 2, ry + 16 * dpr);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(strVal, tableX + cIdx * colW + colW / 2, ry + rowH / 2);
       });
     });
+    ctx.textBaseline = 'alphabetic';
   } else if (diagType === 'callStack') {
     const title = shape.params?.title || shape.label || 'Call Stack (LIFO Frames)';
     const frames = shape.params?.frames || [
@@ -4303,41 +4379,43 @@ function renderCSDiagram(
     // Header bar
     ctx.fillStyle = 'rgba(168, 85, 247, 0.15)';
     ctx.beginPath();
-    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
     ctx.fill();
 
     // Dots
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
-    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#10b981';
     ctx.beginPath();
-    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
 
     // Title
-    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+    ctx.font = `600 ${sf(12)}px Inter, sans-serif`;
     ctx.fillStyle = '#c084fc';
     ctx.textAlign = 'left';
-    ctx.fillText(`📚 ${title}`, x + 65 * dpr, y + 20 * dpr);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`📚 ${title}`, x + sc(60), dotY);
 
     // Direction badge
     ctx.textAlign = 'right';
-    ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+    ctx.font = `bold ${sf(9.5)}px Inter, sans-serif`;
     ctx.fillStyle = '#38bdf8';
-    ctx.fillText('▲ PUSH / POP ▼', x + w - 16 * dpr, y + 20 * dpr);
+    ctx.fillText('▲ PUSH / POP ▼', x + w - sc(16), dotY);
+    ctx.textBaseline = 'alphabetic';
 
     // Render stack frames from top to bottom
-    const contentY = y + 44 * dpr;
-    const contentH = h - 54 * dpr;
-    const frameH = Math.min(60 * dpr, (contentH - 20 * dpr) / Math.max(1, frames.length));
-    const frameW = w - 48 * dpr;
-    const frameX = x + 24 * dpr;
+    const contentY = y + barH + 12 * dpr;
+    const contentH = h - barH - 20 * dpr;
+    const frameH = Math.min(sc(64), (contentH - 16 * dpr) / Math.max(1, frames.length));
+    const frameW = w - 36 * dpr;
+    const frameX = x + 18 * dpr;
 
     frames.forEach((frame: any, idx: number) => {
       const fy = contentY + idx * (frameH + 6 * dpr);
@@ -4355,21 +4433,21 @@ function renderCSDiagram(
       // Top of stack pointer arrow
       if (isTop) {
         ctx.fillStyle = '#10b981';
-        ctx.font = `bold ${Math.max(8, Math.round(9 * dpr))}px Inter, sans-serif`;
+        ctx.font = `bold ${sf(9)}px Inter, sans-serif`;
         ctx.textAlign = 'left';
-        ctx.fillText('➔ TOP (ACTIVE)', frameX + 8 * dpr, fy + 14 * dpr);
+        ctx.fillText('➔ TOP (ACTIVE)', frameX + 8 * dpr, fy + sc(14));
       }
 
       // Function name
-      ctx.font = `bold ${Math.max(11, Math.round(12 * dpr))}px 'JetBrains Mono', monospace`;
+      ctx.font = `bold ${sf(12)}px 'JetBrains Mono', monospace`;
       ctx.fillStyle = isTop ? '#34d399' : '#f8fafc';
       ctx.textAlign = 'left';
-      ctx.fillText(frame.func || 'anonymous()', frameX + (isTop ? 100 * dpr : 12 * dpr), fy + (isTop ? 15 * dpr : 22 * dpr));
+      ctx.fillText(frame.func || 'anonymous()', frameX + (isTop ? sc(90) : 12 * dpr), fy + (isTop ? sc(14) : sc(18)));
 
       // Variables / parameters
-      ctx.font = `${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+      ctx.font = `${sf(10.5)}px 'JetBrains Mono', monospace`;
       ctx.fillStyle = '#94a3b8';
-      ctx.fillText(frame.vars || 'no locals', frameX + 12 * dpr, fy + frameH - 12 * dpr);
+      ctx.fillText(frame.vars || 'no locals', frameX + 12 * dpr, fy + frameH - 8 * dpr);
     });
   } else if (diagType === 'memoryLayout') {
     const title = shape.params?.title || shape.label || 'Memory Layout & Pointers';
@@ -4383,38 +4461,41 @@ function renderCSDiagram(
     // Header bar
     ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
     ctx.beginPath();
-    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
     ctx.fill();
 
     // Dots
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
-    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#10b981';
     ctx.beginPath();
-    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
 
     // Title
-    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+    ctx.font = `600 ${sf(12)}px Inter, sans-serif`;
     ctx.fillStyle = '#fbbf24';
     ctx.textAlign = 'left';
-    ctx.fillText(`🧠 ${title}`, x + 65 * dpr, y + 20 * dpr);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`🧠 ${title}`, x + sc(60), dotY);
+    ctx.textBaseline = 'alphabetic';
 
     // Memory Table Headers
-    const startY = y + 44 * dpr;
-    const colAddrX = x + 20 * dpr;
-    const colNameX = x + 130 * dpr;
-    const colTypeX = x + 220 * dpr;
-    const colValX = x + 310 * dpr;
-    const rowH = 34 * dpr;
+    const startY = y + barH + 12 * dpr;
+    const availW = w - 32 * dpr;
+    const colAddrX = x + 16 * dpr;
+    const colNameX = x + 16 * dpr + availW * 0.25;
+    const colTypeX = x + 16 * dpr + availW * 0.48;
+    const colValX = x + 16 * dpr + availW * 0.70;
+    const rowH = Math.max(26 * dpr, sc(34));
 
-    ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+    ctx.font = `bold ${sf(10.5)}px Inter, sans-serif`;
     ctx.fillStyle = '#64748b';
     ctx.textAlign = 'left';
     ctx.fillText('ADDRESS', colAddrX, startY + 12 * dpr);
@@ -4437,7 +4518,7 @@ function renderCSDiagram(
       rowCoords.set(cell.address, cy + 12 * dpr);
 
       // Address tag (hex in amber)
-      ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+      ctx.font = `bold ${sf(11)}px 'JetBrains Mono', monospace`;
       ctx.fillStyle = '#fbbf24';
       ctx.textAlign = 'left';
       ctx.fillText(cell.address, colAddrX, cy + 14 * dpr);
@@ -4451,17 +4532,18 @@ function renderCSDiagram(
       ctx.fillText(cell.type, colTypeX, cy + 14 * dpr);
 
       // Value box
+      const valW = availW * 0.26;
       ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
       ctx.strokeStyle = cell.pointsTo ? '#38bdf8' : 'rgba(255, 255, 255, 0.15)';
       ctx.lineWidth = 1 * dpr;
       ctx.beginPath();
-      ctx.roundRect(colValX, cy, 90 * dpr, 24 * dpr, 4 * dpr);
+      ctx.roundRect(colValX, cy, valW, 24 * dpr, 4 * dpr);
       ctx.fill();
       ctx.stroke();
 
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
-      ctx.fillText(cell.value, colValX + 45 * dpr, cy + 16 * dpr);
+      ctx.fillText(cell.value, colValX + valW / 2, cy + 16 * dpr);
     });
 
     // Draw pointer arrows (pointing from pointer cell to target cell)
@@ -4469,8 +4551,9 @@ function renderCSDiagram(
       if (cell.pointsTo && rowCoords.has(cell.pointsTo)) {
         const fromY = startY + 26 * dpr + idx * rowH + 12 * dpr;
         const toY = rowCoords.get(cell.pointsTo)!;
-        const fromX = colValX + 90 * dpr;
-        const curveX = fromX + 35 * dpr;
+        const valW = availW * 0.26;
+        const fromX = colValX + valW;
+        const curveX = Math.min(x + w - 8 * dpr, fromX + sc(28));
 
         ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 1.5 * dpr;
@@ -4493,34 +4576,36 @@ function renderCSDiagram(
     // Header bar
     ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
     ctx.beginPath();
-    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
     ctx.fill();
 
     // Dots
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
-    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#10b981';
     ctx.beginPath();
-    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
 
     // Title
     const typeLabel = isCircular ? 'Circular' : isDoubly ? 'Doubly' : 'Singly';
-    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+    ctx.font = `600 ${sf(12)}px Inter, sans-serif`;
     ctx.fillStyle = '#38bdf8';
     ctx.textAlign = 'left';
-    ctx.fillText(`🔗 ${title} (${typeLabel})`, x + 65 * dpr, y + 20 * dpr);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`🔗 ${title} (${typeLabel})`, x + sc(60), dotY);
+    ctx.textBaseline = 'alphabetic';
 
-    const nodeW = Math.min(84 * dpr, (w - 140 * dpr) / Math.max(1, nodes.length));
-    const nodeH = 46 * dpr;
-    const gap = Math.min(45 * dpr, (w - nodeW * nodes.length - 140 * dpr) / Math.max(1, nodes.length));
-    const startX = x + 65 * dpr;
+    const nodeW = Math.min(sc(84), (w - sc(130)) / Math.max(1, nodes.length));
+    const nodeH = Math.max(34 * dpr, sc(46));
+    const gap = Math.min(sc(40), (w - nodeW * nodes.length - sc(130)) / Math.max(1, nodes.length));
+    const startX = x + sc(65);
     const cy = y + h / 2 + (isCircular ? 0 : 6 * dpr);
 
     // HEAD pointer box
@@ -4528,17 +4613,17 @@ function renderCSDiagram(
     ctx.strokeStyle = '#10b981';
     ctx.lineWidth = 1.5 * dpr;
     ctx.beginPath();
-    ctx.roundRect(x + 12 * dpr, cy - 16 * dpr, 40 * dpr, 32 * dpr, 4 * dpr);
+    ctx.roundRect(x + 12 * dpr, cy - 16 * dpr, sc(40), 32 * dpr, 4 * dpr);
     ctx.fill();
     ctx.stroke();
 
-    ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+    ctx.font = `bold ${sf(10)}px Inter, sans-serif`;
     ctx.fillStyle = '#10b981';
     ctx.textAlign = 'center';
-    ctx.fillText('HEAD', x + 32 * dpr, cy + 4 * dpr);
+    ctx.fillText('HEAD', x + 12 * dpr + sc(20), cy + 4 * dpr);
 
     // Arrow from HEAD to first node
-    drawArrow(ctx, x + 52 * dpr, cy, startX - 2 * dpr, cy, '#10b981', dpr);
+    drawArrow(ctx, x + 12 * dpr + sc(40), cy, startX - 2 * dpr, cy, '#10b981', dpr);
 
     let lastPtrX = startX;
 
@@ -4550,7 +4635,7 @@ function renderCSDiagram(
       // Active pointer badge
       if (isActive) {
         ctx.fillStyle = '#fbbf24';
-        ctx.font = `bold ${Math.max(8, Math.round(9 * dpr))}px Inter, sans-serif`;
+        ctx.font = `bold ${sf(9)}px Inter, sans-serif`;
         ctx.textAlign = 'center';
         ctx.fillText('curr ➔', nx + nodeW / 2, cy - nodeH / 2 - 6 * dpr);
       }
@@ -4572,7 +4657,7 @@ function renderCSDiagram(
       ctx.stroke();
 
       // Data label
-      ctx.font = `bold ${Math.max(11, Math.round(13 * dpr))}px 'JetBrains Mono', monospace`;
+      ctx.font = `bold ${sf(13)}px 'JetBrains Mono', monospace`;
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.fillText(String(data), nx + nodeW * 0.32, cy + 5 * dpr);
@@ -4585,7 +4670,7 @@ function renderCSDiagram(
 
       // Hex address label
       if (showAddresses) {
-        ctx.font = `${Math.max(8, Math.round(9 * dpr))}px 'JetBrains Mono', monospace`;
+        ctx.font = `${sf(9)}px 'JetBrains Mono', monospace`;
         ctx.fillStyle = '#64748b';
         ctx.textAlign = 'center';
         ctx.fillText(hexAddr, nx + nodeW / 2, cy + nodeH / 2 + 14 * dpr);
@@ -4606,9 +4691,8 @@ function renderCSDiagram(
 
     // Terminator: NULL or Circular Loopback
     if (isCircular) {
-      // Loopback curve from last node pointer back to HEAD
       const loopY = cy + nodeH / 2 + 22 * dpr;
-      const headX = x + 32 * dpr;
+      const headX = x + 12 * dpr + sc(20);
       ctx.strokeStyle = '#10b981';
       ctx.lineWidth = 1.5 * dpr;
       ctx.beginPath();
@@ -4625,16 +4709,16 @@ function renderCSDiagram(
       ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = 1 * dpr;
       ctx.beginPath();
-      ctx.roundRect(lastPtrX + 16 * dpr, cy - 14 * dpr, 42 * dpr, 28 * dpr, 4 * dpr);
+      ctx.roundRect(lastPtrX + 16 * dpr, cy - 14 * dpr, sc(42), 28 * dpr, 4 * dpr);
       ctx.fill();
       ctx.stroke();
 
       drawArrow(ctx, lastPtrX, cy, lastPtrX + 14 * dpr, cy, '#ef4444', dpr);
 
-      ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px 'JetBrains Mono', monospace`;
+      ctx.font = `bold ${sf(10)}px 'JetBrains Mono', monospace`;
       ctx.fillStyle = '#f87171';
       ctx.textAlign = 'center';
-      ctx.fillText('NULL', lastPtrX + 37 * dpr, cy + 4 * dpr);
+      ctx.fillText('NULL', lastPtrX + 16 * dpr + sc(21), cy + 4 * dpr);
     }
   } else if (diagType === 'binaryTree' || diagType === 'graph' || shape.params?.graphMode === 'graph') {
     const isGraph = diagType === 'graph' || shape.params?.graphMode === 'graph';
@@ -4661,35 +4745,37 @@ function renderCSDiagram(
       // Header bar
       ctx.fillStyle = 'rgba(14, 165, 233, 0.12)';
       ctx.beginPath();
-      ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+      ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
       ctx.fill();
 
       // Dots
       ctx.fillStyle = '#ef4444';
       ctx.beginPath();
-      ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+      ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#f59e0b';
       ctx.beginPath();
-      ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+      ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#10b981';
       ctx.beginPath();
-      ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+      ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
       ctx.fill();
 
       // Title
-      ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+      ctx.font = `600 ${sf(12)}px Inter, sans-serif`;
       ctx.fillStyle = '#38bdf8';
       ctx.textAlign = 'left';
-      ctx.fillText(`🕸 ${title} (${isDirected ? 'Directed' : 'Undirected'})`, x + 65 * dpr, y + 20 * dpr);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`🕸 ${title} (${isDirected ? 'Directed' : 'Undirected'})`, x + sc(60), dotY);
+      ctx.textBaseline = 'alphabetic';
 
       // Circular layout of nodes
       const n = Math.max(1, graphNodes.length);
       const cx = x + w / 2;
-      const cy = y + 42 * dpr + (h - 52 * dpr) / 2;
-      const radius = Math.min(w * 0.38, (h - 60 * dpr) * 0.38);
-      const nodeR = 18 * dpr;
+      const cy = y + barH + (h - barH - 10 * dpr) / 2;
+      const radius = Math.min(w * 0.38, (h - barH - 24 * dpr) * 0.38);
+      const nodeR = Math.max(14 * dpr, sc(18));
 
       const nodeCoords = new Map<string, { x: number; y: number; label: string }>();
 
@@ -4733,11 +4819,11 @@ function renderCSDiagram(
               ctx.strokeStyle = '#fbbf24';
               ctx.lineWidth = 1 * dpr;
               ctx.beginPath();
-              ctx.roundRect(midX - 12 * dpr, midY - 9 * dpr, 24 * dpr, 18 * dpr, 3 * dpr);
+              ctx.roundRect(midX - sc(12), midY - sc(9), sc(24), sc(18), 3 * dpr);
               ctx.fill();
               ctx.stroke();
 
-              ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px 'JetBrains Mono', monospace`;
+              ctx.font = `bold ${sf(10)}px 'JetBrains Mono', monospace`;
               ctx.fillStyle = '#fbbf24';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
@@ -4757,13 +4843,13 @@ function renderCSDiagram(
         ctx.fill();
         ctx.stroke();
 
-        ctx.font = `bold ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+        ctx.font = `bold ${sf(12)}px Inter, sans-serif`;
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(coords.label, coords.x, coords.y);
       });
-      ctx.textBaseline = 'alphabetic'; // reset
+      ctx.textBaseline = 'alphabetic';
     } else {
       // ─── BINARY SEARCH TREE RENDERING ──────────────────────────────────
       const title = shape.params?.title || shape.label || 'Binary Search Tree (BST)';
@@ -4778,34 +4864,37 @@ function renderCSDiagram(
       // Header bar
       ctx.fillStyle = 'rgba(16, 185, 129, 0.12)';
       ctx.beginPath();
-      ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+      ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
       ctx.fill();
 
       // Dots
       ctx.fillStyle = '#ef4444';
       ctx.beginPath();
-      ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+      ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#f59e0b';
       ctx.beginPath();
-      ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+      ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#10b981';
       ctx.beginPath();
-      ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+      ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
       ctx.fill();
 
       // Title
-      ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+      ctx.font = `600 ${sf(12)}px Inter, sans-serif`;
       ctx.fillStyle = '#34d399';
       ctx.textAlign = 'left';
-      ctx.fillText(`🌳 ${title}`, x + 65 * dpr, y + 20 * dpr);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`🌳 ${title}`, x + sc(60), dotY);
+      ctx.textBaseline = 'alphabetic';
 
       // Node coordinates (3 levels)
-      const nodeR = 18 * dpr;
-      const l0Y = y + 75 * dpr;
-      const l1Y = y + 155 * dpr;
-      const l2Y = y + 235 * dpr;
+      const nodeR = Math.max(14 * dpr, sc(18));
+      const availTreeH = h - barH - 30 * dpr;
+      const l0Y = y + barH + availTreeH * 0.18;
+      const l1Y = y + barH + availTreeH * 0.52;
+      const l2Y = y + barH + availTreeH * 0.86;
 
       const rootX = x + w / 2;
       const leftX = x + w * 0.28;
@@ -4847,7 +4936,7 @@ function renderCSDiagram(
         ctx.fill();
         ctx.stroke();
 
-        ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+        ctx.font = `bold ${sf(11.5)}px 'JetBrains Mono', monospace`;
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -4862,9 +4951,9 @@ function renderCSDiagram(
       drawTreeNode(lrX, l2Y, lrVal);
       drawTreeNode(rlX, l2Y, rlVal);
       drawTreeNode(rrX, l2Y, rrVal);
-      ctx.textBaseline = 'alphabetic'; // reset
+      ctx.textBaseline = 'alphabetic';
     }
-  } else if (diagType === 'sortingArray') {
+  } else if (diagType === 'sortingArray' || diagType === 'sortingSearching') {
     const title = shape.params?.title || shape.label || 'Sorting / Searching Demonstration';
     const arr: number[] = shape.params?.array || [14, 33, 27, 10, 35, 19, 42, 44];
     const activeIndices: number[] = shape.params?.activeIndices || [2, 3];
@@ -4875,34 +4964,36 @@ function renderCSDiagram(
     // Header bar
     ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
     ctx.beginPath();
-    ctx.roundRect(x, y, w, 32 * dpr, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
     ctx.fill();
 
     // Dots
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.arc(x + 16 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
-    ctx.arc(x + 30 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#10b981';
     ctx.beginPath();
-    ctx.arc(x + 44 * dpr, y + 16 * dpr, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
     ctx.fill();
 
     // Title
-    ctx.font = `600 ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+    ctx.font = `600 ${sf(12)}px Inter, sans-serif`;
     ctx.fillStyle = '#fbbf24';
     ctx.textAlign = 'left';
-    ctx.fillText(`📶 ${title}`, x + 65 * dpr, y + 20 * dpr);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`📶 ${title}`, x + sc(60), dotY);
+    ctx.textBaseline = 'alphabetic';
 
     // Array Bars
     const maxVal = Math.max(...arr, 50);
-    const chartY = y + 50 * dpr;
-    const chartH = 140 * dpr;
-    const barW = Math.min(42 * dpr, (w - 60 * dpr) / Math.max(1, arr.length));
+    const chartY = y + barH + 16 * dpr;
+    const chartH = Math.max(60 * dpr, h - barH - sc(68));
+    const barW = Math.min(sc(44), (w - sc(50)) / Math.max(1, arr.length));
     const startX = x + (w - (barW + 8 * dpr) * arr.length) / 2;
 
     arr.forEach((val, idx) => {
@@ -4932,19 +5023,19 @@ function renderCSDiagram(
       // Pointer badge above bar
       if (ptr) {
         ctx.fillStyle = '#fbbf24';
-        ctx.font = `bold ${Math.max(8, Math.round(9 * dpr))}px Inter, sans-serif`;
+        ctx.font = `bold ${sf(9)}px Inter, sans-serif`;
         ctx.textAlign = 'center';
-        ctx.fillText(ptr.label, bx + barW / 2, by - 16 * dpr);
+        ctx.fillText(ptr.label, bx + barW / 2, by - 14 * dpr);
       }
 
       // Value label on top of bar
-      ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px 'JetBrains Mono', monospace`;
+      ctx.font = `bold ${sf(11)}px 'JetBrains Mono', monospace`;
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
-      ctx.fillText(String(val), bx + barW / 2, by - 4 * dpr);
+      ctx.fillText(String(val), bx + barW / 2, by - 3 * dpr);
 
       // Index label below baseline
-      ctx.font = `${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+      ctx.font = `${sf(10)}px Inter, sans-serif`;
       ctx.fillStyle = '#64748b';
       ctx.fillText(`[${idx}]`, bx + barW / 2, chartY + chartH + 16 * dpr);
 
@@ -4959,14 +5050,854 @@ function renderCSDiagram(
     ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
     ctx.strokeStyle = 'rgba(245, 158, 11, 0.3)';
     ctx.beginPath();
-    ctx.roundRect(x + 20 * dpr, y + h - 38 * dpr, w - 40 * dpr, 26 * dpr, 4 * dpr);
+    ctx.roundRect(x + 20 * dpr, y + h - sc(36), w - 40 * dpr, sc(26), 4 * dpr);
     ctx.fill();
     ctx.stroke();
 
-    ctx.font = `500 ${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+    ctx.font = `500 ${sf(11)}px Inter, sans-serif`;
     ctx.fillStyle = '#e2e8f0';
     ctx.textAlign = 'center';
-    ctx.fillText(`⚡ ${statusText}`, x + w / 2, y + h - 21 * dpr);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`⚡ ${statusText}`, x + w / 2, y + h - sc(23));
+    ctx.textBaseline = 'alphabetic';
+  } else if (diagType === 'databaseTable' || diagType === 'erDiagram') {
+    // ─── RELATIONAL DATABASE TABLE / ER DIAGRAM ───────────────────────────
+    const tableName = shape.params?.tableName || 'Students';
+    const columns: Array<{ name: string; type: string; isPK?: boolean; isFK?: boolean; refTable?: string }> =
+      shape.params?.columns || [
+        { name: 'id', type: 'INT', isPK: true },
+        { name: 'name', type: 'VARCHAR(100)' },
+        { name: 'email', type: 'VARCHAR(255)' },
+        { name: 'course_id', type: 'INT', isFK: true },
+        { name: 'created_at', type: 'TIMESTAMP' },
+      ];
+
+    // Frame styling with cyan accent
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 10 * dpr);
+    ctx.stroke();
+
+    // Header bar
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+    ctx.beginPath();
+    ctx.moveTo(x, y + barH);
+    ctx.lineTo(x + w, y + barH);
+    ctx.stroke();
+
+    // Window Dots
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Table title & Schema Badge
+    ctx.font = `bold ${sf(12)}px Inter, sans-serif`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`🗄️  Table: ${tableName}`, x + sc(60), dotY);
+
+    ctx.font = `600 ${sf(9)}px Inter, sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'right';
+    ctx.fillText(`RELATIONAL SCHEMA • ${columns.length} COLUMNS`, x + w - sc(16), dotY);
+
+    // Column Headers row
+    const headerY = y + barH + 8 * dpr;
+    const headerH = Math.max(22 * dpr, sc(26));
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.1)';
+    ctx.beginPath();
+    ctx.roundRect(x + 10 * dpr, headerY, w - 20 * dpr, headerH, 4 * dpr);
+    ctx.fill();
+
+    const colW1 = (w - 20 * dpr) * 0.42;
+    const colW2 = (w - 20 * dpr) * 0.36;
+
+    ctx.font = `700 ${sf(10)}px Inter, sans-serif`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.textAlign = 'left';
+    ctx.fillText('COLUMN NAME', x + 20 * dpr, headerY + headerH / 2);
+    ctx.fillText('DATA TYPE', x + 10 * dpr + colW1 + 10 * dpr, headerY + headerH / 2);
+    ctx.fillText('CONSTRAINTS', x + 10 * dpr + colW1 + colW2 + 10 * dpr, headerY + headerH / 2);
+
+    // Column Data Rows
+    const rowH = Math.max(24 * dpr, sc(28));
+    const startY = headerY + headerH + 6 * dpr;
+    const maxVisibleRows = Math.floor((h - (startY - y) - 34 * dpr) / rowH);
+
+    columns.slice(0, maxVisibleRows).forEach((col, idx) => {
+      const rowY = startY + idx * rowH;
+
+      // Row alternating highlight
+      if (idx % 2 === 1) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
+        ctx.fillRect(x + 10 * dpr, rowY, w - 20 * dpr, rowH);
+      }
+
+      // Bottom border
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1 * dpr;
+      ctx.beginPath();
+      ctx.moveTo(x + 10 * dpr, rowY + rowH);
+      ctx.lineTo(x + w - 10 * dpr, rowY + rowH);
+      ctx.stroke();
+
+      // Column name + Icon
+      ctx.font = `600 ${sf(11)}px 'JetBrains Mono', monospace`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      if (col.isPK) {
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillText(`🔑 ${col.name}`, x + 20 * dpr, rowY + rowH / 2);
+      } else if (col.isFK) {
+        ctx.fillStyle = '#a78bfa';
+        ctx.fillText(`🔗 ${col.name}`, x + 20 * dpr, rowY + rowH / 2);
+      } else {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillText(`   ${col.name}`, x + 20 * dpr, rowY + rowH / 2);
+      }
+
+      // Type Badge
+      ctx.font = `500 ${sf(10)}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText(col.type, x + 10 * dpr + colW1 + 10 * dpr, rowY + rowH / 2);
+
+      // Constraints / Keys Badge
+      const keyX = x + 10 * dpr + colW1 + colW2 + 10 * dpr;
+      if (col.isPK) {
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.2)';
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 1 * dpr;
+        ctx.beginPath();
+        ctx.roundRect(keyX, rowY + 3 * dpr, sc(42), rowH - 6 * dpr, 4 * dpr);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = `bold ${sf(9)}px Inter, sans-serif`;
+        ctx.fillStyle = '#fbbf24';
+        ctx.textAlign = 'center';
+        ctx.fillText('PK', keyX + sc(21), rowY + rowH / 2);
+      } else if (col.isFK) {
+        ctx.fillStyle = 'rgba(167, 139, 250, 0.2)';
+        ctx.strokeStyle = '#a78bfa';
+        ctx.lineWidth = 1 * dpr;
+        ctx.beginPath();
+        ctx.roundRect(keyX, rowY + 3 * dpr, sc(42), rowH - 6 * dpr, 4 * dpr);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = `bold ${sf(9)}px Inter, sans-serif`;
+        ctx.fillStyle = '#a78bfa';
+        ctx.textAlign = 'center';
+        ctx.fillText('FK', keyX + sc(21), rowY + rowH / 2);
+      } else {
+        ctx.font = `400 ${sf(9)}px Inter, sans-serif`;
+        ctx.fillStyle = '#64748b';
+        ctx.textAlign = 'left';
+        ctx.fillText('NULLABLE', keyX, rowY + rowH / 2);
+      }
+    });
+
+    // Footer with SQL Query Hint
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.beginPath();
+    ctx.roundRect(x + 10 * dpr, y + h - sc(28), w - 20 * dpr, sc(22), 4 * dpr);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+    ctx.stroke();
+
+    ctx.font = `italic 500 ${sf(9.5)}px 'JetBrains Mono', monospace`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`SELECT * FROM ${tableName} LIMIT 50;`, x + w / 2, y + h - sc(17));
+    ctx.textBaseline = 'alphabetic';
+  } else if (diagType === 'cpuArchitecture' || diagType === 'vonNeumann') {
+    // ─── CPU & VON NEUMANN ARCHITECTURE ──────────────────────────────────
+    const title = shape.params?.title || shape.label || 'CPU & Von Neumann Architecture';
+    const busWidth = shape.params?.busWidth || '64-bit';
+    const registers: string[] = shape.params?.registers || ['PC', 'MAR', 'MDR', 'ACC', 'CIR'];
+    const showIO = shape.params?.showIO ?? true;
+
+    // Frame styling with emerald accent
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 10 * dpr);
+    ctx.stroke();
+
+    // Header bar
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(16, 185, 129, 0.25)';
+    ctx.beginPath();
+    ctx.moveTo(x, y + barH);
+    ctx.lineTo(x + w, y + barH);
+    ctx.stroke();
+
+    // Window Dots
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Title
+    ctx.font = `bold ${sf(12)}px Inter, sans-serif`;
+    ctx.fillStyle = '#34d399';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`🖥️  ${title}`, x + sc(60), dotY);
+
+    ctx.font = `600 ${sf(9)}px Inter, sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'right';
+    ctx.fillText(`STORED-PROGRAM • ${busWidth} BUS`, x + w - sc(16), dotY);
+
+    // Layout blocks
+    const contentY = y + barH + 10 * dpr;
+    const availH = h - barH - 20 * dpr;
+    const cpuW = w * 0.58;
+    const memW = w * 0.35;
+    const cpuX = x + 12 * dpr;
+    const memX = x + w - memW - 12 * dpr;
+    const topH = showIO ? availH * 0.55 : availH * 0.72;
+
+    // ─── 1. CPU BLOCK ───
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.08)';
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 1.8 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(cpuX, contentY, cpuW, topH, 8 * dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = `bold ${sf(11)}px Inter, sans-serif`;
+    ctx.fillStyle = '#34d399';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('CENTRAL PROCESSING UNIT (CPU)', cpuX + 12 * dpr, contentY + 8 * dpr);
+
+    // Inside CPU: Control Unit (CU) & ALU
+    const innerW = (cpuW - 28 * dpr) / 2;
+    const cuX = cpuX + 10 * dpr;
+    const aluX = cuX + innerW + 8 * dpr;
+    const cuY = contentY + 28 * dpr;
+    const cuH = topH * 0.42;
+
+    // Control Unit (CU)
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.2 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(cuX, cuY, innerW, cuH, 6 * dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = `bold ${sf(10)}px Inter, sans-serif`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Control Unit (CU)', cuX + innerW / 2, cuY + cuH * 0.35);
+    ctx.font = `400 ${sf(8.5)}px Inter, sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('Decodes & Controls', cuX + innerW / 2, cuY + cuH * 0.65);
+
+    // Arithmetic Logic Unit (ALU)
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 1.2 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(aluX, cuY, innerW, cuH, 6 * dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = `bold ${sf(10)}px Inter, sans-serif`;
+    ctx.fillStyle = '#fbbf24';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Arithmetic Logic (ALU)', aluX + innerW / 2, cuY + cuH * 0.35);
+    ctx.font = `400 ${sf(8.5)}px Inter, sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('Math & Logic Ops', aluX + innerW / 2, cuY + cuH * 0.65);
+
+    // Registers Row inside CPU
+    const regY = cuY + cuH + 8 * dpr;
+    const regH = topH - (regY - contentY) - 8 * dpr;
+    const regCount = Math.max(1, registers.length);
+    const regBoxW = (cpuW - 20 * dpr) / regCount;
+
+    registers.forEach((r, idx) => {
+      const rx = cpuX + 10 * dpr + idx * regBoxW;
+      ctx.fillStyle = 'rgba(167, 139, 250, 0.18)';
+      ctx.strokeStyle = '#a78bfa';
+      ctx.lineWidth = 1 * dpr;
+      ctx.beginPath();
+      ctx.roundRect(rx + 2 * dpr, regY, regBoxW - 4 * dpr, regH, 4 * dpr);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = `bold ${sf(9)}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = '#c084fc';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(r, rx + regBoxW / 2, regY + regH / 2);
+    });
+
+    // ─── 2. MEMORY (RAM) BLOCK ───
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.08)';
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 1.8 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(memX, contentY, memW, topH, 8 * dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = `bold ${sf(11)}px Inter, sans-serif`;
+    ctx.fillStyle = '#f87171';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('PRIMARY MEMORY (RAM)', memX + 12 * dpr, contentY + 8 * dpr);
+
+    // RAM Cells
+    const cellStartY = contentY + 28 * dpr;
+    const cellH = (topH - 36 * dpr) / 4;
+    const ramSlots = [
+      { addr: '0x000', label: 'ADD R1, R2', isCode: true },
+      { addr: '0x001', label: 'STORE 0x05', isCode: true },
+      { addr: '0x002', label: 'DATA: 42', isCode: false },
+      { addr: '0x003', label: 'DATA: 108', isCode: false },
+    ];
+
+    ramSlots.forEach((slot, idx) => {
+      const cy = cellStartY + idx * cellH;
+      ctx.fillStyle = slot.isCode ? 'rgba(56, 189, 248, 0.1)' : 'rgba(245, 158, 11, 0.1)';
+      ctx.fillRect(memX + 8 * dpr, cy + 2 * dpr, memW - 16 * dpr, cellH - 4 * dpr);
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.strokeRect(memX + 8 * dpr, cy + 2 * dpr, memW - 16 * dpr, cellH - 4 * dpr);
+
+      ctx.font = `500 ${sf(8.5)}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = '#94a3b8';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(slot.addr, memX + 14 * dpr, cy + cellH / 2);
+
+      ctx.font = `600 ${sf(8.5)}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = slot.isCode ? '#38bdf8' : '#fbbf24';
+      ctx.textAlign = 'right';
+      ctx.fillText(slot.label, memX + memW - 14 * dpr, cy + cellH / 2);
+    });
+
+    // ─── 3. SYSTEM BUS (HORIZONTAL BAND) ───
+    const busY = contentY + topH + 10 * dpr;
+    const busH = showIO ? sc(32) : availH - topH - 16 * dpr;
+
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.98)';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(x + 12 * dpr, busY, w - 24 * dpr, busH, 6 * dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    // Bus lines inside band
+    const busLine1 = busY + busH * 0.25;
+    const busLine2 = busY + busH * 0.5;
+    const busLine3 = busY + busH * 0.75;
+
+    // Control Bus (Yellow)
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(x + 20 * dpr, busLine1);
+    ctx.lineTo(x + w - 20 * dpr, busLine1);
+    ctx.stroke();
+
+    // Address Bus (Cyan)
+    ctx.strokeStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.moveTo(x + 20 * dpr, busLine2);
+    ctx.lineTo(x + w - 20 * dpr, busLine2);
+    ctx.stroke();
+
+    // Data Bus (Green)
+    ctx.strokeStyle = '#10b981';
+    ctx.beginPath();
+    ctx.moveTo(x + 20 * dpr, busLine3);
+    ctx.lineTo(x + w - 20 * dpr, busLine3);
+    ctx.stroke();
+
+    ctx.font = `bold ${sf(8.5)}px Inter, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(`⚡ SYSTEM BUSES: Control Bus (Yellow) • Address Bus (Cyan) • Data Bus (Green)`, x + w / 2, busY + busH / 2);
+
+    // ─── 4. INPUT / OUTPUT (I/O) DEVICES ───
+    if (showIO) {
+      const ioY = busY + busH + 8 * dpr;
+      const ioH = availH - (ioY - contentY);
+      const ioBoxW = (w - 34 * dpr) / 2;
+
+      // Input Devices
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.2 * dpr;
+      ctx.beginPath();
+      ctx.roundRect(x + 12 * dpr, ioY, ioBoxW, ioH, 6 * dpr);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = `bold ${sf(9.5)}px Inter, sans-serif`;
+      ctx.fillStyle = '#38bdf8';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('📥 Input Interface (Keyboard, Mouse, Sensor)', x + 18 * dpr, ioY + ioH / 2);
+
+      // Output Devices
+      const outX = x + 12 * dpr + ioBoxW + 10 * dpr;
+      ctx.fillStyle = 'rgba(167, 139, 250, 0.08)';
+      ctx.strokeStyle = '#a78bfa';
+      ctx.lineWidth = 1.2 * dpr;
+      ctx.beginPath();
+      ctx.roundRect(outX, ioY, ioBoxW, ioH, 6 * dpr);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = `bold ${sf(9.5)}px Inter, sans-serif`;
+      ctx.fillStyle = '#c084fc';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('📤 Output Interface (Monitor, Storage, Speaker)', outX + 8 * dpr, ioY + ioH / 2);
+    }
+    ctx.textBaseline = 'alphabetic';
+  } else if (diagType === 'instructionCycle') {
+    // ─── CPU INSTRUCTION CYCLE (FETCH-DECODE-EXECUTE) ──────────────────────
+    const title = shape.params?.title || shape.label || 'Instruction Cycle (Fetch-Decode-Execute)';
+
+    // Frame styling with purple accent
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 10 * dpr);
+    ctx.stroke();
+
+    // Header bar
+    ctx.fillStyle = 'rgba(168, 85, 247, 0.15)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.fill();
+
+    // Dots
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.font = `bold ${sf(12)}px Inter, sans-serif`;
+    ctx.fillStyle = '#c084fc';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`🔁  ${title}`, x + sc(60), dotY);
+    ctx.textBaseline = 'alphabetic';
+
+    // 4 Lifecycle Stages
+    const stages = [
+      { name: '1. FETCH', desc: 'PC ➔ MAR ➔ RAM ➔ MDR ➔ CIR', color: '#38bdf8' },
+      { name: '2. DECODE', desc: 'CU decodes opcode & addressing', color: '#fbbf24' },
+      { name: '3. EXECUTE', desc: 'ALU performs math / data moved', color: '#10b981' },
+      { name: '4. STORE & NEXT', desc: 'Results in ACC / RAM, PC++', color: '#a78bfa' },
+    ];
+
+    const boxW = (w - 44 * dpr) / 2;
+    const boxH = (h - barH - 36 * dpr) / 2;
+
+    stages.forEach((st, idx) => {
+      const col = idx % 2;
+      const row = Math.floor(idx / 2);
+      const bx = x + 14 * dpr + col * (boxW + 16 * dpr);
+      const by = y + barH + 12 * dpr + row * (boxH + 12 * dpr);
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.strokeStyle = st.color;
+      ctx.lineWidth = 1.8 * dpr;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, boxW, boxH, 8 * dpr);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = `bold ${sf(12)}px Inter, sans-serif`;
+      ctx.fillStyle = st.color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(st.name, bx + boxW / 2, by + boxH * 0.38);
+
+      ctx.font = `500 ${sf(9.5)}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillText(st.desc, bx + boxW / 2, by + boxH * 0.68);
+    });
+    ctx.textBaseline = 'alphabetic';
+  } else if (diagType === 'networkTopology') {
+    // ─── COMPUTER NETWORK TOPOLOGY ──────────────────────────────────────
+    const topology = shape.params?.topology || 'star';
+    const title = shape.params?.title || shape.label || `Network Topology (${topology.toUpperCase()})`;
+    const nodes: Array<{ id: string; name: string; type: string; ip?: string }> =
+      shape.params?.nodes || [
+        { id: 'SW', name: 'Switch (Core)', type: 'switch', ip: '192.168.1.1' },
+        { id: 'PC1', name: 'PC 1 (Lab)', type: 'pc', ip: '192.168.1.10' },
+        { id: 'PC2', name: 'PC 2 (Lab)', type: 'pc', ip: '192.168.1.11' },
+        { id: 'PC3', name: 'PC 3 (Lab)', type: 'pc', ip: '192.168.1.12' },
+        { id: 'PRN', name: 'Printer', type: 'printer', ip: '192.168.1.20' },
+      ];
+
+    // Frame styling with cyan/sky accent
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 10 * dpr);
+    ctx.stroke();
+
+    // Header bar
+    ctx.fillStyle = 'rgba(2, 132, 199, 0.15)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, barH, [10 * dpr, 10 * dpr, 0, 0]);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(2, 132, 199, 0.25)';
+    ctx.beginPath();
+    ctx.moveTo(x, y + barH);
+    ctx.lineTo(x + w, y + barH);
+    ctx.stroke();
+
+    // Window Dots
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(x + sc(16), dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(x + sc(30), dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(x + sc(44), dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Title & Topology Badge
+    ctx.font = `bold ${sf(12)}px Inter, sans-serif`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`🌐  ${title}`, x + sc(60), dotY);
+
+    ctx.font = `600 ${sf(9)}px Inter, sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${topology.toUpperCase()} TOPOLOGY • ${nodes.length} DEVICES`, x + w - sc(16), dotY);
+
+    // Layout bounds
+    const contentY = y + barH + 12 * dpr;
+    const contentH = h - barH - sc(48);
+    const cx = x + w / 2;
+    const cy = contentY + contentH / 2;
+
+    const getNodeIcon = (type: string) => {
+      switch (type) {
+        case 'switch':
+          return '🔀';
+        case 'router':
+          return '📡';
+        case 'server':
+          return '🗄️';
+        case 'printer':
+          return '🖨️';
+        default:
+          return '🖥️';
+      }
+    };
+
+    const nodeBoxW = Math.max(50 * dpr, sc(64));
+    const nodeBoxH = Math.max(34 * dpr, sc(44));
+
+    const drawDeviceNode = (nx: number, ny: number, node: { id: string; name: string; type: string; ip?: string }) => {
+      const isHub = node.type === 'switch' || node.type === 'router';
+      ctx.fillStyle = isHub ? 'rgba(56, 189, 248, 0.2)' : 'rgba(15, 23, 42, 0.95)';
+      ctx.strokeStyle = isHub ? '#38bdf8' : '#64748b';
+      ctx.lineWidth = 1.5 * dpr;
+      ctx.beginPath();
+      ctx.roundRect(nx - nodeBoxW / 2, ny - nodeBoxH / 2, nodeBoxW, nodeBoxH, 6 * dpr);
+      ctx.fill();
+      ctx.stroke();
+
+      // Icon & Name
+      ctx.font = `bold ${sf(10)}px Inter, sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${getNodeIcon(node.type)} ${node.id}`, nx, ny - sc(6));
+
+      // IP Badge
+      if (node.ip) {
+        ctx.font = `500 ${sf(8)}px 'JetBrains Mono', monospace`;
+        ctx.fillStyle = isHub ? '#38bdf8' : '#10b981';
+        ctx.fillText(node.ip, nx, ny + sc(10));
+      }
+    };
+
+    if (topology === 'bus') {
+      // ─── BUS TOPOLOGY (Backbone line with Terminators) ───
+      const busLineY = cy;
+      const leftTermX = x + sc(35);
+      const rightTermX = x + w - sc(35);
+
+      // Main Backbone Cable
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 3.5 * dpr;
+      ctx.beginPath();
+      ctx.moveTo(leftTermX, busLineY);
+      ctx.lineTo(rightTermX, busLineY);
+      ctx.stroke();
+
+      // Terminators [T]
+      const drawTerm = (tx: number) => {
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(tx - 6 * dpr, busLineY - 12 * dpr, 12 * dpr, 24 * dpr);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1 * dpr;
+        ctx.strokeRect(tx - 6 * dpr, busLineY - 12 * dpr, 12 * dpr, 24 * dpr);
+        ctx.font = `bold ${sf(8)}px Inter, sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('T', tx, busLineY);
+      };
+      drawTerm(leftTermX);
+      drawTerm(rightTermX);
+
+      // Place nodes alternating above and below the backbone
+      const count = Math.max(1, nodes.length);
+      const stepX = (rightTermX - leftTermX - sc(40)) / Math.max(1, count);
+
+      nodes.forEach((node, i) => {
+        const nx = leftTermX + sc(20) + (i + 0.5) * stepX;
+        const isAbove = i % 2 === 0;
+        const ny = isAbove ? cy - sc(50) : cy + sc(50);
+
+        // Drop line
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+        ctx.lineWidth = 1.8 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(nx, busLineY);
+        ctx.lineTo(nx, isAbove ? ny + nodeBoxH / 2 : ny - nodeBoxH / 2);
+        ctx.stroke();
+
+        // T-Connector dot on backbone
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(nx, busLineY, 3.5 * dpr, 0, Math.PI * 2);
+        ctx.fill();
+
+        drawDeviceNode(nx, ny, node);
+      });
+    } else if (topology === 'mesh') {
+      // ─── FULL MESH TOPOLOGY ───
+      const count = Math.max(1, nodes.length);
+      const radius = Math.min(w * 0.36, contentH * 0.38);
+      const coords = nodes.map((n, i) => {
+        const angle = -Math.PI / 2 + (2 * Math.PI * i) / count;
+        return {
+          node: n,
+          x: cx + radius * Math.cos(angle),
+          y: cy + radius * Math.sin(angle),
+        };
+      });
+
+      // Interconnect every pair (Mesh)
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+      ctx.lineWidth = 1.5 * dpr;
+      for (let i = 0; i < coords.length; i++) {
+        for (let j = i + 1; j < coords.length; j++) {
+          ctx.beginPath();
+          ctx.moveTo(coords[i].x, coords[i].y);
+          ctx.lineTo(coords[j].x, coords[j].y);
+          ctx.stroke();
+        }
+      }
+
+      // Draw nodes on top
+      coords.forEach((c) => drawDeviceNode(c.x, c.y, c.node));
+    } else if (topology === 'ring') {
+      // ─── RING TOPOLOGY (Token Ring Loop) ───
+      const count = Math.max(1, nodes.length);
+      const radius = Math.min(w * 0.36, contentH * 0.38);
+      const coords = nodes.map((n, i) => {
+        const angle = -Math.PI / 2 + (2 * Math.PI * i) / count;
+        return {
+          node: n,
+          x: cx + radius * Math.cos(angle),
+          y: cy + radius * Math.sin(angle),
+        };
+      });
+
+      // Closed loop cables with directional arrows
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2 * dpr;
+      for (let i = 0; i < coords.length; i++) {
+        const next = coords[(i + 1) % coords.length];
+        ctx.beginPath();
+        ctx.moveTo(coords[i].x, coords[i].y);
+        ctx.lineTo(next.x, next.y);
+        ctx.stroke();
+
+        // Direction arrow halfway
+        const midX = (coords[i].x + next.x) / 2;
+        const midY = (coords[i].y + next.y) / 2;
+        drawArrow(ctx, coords[i].x, coords[i].y, midX + 2 * dpr, midY + 2 * dpr, '#10b981', dpr);
+      }
+
+      // Draw nodes
+      coords.forEach((c) => drawDeviceNode(c.x, c.y, c.node));
+    } else if (topology === 'tree') {
+      // ─── TREE / HIERARCHICAL TOPOLOGY ───
+      const rootNode = nodes[0] || { id: 'CORE', name: 'Core Router', type: 'router', ip: '10.0.0.1' };
+      const rootX = cx;
+      const rootY = contentY + sc(28);
+
+      const midNodes = nodes.slice(1, 3);
+      const leafNodes = nodes.slice(3);
+
+      const midY = contentY + contentH * 0.5;
+      const leafY = contentY + contentH - sc(14);
+
+      // Root Node
+      drawDeviceNode(rootX, rootY, rootNode);
+
+      // Mid level switches
+      const midCoords: Array<{ x: number; y: number; node: any }> = [];
+      const midW = w * 0.55;
+      midNodes.forEach((mn, mi) => {
+        const mx = cx - midW / 2 + (mi + 0.5) * (midW / Math.max(1, midNodes.length));
+        midCoords.push({ x: mx, y: midY, node: mn });
+
+        // Branch from root to mid
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.8 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(rootX, rootY + nodeBoxH / 2);
+        ctx.lineTo(mx, midY - nodeBoxH / 2);
+        ctx.stroke();
+
+        drawDeviceNode(mx, midY, mn);
+      });
+
+      // Leaf nodes
+      if (leafNodes.length > 0) {
+        const leafW = w * 0.8;
+        leafNodes.forEach((ln, li) => {
+          const lx = cx - leafW / 2 + (li + 0.5) * (leafW / leafNodes.length);
+          const parentMid = midCoords[li % midCoords.length] || { x: rootX, y: rootY };
+
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+          ctx.lineWidth = 1.5 * dpr;
+          ctx.beginPath();
+          ctx.moveTo(parentMid.x, parentMid.y + nodeBoxH / 2);
+          ctx.lineTo(lx, leafY - nodeBoxH / 2);
+          ctx.stroke();
+
+          drawDeviceNode(lx, leafY, ln);
+        });
+      }
+    } else {
+      // ─── STAR TOPOLOGY (DEFAULT) ───
+      const centerNode = nodes.find((n) => n.type === 'switch' || n.type === 'router') || nodes[0];
+      const peripheralNodes = nodes.filter((n) => n !== centerNode);
+
+      const radius = Math.min(w * 0.36, contentH * 0.42);
+      const count = Math.max(1, peripheralNodes.length);
+
+      // Radial connecting cables
+      peripheralNodes.forEach((pNode, i) => {
+        const angle = -Math.PI / 2 + (2 * Math.PI * i) / count;
+        const px = cx + radius * Math.cos(angle);
+        const py = cy + radius * Math.sin(angle);
+
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.8 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+
+        // Data pulse dot on cable
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(cx + (px - cx) * 0.45, cy + (py - cy) * 0.45, 3 * dpr, 0, Math.PI * 2);
+        ctx.fill();
+
+        drawDeviceNode(px, py, pNode);
+      });
+
+      // Central Switch / Hub on top of cables
+      drawDeviceNode(cx, cy, centerNode);
+    }
+
+    // Bottom explanation banner
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+    ctx.beginPath();
+    ctx.roundRect(x + 16 * dpr, y + h - sc(30), w - 32 * dpr, sc(22), 4 * dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    const explanations: Record<string, string> = {
+      star: 'Central switch coordinates traffic; failure of a single cable does not take down the network',
+      mesh: 'Full redundancy (n(n-1)/2 links); highest fault tolerance but most expensive cabling',
+      bus: 'Shared central backbone with terminators; easy to install but signal collisions & single break halts bus',
+      ring: 'Token passes unidirectionally; deterministic access control without data collisions',
+      tree: 'Hierarchical scalability combining star groups; ideal for multi-floor enterprise networks',
+      clientServer: 'Centralized servers provide compute, database, and auth services to authenticated clients',
+    };
+
+    ctx.font = `500 ${sf(9.5)}px Inter, sans-serif`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`⚡ ${explanations[topology] || 'High-performance structured network configuration'}`, x + w / 2, y + h - sc(19));
+    ctx.textBaseline = 'alphabetic';
   }
 }
 
@@ -5038,40 +5969,661 @@ function renderLogicGate(
   h: number,
   dpr: number
 ) {
-  const gateType = shape.params?.gateType || 'AND';
+  const gateType = (shape.params?.gateType || 'AND').toUpperCase();
+  const blockType = shape.params?.blockType;
   const strokeColor = shape.strokeColor || '#38bdf8';
+  const showLabels = shape.params?.showLabels ?? true;
 
-  ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.92)';
+  // Base unscaled reference width for proportional corner resize scaling
+  const defaultBaseW = blockType ? 220 : 170;
+  const baseW = defaultBaseW * dpr;
+  const resizeScale = Math.max(0.4, Math.min(3.8, w / baseW));
+
+  const customFontSize = typeof shape.params?.fontSize === 'number' && shape.params.fontSize > 0 ? shape.params.fontSize : 14;
+  const effectiveFontScale = (customFontSize / 14) * resizeScale;
+  const sf = (basePx: number) => Math.max(7, Math.round(basePx * effectiveFontScale * dpr));
+  const sc = (basePx: number) => Math.round(basePx * resizeScale * dpr);
+
+  const lineWidth = Math.max(1.8 * dpr, sc(2.4));
   ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = 2.5 * dpr;
+  ctx.lineWidth = lineWidth;
+  ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.92)';
 
-  const lead = 25 * dpr;
-  const gw = w - lead * 2;
-  const gh = h;
-  const gx = x + lead;
-  const gy = y;
+  if (blockType) {
+    // ─── COMBINATIONAL / SEQUENTIAL IC BLOCKS ──────────────────────────
+    if (blockType === 'HalfAdder' || blockType === 'FullAdder') {
+      const isFull = blockType === 'FullAdder';
+      const title = isFull ? 'FULL ADDER (FA)' : 'HALF ADDER (HA)';
 
-  // Input A & B leads
-  ctx.beginPath();
-  ctx.moveTo(x, gy + gh * 0.3);
-  ctx.lineTo(gx, gy + gh * 0.3);
-  if (gateType !== 'NOT') {
-    ctx.moveTo(x, gy + gh * 0.7);
-    ctx.lineTo(gx, gy + gh * 0.7);
+      const a = (shape.params?.inputA ?? 1) & 1;
+      const b = (shape.params?.inputB ?? 0) & 1;
+      const cin = (shape.params?.cin ?? (isFull ? 1 : 0)) & 1;
+
+      const { sum, cout, formulaStr } = evaluateAdder(isFull, a, b, cin);
+
+      const inputs = isFull
+        ? [{ label: 'A', val: a }, { label: 'B', val: b }, { label: 'Cin', val: cin }]
+        : [{ label: 'A', val: a }, { label: 'B', val: b }];
+
+      const outputs = [
+        { label: 'Sum (S)', val: sum },
+        { label: isFull ? 'Cout' : 'Carry (C)', val: cout },
+      ];
+
+      const leadW = Math.max(20 * dpr, sc(28));
+      const boxX = x + leadW;
+      const boxW = w - leadW * 2;
+      const boxY = y + sc(10);
+      const boxH = h - sc(20);
+
+      // IC Body
+      ctx.beginPath();
+      ctx.roundRect(boxX, boxY, boxW, boxH, 8 * dpr);
+      ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.94)';
+      ctx.fill();
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+
+      // Header Bar
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+      ctx.beginPath();
+      ctx.roundRect(boxX, boxY, boxW, sc(28), [8 * dpr, 8 * dpr, 0, 0]);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+      ctx.stroke();
+
+      ctx.font = `bold ${sf(11.5)}px Inter, sans-serif`;
+      ctx.fillStyle = '#38bdf8';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(title, boxX + boxW / 2, boxY + sc(14));
+
+      // Live Arithmetic Display Box in center
+      ctx.font = `bold ${sf(10.5)}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText(formulaStr, boxX + boxW / 2, boxY + boxH * 0.48);
+
+      // Logic Hint at bottom
+      ctx.font = `${sf(8.5)}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(
+        isFull ? 'S = A ⊕ B ⊕ Cin,  Cout = AB + Cin(A⊕B)' : 'S = A ⊕ B,  Carry = A · B',
+        boxX + boxW / 2,
+        boxY + boxH - sc(12)
+      );
+
+      // Input pins on left
+      inputs.forEach((inPin, i) => {
+        const py = boxY + sc(34) + ((boxH - sc(50)) / (inputs.length + 1)) * (i + 1);
+        const isActive = inPin.val === 1;
+
+        ctx.strokeStyle = isActive ? '#10b981' : strokeColor;
+        ctx.lineWidth = (isActive ? 2.5 : 1.5) * dpr;
+        ctx.beginPath();
+        ctx.moveTo(x, py);
+        ctx.lineTo(boxX, py);
+        ctx.stroke();
+
+        if (showLabels) {
+          ctx.font = `bold ${sf(10.5)}px 'JetBrains Mono', monospace`;
+          ctx.fillStyle = isActive ? '#10b981' : '#38bdf8';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`${inPin.label} = ${inPin.val}`, x + sc(3), py - sc(3));
+        }
+      });
+
+      // Output pins on right
+      outputs.forEach((outPin, i) => {
+        const py = boxY + sc(34) + ((boxH - sc(50)) / (outputs.length + 1)) * (i + 1);
+        const isActive = outPin.val === 1;
+
+        ctx.strokeStyle = isActive ? '#10b981' : strokeColor;
+        ctx.lineWidth = (isActive ? 2.5 : 1.5) * dpr;
+        ctx.beginPath();
+        ctx.moveTo(boxX + boxW, py);
+        ctx.lineTo(x + w, py);
+        ctx.stroke();
+
+        if (showLabels) {
+          ctx.font = `bold ${sf(10.5)}px 'JetBrains Mono', monospace`;
+          ctx.fillStyle = isActive ? '#10b981' : '#34d399';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`${outPin.label} = ${outPin.val}`, x + w - sc(3), py - sc(3));
+        }
+      });
+      ctx.textBaseline = 'alphabetic';
+    } else if (blockType === 'MUX' || blockType.startsWith('MUX')) {
+      // ─── CUSTOMIZABLE N:1 MULTIPLEXER (2:1, 4:1, 8:1, 16:1) ───
+      const rawSize = shape.params?.muxSize || (Array.isArray(shape.params?.inputs) ? shape.params.inputs.length : 4);
+      const muxSize = [2, 4, 8, 16].includes(rawSize) ? rawSize : 4;
+      const selectCount = Math.ceil(Math.log2(muxSize));
+
+      const rawInputValues = Array.isArray(shape.params?.inputValues) ? shape.params.inputValues : [];
+      const inputValues = Array.from({ length: muxSize }, (_, i) => (rawInputValues[i] ?? (i % 2 === 1 ? 1 : 0)) & 1);
+
+      let selectedChannel = 0;
+      if (typeof shape.params?.selectedChannel === 'number') {
+        selectedChannel = Math.max(0, Math.min(muxSize - 1, shape.params.selectedChannel));
+      } else if (Array.isArray(shape.params?.selectValues)) {
+        selectedChannel = shape.params.selectValues.reduce((acc, bit, idx) => acc | ((bit & 1) << idx), 0) % muxSize;
+      }
+
+      const outputVal = inputValues[selectedChannel] ?? 0;
+
+      // Authentic Trapezoid Geometry
+      const leadW = Math.max(18 * dpr, sc(26));
+      const mx = x + leadW;
+      const mw = w - leadW * 2;
+      const topOffset = Math.min(h * 0.22, sc(28));
+      const my = y + sc(8);
+      const mh = h - sc(26);
+
+      // Trapezoid Body
+      ctx.beginPath();
+      ctx.moveTo(mx, my);
+      ctx.lineTo(mx + mw, my + topOffset);
+      ctx.lineTo(mx + mw, my + mh - topOffset);
+      ctx.lineTo(mx, my + mh);
+      ctx.closePath();
+
+      ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.94)';
+      ctx.fill();
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+
+      // Title Banner
+      ctx.font = `bold ${sf(12.5)}px Inter, sans-serif`;
+      ctx.fillStyle = '#38bdf8';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${muxSize}:1 MUX`, mx + mw * 0.52, my + sc(20));
+
+      // Status Equation inside
+      ctx.font = `bold ${sf(9.5)}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = outputVal === 1 ? '#10b981' : '#94a3b8';
+      ctx.fillText(`Y = D${selectedChannel} (${outputVal})`, mx + mw * 0.52, my + mh - sc(16));
+
+      // Internal Active Routing Wire (Connecting active input pin to output Y)
+      const selectedPy = my + (mh / (muxSize + 1)) * (selectedChannel + 1);
+      const outY = my + mh / 2;
+      ctx.save();
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = Math.max(2.2 * dpr, sc(2.8));
+      ctx.setLineDash([4 * dpr, 3 * dpr]);
+      ctx.beginPath();
+      ctx.moveTo(mx, selectedPy);
+      ctx.lineTo(mx + mw * 0.52, selectedPy);
+      ctx.lineTo(mx + mw, outY);
+      ctx.stroke();
+      ctx.restore();
+
+      // Data Inputs on Left (D0 .. D(n-1))
+      for (let i = 0; i < muxSize; i++) {
+        const py = my + (mh / (muxSize + 1)) * (i + 1);
+        const isSelected = i === selectedChannel;
+        const bitVal = inputValues[i] ?? 0;
+
+        ctx.strokeStyle = isSelected ? '#10b981' : 'rgba(148, 163, 184, 0.5)';
+        ctx.lineWidth = (isSelected ? 2.5 : 1.5) * dpr;
+        ctx.beginPath();
+        ctx.moveTo(x, py);
+        ctx.lineTo(mx, py);
+        ctx.stroke();
+
+        if (showLabels) {
+          ctx.font = `bold ${sf(muxSize > 8 ? 8 : 9.5)}px 'JetBrains Mono', monospace`;
+          ctx.fillStyle = isSelected ? '#10b981' : '#cbd5e1';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`D${i}=${bitVal}`, x + sc(2), py - sc(2));
+        }
+      }
+
+      // Output Y on Right
+      ctx.strokeStyle = outputVal === 1 ? '#10b981' : strokeColor;
+      ctx.lineWidth = (outputVal === 1 ? 2.5 : 1.8) * dpr;
+      ctx.beginPath();
+      ctx.moveTo(mx + mw, outY);
+      ctx.lineTo(x + w, outY);
+      ctx.stroke();
+
+      if (showLabels) {
+        ctx.font = `bold ${sf(11)}px 'JetBrains Mono', monospace`;
+        ctx.fillStyle = outputVal === 1 ? '#10b981' : '#34d399';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`Y = ${outputVal}`, x + w - sc(3), outY - sc(3));
+      }
+
+      // Select Pins from Bottom (S0..S(k-1))
+      for (let s = 0; s < selectCount; s++) {
+        const sx = mx + mw * (0.35 + (s * 0.35) / Math.max(1, selectCount - 1));
+        const selBit = (selectedChannel >> s) & 1;
+
+        ctx.strokeStyle = selBit === 1 ? '#fbbf24' : 'rgba(148, 163, 184, 0.5)';
+        ctx.lineWidth = 1.5 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(sx, my + mh - topOffset * 0.7);
+        ctx.lineTo(sx, y + h);
+        ctx.stroke();
+
+        if (showLabels) {
+          ctx.font = `bold ${sf(8.5)}px 'JetBrains Mono', monospace`;
+          ctx.fillStyle = '#fbbf24';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`S${s}=${selBit}`, sx, y + h - sc(2));
+        }
+      }
+      ctx.textBaseline = 'alphabetic';
+    } else if (blockType === 'FlipFlop') {
+      // ─── CLOCKED FLIP-FLOP (D, JK, T, SR) ───
+      const ffType = (shape.params?.ffType || 'D') as 'D' | 'JK' | 'T' | 'SR';
+      const stateQ = (shape.params?.stateQ ?? 0) & 1;
+      const stateQbar = 1 - stateQ;
+
+      const d = (shape.params?.inputD ?? 1) & 1;
+      const j = (shape.params?.inputJ ?? 1) & 1;
+      const k = (shape.params?.inputK ?? 0) & 1;
+      const t = (shape.params?.inputT ?? 1) & 1;
+      const s = (shape.params?.inputS ?? 1) & 1;
+      const r = (shape.params?.inputR ?? 0) & 1;
+
+      const { mode } = evaluateFlipFlopNextState(ffType, stateQ, { d, j, k, t, s, r });
+
+      const leadW = Math.max(18 * dpr, sc(26));
+      const bx = x + leadW;
+      const bw = w - leadW * 2;
+      const by = y + sc(10);
+      const bh = h - sc(20);
+
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, bh, 6 * dpr);
+      ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.94)';
+      ctx.fill();
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+
+      ctx.font = `bold ${sf(12.5)}px Inter, sans-serif`;
+      ctx.fillStyle = '#38bdf8';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${ffType} FLIP-FLOP`, bx + bw / 2, by + sc(18));
+
+      // Current State Display inside
+      ctx.font = `bold ${sf(11)}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = stateQ === 1 ? '#10b981' : '#cbd5e1';
+      ctx.fillText(`State: Q = ${stateQ}`, bx + bw / 2, by + bh * 0.48);
+
+      // Mode hint
+      ctx.font = `${sf(8.5)}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(`Mode: ${mode}`, bx + bw / 2, by + bh - sc(14));
+
+      // Input pins tailored to Flip-Flop Type
+      if (ffType === 'D' || ffType === 'T') {
+        const inName = ffType;
+        const inVal = ffType === 'D' ? d : t;
+        const iy = by + bh * 0.35;
+        const isActive = inVal === 1;
+
+        ctx.strokeStyle = isActive ? '#10b981' : strokeColor;
+        ctx.lineWidth = (isActive ? 2.5 : 1.5) * dpr;
+        ctx.beginPath();
+        ctx.moveTo(x, iy);
+        ctx.lineTo(bx, iy);
+        ctx.stroke();
+
+        if (showLabels) {
+          ctx.font = `bold ${sf(10.5)}px 'JetBrains Mono', monospace`;
+          ctx.fillStyle = isActive ? '#10b981' : '#ffffff';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`${inName}=${inVal}`, x + sc(3), iy - sc(3));
+        }
+      } else if (ffType === 'JK' || ffType === 'SR') {
+        const topName = ffType === 'JK' ? 'J' : 'S';
+        const topVal = ffType === 'JK' ? j : s;
+        const botName = ffType === 'JK' ? 'K' : 'R';
+        const botVal = ffType === 'JK' ? k : r;
+
+        const topY = by + bh * 0.25;
+        const botY = by + bh * 0.75;
+
+        // Top pin (J / S)
+        ctx.strokeStyle = topVal === 1 ? '#10b981' : strokeColor;
+        ctx.lineWidth = (topVal === 1 ? 2.5 : 1.5) * dpr;
+        ctx.beginPath();
+        ctx.moveTo(x, topY);
+        ctx.lineTo(bx, topY);
+        ctx.stroke();
+
+        if (showLabels) {
+          ctx.font = `bold ${sf(10.5)}px 'JetBrains Mono', monospace`;
+          ctx.fillStyle = topVal === 1 ? '#10b981' : '#ffffff';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`${topName}=${topVal}`, x + sc(3), topY - sc(3));
+        }
+
+        // Bottom pin (K / R)
+        ctx.strokeStyle = botVal === 1 ? '#10b981' : strokeColor;
+        ctx.lineWidth = (botVal === 1 ? 2.5 : 1.5) * dpr;
+        ctx.beginPath();
+        ctx.moveTo(x, botY);
+        ctx.lineTo(bx, botY);
+        ctx.stroke();
+
+        if (showLabels) {
+          ctx.font = `bold ${sf(10.5)}px 'JetBrains Mono', monospace`;
+          ctx.fillStyle = botVal === 1 ? '#10b981' : '#ffffff';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`${botName}=${botVal}`, x + sc(3), botY - sc(3));
+        }
+      }
+
+      // CLK input with internal chevron indicator
+      const clkY = by + bh * (ffType === 'JK' || ffType === 'SR' ? 0.50 : 0.70);
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 1.5 * dpr;
+      ctx.beginPath();
+      ctx.moveTo(x, clkY);
+      ctx.lineTo(bx, clkY);
+      ctx.stroke();
+
+      // Clock triangle inside
+      ctx.beginPath();
+      ctx.moveTo(bx, clkY - sc(6));
+      ctx.lineTo(bx + sc(9), clkY);
+      ctx.lineTo(bx, clkY + sc(6));
+      ctx.stroke();
+
+      if (showLabels) {
+        ctx.font = `bold ${sf(9.5)}px 'JetBrains Mono', monospace`;
+        ctx.fillStyle = '#fbbf24';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('CLK', x + sc(3), clkY - sc(3));
+      }
+
+      // Q and Q-bar outputs
+      const qY = by + bh * 0.35;
+      const qbY = by + bh * 0.70;
+
+      // Q wire
+      ctx.strokeStyle = stateQ === 1 ? '#10b981' : strokeColor;
+      ctx.lineWidth = (stateQ === 1 ? 2.5 : 1.5) * dpr;
+      ctx.beginPath();
+      ctx.moveTo(bx + bw, qY);
+      ctx.lineTo(x + w, qY);
+      ctx.stroke();
+
+      // Q-bar wire
+      ctx.strokeStyle = stateQbar === 1 ? '#10b981' : strokeColor;
+      ctx.lineWidth = (stateQbar === 1 ? 2.5 : 1.5) * dpr;
+      ctx.beginPath();
+      ctx.moveTo(bx + bw, qbY);
+      ctx.lineTo(x + w, qbY);
+      ctx.stroke();
+
+      if (showLabels) {
+        ctx.font = `bold ${sf(11)}px 'JetBrains Mono', monospace`;
+        ctx.fillStyle = stateQ === 1 ? '#10b981' : '#34d399';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`Q = ${stateQ}`, x + w - sc(3), qY - sc(3));
+
+        ctx.fillStyle = stateQbar === 1 ? '#10b981' : '#34d399';
+        ctx.fillText(`Q̅ = ${stateQbar}`, x + w - sc(3), qbY - sc(3));
+      }
+      ctx.textBaseline = 'alphabetic';
+    } else if (blockType === 'Counter4' || blockType === 'BinaryCounter') {
+      // ─── 4-BIT BINARY COUNTER (74LS161 / 74LS93) ───
+      const countVal = Math.max(0, Math.min(15, shape.params?.countValue ?? 0));
+      const q3 = (countVal >> 3) & 1;
+      const q2 = (countVal >> 2) & 1;
+      const q1 = (countVal >> 1) & 1;
+      const q0 = countVal & 1;
+      const tc = countVal === 15 ? 1 : 0;
+
+      const leadW = Math.max(20 * dpr, sc(28));
+      const bx = x + leadW;
+      const bw = w - leadW * 2;
+      const by = y + sc(10);
+      const bh = h - sc(20);
+
+      // IC Body
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, bh, 8 * dpr);
+      ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.96)';
+      ctx.fill();
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+
+      // Header Bar
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, sc(28), [8 * dpr, 8 * dpr, 0, 0]);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+      ctx.stroke();
+
+      ctx.font = `bold ${sf(11)}px Inter, sans-serif`;
+      ctx.fillStyle = '#38bdf8';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('4-BIT BINARY COUNTER', bx + bw / 2, by + sc(14));
+
+      // LED Digital Bezel inside
+      const bezelW = bw * 0.72;
+      const bezelH = sc(38);
+      const bezelX = bx + (bw - bezelW) / 2;
+      const bezelY = by + sc(38);
+
+      ctx.fillStyle = '#020617';
+      ctx.beginPath();
+      ctx.roundRect(bezelX, bezelY, bezelW, bezelH, 5 * dpr);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+      ctx.stroke();
+
+      // 4-bit Binary Digits [ Q3 Q2 Q1 Q0 ]
+      ctx.font = `bold ${sf(15)}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = '#10b981';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${q3}   ${q2}   ${q1}   ${q0}`, bezelX + bezelW / 2, bezelY + bezelH / 2);
+
+      // Decimal value display
+      ctx.font = `bold ${sf(10.5)}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText(`DECIMAL: ${countVal} / 15`, bx + bw / 2, by + bh - sc(16));
+
+      // Left pins: RST (top), CLK (mid with chevron), EN (bottom)
+      const rstY = by + bh * 0.28;
+      const clkY = by + bh * 0.52;
+      const enY = by + bh * 0.76;
+
+      // RST
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 1.5 * dpr;
+      ctx.beginPath();
+      ctx.moveTo(x, rstY);
+      ctx.lineTo(bx, rstY);
+      ctx.stroke();
+
+      // CLK
+      ctx.beginPath();
+      ctx.moveTo(x, clkY);
+      ctx.lineTo(bx, clkY);
+      ctx.stroke();
+
+      // Clock triangle inside
+      ctx.beginPath();
+      ctx.moveTo(bx, clkY - sc(6));
+      ctx.lineTo(bx + sc(8), clkY);
+      ctx.lineTo(bx, clkY + sc(6));
+      ctx.stroke();
+
+      // EN
+      ctx.beginPath();
+      ctx.moveTo(x, enY);
+      ctx.lineTo(bx, enY);
+      ctx.stroke();
+
+      if (showLabels) {
+        ctx.font = `bold ${sf(9.5)}px 'JetBrains Mono', monospace`;
+        ctx.fillStyle = '#f87171';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('RST', x + sc(3), rstY - sc(3));
+
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillText('CLK', x + sc(3), clkY - sc(3));
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText('EN', x + sc(3), enY - sc(3));
+      }
+
+      // Right output pins: Q3 (MSB), Q2, Q1, Q0 (LSB) + TC
+      const outPins = [
+        { label: 'Q3', val: q3 },
+        { label: 'Q2', val: q2 },
+        { label: 'Q1', val: q1 },
+        { label: 'Q0', val: q0 },
+        { label: 'TC', val: tc },
+      ];
+
+      outPins.forEach((p, idx) => {
+        const py = by + sc(34) + ((bh - sc(48)) / (outPins.length + 1)) * (idx + 1);
+        const isActive = p.val === 1;
+
+        ctx.strokeStyle = isActive ? '#10b981' : strokeColor;
+        ctx.lineWidth = (isActive ? 2.5 : 1.5) * dpr;
+        ctx.beginPath();
+        ctx.moveTo(bx + bw, py);
+        ctx.lineTo(x + w, py);
+        ctx.stroke();
+
+        if (showLabels) {
+          ctx.font = `bold ${sf(10)}px 'JetBrains Mono', monospace`;
+          ctx.fillStyle = isActive ? '#10b981' : '#34d399';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`${p.label}=${p.val}`, x + w - sc(3), py - sc(3));
+        }
+      });
+      ctx.textBaseline = 'alphabetic';
+    } else {
+      // Default IC Box
+      const leadW = Math.max(18 * dpr, sc(26));
+      const bx = x + leadW;
+      const bw = w - leadW * 2;
+      const by = y + sc(10);
+      const bh = h - sc(20);
+
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, bh, 6 * dpr);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = `bold ${sf(12)}px Inter, sans-serif`;
+      ctx.fillStyle = '#38bdf8';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(shape.label || blockType, bx + bw / 2, by + bh / 2);
+      ctx.textBaseline = 'alphabetic';
+    }
+    return;
   }
-  ctx.stroke();
 
-  // Output lead
-  ctx.beginPath();
-  ctx.moveTo(gx + gw, gy + gh / 2);
-  ctx.lineTo(x + w, gy + gh / 2);
-  ctx.stroke();
+  // ─── STANDARD IEEE/ANSI LOGIC GATES ──────────────────────────────────
+  // Input Leads & Labels Calculation
+  const inputsCount = typeof shape.params?.inputs === 'number'
+    ? shape.params.inputs
+    : gateType === 'NOT'
+    ? 1
+    : 2;
+
+  const rawLabels: string[] = Array.isArray(shape.params?.inputLabels)
+    ? shape.params.inputLabels
+    : [
+        shape.params?.labelA || 'A',
+        shape.params?.labelB || 'B',
+        shape.params?.labelC || 'C',
+      ];
+  const inputLabels = rawLabels.slice(0, inputsCount);
+  const labelY = shape.params?.labelY || shape.params?.output || 'Y';
+
+  const leadW = Math.max(18 * dpr, sc(28));
+  const gx = x + leadW;
+  const gy = y + sc(6);
+  const gh = h - sc(12);
+  const gw = w - leadW * 2;
+  const cy = gy + gh / 2;
+  const bubbleR = Math.max(3.5 * dpr, sc(4.5));
+
+  // Determine Input Pin Y Coordinates
+  let pinYs: number[] = [];
+  if (inputsCount === 1) {
+    pinYs = [cy];
+  } else if (inputsCount === 2) {
+    pinYs = [gy + gh * 0.3, gy + gh * 0.7];
+  } else if (inputsCount === 3) {
+    pinYs = [gy + gh * 0.2, cy, gy + gh * 0.8];
+  } else {
+    pinYs = Array.from({ length: inputsCount }, (_, i) => gy + gh * ((i + 0.5) / inputsCount));
+  }
+
+  // ─── 1. DRAW INPUT LEADS & LABELS ───
+  pinYs.forEach((py, idx) => {
+    let leadEndX = gx;
+
+    if (gateType === 'XOR' || gateType === 'XNOR') {
+      // Connect to outer detached curved arc
+      const xorOffset = Math.max(7 * dpr, sc(10));
+      const arcBackX = gx - xorOffset;
+      const t = (py - gy) / gh;
+      // Quadratic curve x at parameter t
+      leadEndX = (1 - t) * (1 - t) * arcBackX + 2 * (1 - t) * t * (arcBackX + gw * 0.28) + t * t * arcBackX;
+    } else if (gateType === 'OR' || gateType === 'NOR') {
+      // Connect to curved concave back
+      const t = (py - gy) / gh;
+      leadEndX = (1 - t) * (1 - t) * gx + 2 * (1 - t) * t * (gx + gw * 0.28) + t * t * gx;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(x, py);
+    ctx.lineTo(leadEndX, py);
+    ctx.stroke();
+
+    if (showLabels) {
+      // Input Label Text (e.g. A, B, C)
+      const lbl = inputLabels[idx] || (idx === 0 ? 'A' : idx === 1 ? 'B' : 'C');
+      ctx.font = `bold ${sf(10.5)}px 'JetBrains Mono', Inter, monospace`;
+      ctx.fillStyle = '#38bdf8';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(lbl, x + sc(3), py - sc(4));
+    }
+  });
+
+  // ─── 2. DRAW GATE BODY (AUTHENTIC IEEE SYMBOL) ───
+  ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.92)';
 
   if (gateType === 'AND' || gateType === 'NAND') {
+    // ── AND / NAND GATE ──
     ctx.beginPath();
     ctx.moveTo(gx, gy);
     ctx.lineTo(gx + gw * 0.5, gy);
-    ctx.arc(gx + gw * 0.5, gy + gh / 2, gh / 2, -Math.PI / 2, Math.PI / 2);
+    ctx.arc(gx + gw * 0.5, cy, gh / 2, -Math.PI / 2, Math.PI / 2);
     ctx.lineTo(gx, gy + gh);
     ctx.closePath();
     ctx.fill();
@@ -5079,53 +6631,103 @@ function renderLogicGate(
 
     if (gateType === 'NAND') {
       ctx.beginPath();
-      ctx.arc(gx + gw + 5 * dpr, gy + gh / 2, 4 * dpr, 0, Math.PI * 2);
+      ctx.arc(gx + gw + bubbleR, cy, bubbleR, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
       ctx.fill();
       ctx.stroke();
     }
   } else if (gateType === 'OR' || gateType === 'NOR') {
+    // ── OR / NOR GATE ──
     ctx.beginPath();
     ctx.moveTo(gx, gy);
-    ctx.quadraticCurveTo(gx + gw * 0.5, gy, gx + gw, gy + gh / 2);
-    ctx.quadraticCurveTo(gx + gw * 0.5, gy + gh, gx, gy + gh);
-    ctx.quadraticCurveTo(gx + gw * 0.25, gy + gh / 2, gx, gy);
+    ctx.quadraticCurveTo(gx + gw * 0.28, cy, gx, gy + gh);
+    ctx.quadraticCurveTo(gx + gw * 0.55, gy + gh, gx + gw, cy);
+    ctx.quadraticCurveTo(gx + gw * 0.55, gy, gx, gy);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
     if (gateType === 'NOR') {
       ctx.beginPath();
-      ctx.arc(gx + gw + 5 * dpr, gy + gh / 2, 4 * dpr, 0, Math.PI * 2);
+      ctx.arc(gx + gw + bubbleR, cy, bubbleR, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+      ctx.fill();
+      ctx.stroke();
+    }
+  } else if (gateType === 'XOR' || gateType === 'XNOR') {
+    // ── XOR / XNOR GATE (AUTHENTIC IEEE COMPLIANT) ──
+    const xorOffset = Math.max(7 * dpr, sc(10));
+    const arcBackX = gx - xorOffset;
+
+    // 1. Detached Outer Curved Back Arc
+    ctx.beginPath();
+    ctx.moveTo(arcBackX, gy);
+    ctx.quadraticCurveTo(arcBackX + gw * 0.28, cy, arcBackX, gy + gh);
+    ctx.stroke();
+
+    // 2. Main Gate Body
+    ctx.beginPath();
+    ctx.moveTo(gx, gy);
+    ctx.quadraticCurveTo(gx + gw * 0.28, cy, gx, gy + gh);
+    ctx.quadraticCurveTo(gx + gw * 0.55, gy + gh, gx + gw, cy);
+    ctx.quadraticCurveTo(gx + gw * 0.55, gy, gx, gy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 3. Inversion Bubble for XNOR
+    if (gateType === 'XNOR') {
+      ctx.beginPath();
+      ctx.arc(gx + gw + bubbleR, cy, bubbleR, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
       ctx.fill();
       ctx.stroke();
     }
   } else if (gateType === 'NOT') {
+    // ── NOT INVERTER GATE ──
     ctx.beginPath();
     ctx.moveTo(gx, gy);
-    ctx.lineTo(gx + gw - 8 * dpr, gy + gh / 2);
+    ctx.lineTo(gx + gw - bubbleR * 2, cy);
     ctx.lineTo(gx, gy + gh);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.arc(gx + gw - 4 * dpr, gy + gh / 2, 4 * dpr, 0, Math.PI * 2);
+    ctx.arc(gx + gw - bubbleR, cy, bubbleR, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-  } else {
-    // Default IC box
-    ctx.beginPath();
-    ctx.roundRect(gx, gy, gw, gh, 6 * dpr);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.font = `bold ${Math.max(12, Math.round(14 * dpr))}px Inter, sans-serif`;
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'center';
-    ctx.fillText(gateType, gx + gw / 2, gy + gh / 2 + 5 * dpr);
   }
+
+  // ─── 3. DRAW OUTPUT LEAD & LABEL ───
+  let outLeadStartX = gx + gw;
+  if (gateType === 'NAND' || gateType === 'NOR' || gateType === 'XNOR') {
+    outLeadStartX = gx + gw + bubbleR * 2;
+  } else if (gateType === 'NOT') {
+    outLeadStartX = gx + gw;
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(outLeadStartX, cy);
+  ctx.lineTo(x + w, cy);
+  ctx.stroke();
+
+  if (showLabels) {
+    // Output Label Text (e.g. Y, Q, Sum)
+    ctx.font = `bold ${sf(10.5)}px 'JetBrains Mono', Inter, monospace`;
+    ctx.fillStyle = '#34d399';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(labelY, x + w - sc(3), cy - sc(4));
+  }
+
+  // Gate Type Label inside/under
+  ctx.font = `600 ${sf(9)}px 'JetBrains Mono', monospace`;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(gateType, gx + gw * 0.42, cy);
+  ctx.textBaseline = 'alphabetic';
 }
 
 function renderTruthTable(
@@ -5138,47 +6740,131 @@ function renderTruthTable(
   dpr: number
 ) {
   const headers: string[] = shape.params?.headers || ['A', 'B', 'Y'];
-  const rows: number[][] = shape.params?.rows || [
+  const rows: any[][] = shape.params?.rows || [
     [0, 0, 0],
     [0, 1, 1],
     [1, 0, 1],
     [1, 1, 0],
   ];
+  const inputCount = shape.params?.inputCount ?? (headers.length > 1 ? headers.length - 1 : 1);
+  const baseFontSize = typeof shape.params?.fontSize === 'number' && shape.params.fontSize > 0 ? shape.params.fontSize : 13;
 
-  ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.94)';
-  ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth = 1.5 * dpr;
+  // Proportional corner resize scaling
+  const baseW = 420 * dpr;
+  const resizeScale = Math.max(0.4, Math.min(3.8, w / baseW));
+  const effectiveFontScale = (baseFontSize / 13) * resizeScale;
+  const sf = (basePx: number) => Math.max(7, Math.round(basePx * effectiveFontScale * dpr));
+  const sc = (basePx: number) => Math.round(basePx * resizeScale * dpr);
+
+  // Outer Card Frame
+  ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.96)';
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = Math.max(1.5 * dpr, sc(1.8));
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, 8 * dpr);
   ctx.fill();
   ctx.stroke();
 
-  const colW = w / headers.length;
-  const headerH = 36 * dpr;
+  const colCount = Math.max(1, headers.length);
+  const colW = w / colCount;
+  const headerH = Math.max(26 * dpr, sc(34));
 
-  // Header background
-  ctx.fillStyle = 'rgba(2, 132, 199, 0.3)';
-  ctx.fillRect(x, y, w, headerH);
+  // ─── 1. HEADER ROW WITH INPUT VS OUTPUT DISTINCTION ───
+  // Input headers background (Blue/Cyan tint)
+  const inputW = Math.min(w, inputCount * colW);
+  ctx.fillStyle = 'rgba(2, 132, 199, 0.25)';
+  ctx.fillRect(x, y, inputW, headerH);
 
-  ctx.font = `bold ${Math.max(12, Math.round(13 * dpr))}px Inter, sans-serif`;
-  ctx.fillStyle = '#38bdf8';
-  ctx.textAlign = 'center';
+  // Output headers background (Emerald tint)
+  if (w > inputW) {
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.22)';
+    ctx.fillRect(x + inputW, y, w - inputW, headerH);
+  }
 
+  // Header bottom border
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.beginPath();
+  ctx.moveTo(x, y + headerH);
+  ctx.lineTo(x + w, y + headerH);
+  ctx.stroke();
+
+  // Column headers text
+  ctx.textBaseline = 'middle';
   headers.forEach((hName, idx) => {
-    ctx.fillText(hName, x + idx * colW + colW / 2, y + headerH / 2 + 5 * dpr);
+    const isInput = idx < inputCount;
+    ctx.font = `bold ${sf(11.5)}px Inter, sans-serif`;
+    ctx.fillStyle = isInput ? '#38bdf8' : '#34d399';
+    ctx.textAlign = 'center';
+    ctx.fillText(hName, x + idx * colW + colW / 2, y + headerH / 2);
   });
 
-  // Rows
-  const rowH = (h - headerH) / rows.length;
-  ctx.font = `600 ${Math.max(12, Math.round(13 * dpr))}px Inter, sans-serif`;
+  // ─── 2. VISIBLE ROWS (SLIGHTLY DIM IN COLOUR) ───
+  const availH = h - headerH;
+  const rowCount = Math.max(1, rows.length);
+  const rowH = availH / rowCount;
 
   rows.forEach((row, rIdx) => {
     const ry = y + headerH + rIdx * rowH;
-    row.forEach((val, cIdx) => {
-      ctx.fillStyle = val === 1 ? '#10b981' : '#94a3b8';
-      ctx.fillText(String(val), x + cIdx * colW + colW / 2, ry + rowH / 2 + 5 * dpr);
+
+    // Alternating visible row background (slightly dim in colour)
+    if (rIdx % 2 === 1) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.035)';
+      ctx.fillRect(x, ry, w, rowH);
+    } else {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+      ctx.fillRect(x, ry, w, rowH);
+    }
+
+    // Visible horizontal row border (slightly dim in colour)
+    if (rIdx < rowCount - 1) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+      ctx.lineWidth = 1 * dpr;
+      ctx.beginPath();
+      ctx.moveTo(x, ry + rowH);
+      ctx.lineTo(x + w, ry + rowH);
+      ctx.stroke();
+    }
+
+    // Cell values
+    row.forEach((val: any, cIdx: number) => {
+      const cx = x + cIdx * colW + colW / 2;
+      const cy = ry + rowH / 2;
+      const isInput = cIdx < inputCount;
+
+      if (val === 1 || val === '1') {
+        ctx.fillStyle = '#10b981';
+        ctx.font = `bold ${sf(12)}px 'JetBrains Mono', monospace`;
+        ctx.fillText('1', cx, cy);
+      } else if (val === 0 || val === '0') {
+        ctx.fillStyle = isInput ? '#cbd5e1' : '#94a3b8';
+        ctx.font = `${sf(12)}px 'JetBrains Mono', monospace`;
+        ctx.fillText('0', cx, cy);
+      } else if (val === '' || val === '-' || val == null) {
+        // Blank row value for classroom exercise / quiz: keep empty (nothing drawn)
+      } else {
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = `600 ${sf(11.5)}px 'JetBrains Mono', monospace`;
+        ctx.fillText(String(val), cx, cy);
+      }
     });
   });
+
+  // ─── 3. VISIBLE COLUMN DIVIDERS ───
+  for (let c = 1; c < colCount; c++) {
+    const vx = x + c * colW;
+    const isSplit = c === inputCount;
+
+    // Distinct prominent divider between inputs and outputs, and clear visible dividers between all columns
+    ctx.strokeStyle = isSplit ? '#38bdf8' : 'rgba(255, 255, 255, 0.28)';
+    ctx.lineWidth = (isSplit ? 2 : 1.2) * dpr;
+    ctx.beginPath();
+    ctx.moveTo(vx, y);
+    ctx.lineTo(vx, y + h);
+    ctx.stroke();
+  }
+
+  ctx.textBaseline = 'alphabetic'; // reset
 }
 
 function renderKarnaughMap(
@@ -5190,18 +6876,304 @@ function renderKarnaughMap(
   h: number,
   dpr: number
 ) {
-  ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.94)';
-  ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth = 1.5 * dpr;
+  const vars = Math.max(2, Math.min(5, Number(shape.params?.variables) || 3));
+  const baseFontSize = typeof shape.params?.fontSize === 'number' && shape.params.fontSize > 0 ? shape.params.fontSize : 14;
+
+  const rawVarNames: string[] = Array.isArray(shape.params?.varNames) && shape.params.varNames.length >= vars
+    ? shape.params.varNames
+    : getDefaultKMapVariableNames(vars);
+  const varNames = rawVarNames.slice(0, vars);
+
+  // Proportional corner resize scaling
+  const baseW = (vars === 5 ? 780 : vars === 4 ? 460 : vars === 2 ? 340 : 440) * dpr;
+  const resizeScale = Math.max(0.35, Math.min(3.8, w / baseW));
+  const effectiveFontScale = (baseFontSize / 14) * resizeScale;
+  const sf = (basePx: number) => Math.max(6, Math.round(basePx * effectiveFontScale * dpr));
+  const sc = (basePx: number) => Math.round(basePx * resizeScale * dpr);
+
+  // Outer Frame
+  ctx.fillStyle = shape.fillColor || 'rgba(15, 23, 42, 0.96)';
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = Math.max(1.5 * dpr, sc(1.8));
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, 8 * dpr);
   ctx.fill();
   ctx.stroke();
 
-  ctx.font = `bold ${Math.max(11, Math.round(13 * dpr))}px Inter, sans-serif`;
+  // Header Bar
+  const headerH = Math.max(24 * dpr, sc(30));
+  ctx.fillStyle = 'rgba(2, 132, 199, 0.2)';
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, headerH, [8 * dpr, 8 * dpr, 0, 0]);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+  ctx.beginPath();
+  ctx.moveTo(x, y + headerH);
+  ctx.lineTo(x + w, y + headerH);
+  ctx.stroke();
+
+  const functionExpr = shape.params?.canonicalExpr ? ` · ${shape.params.canonicalExpr}` : '';
+  ctx.font = `bold ${sf(11.5)}px Inter, sans-serif`;
   ctx.fillStyle = '#38bdf8';
   ctx.textAlign = 'left';
-  ctx.fillText('Karnaugh Map (K-Map)', x + 16 * dpr, y + 22 * dpr);
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`🔲 ${vars}-Variable Karnaugh Map (${varNames.join(', ')})${functionExpr}`, x + sc(14), y + headerH / 2);
+
+  const gridData: any = shape.params?.grid || [];
+
+  if (vars === 5) {
+    // ─── 5-VARIABLE TRADITIONAL DUAL K-MAP (A=0 and A=1) ───
+    const subPad = sc(12);
+    const subW = (w - subPad * 3) / 2;
+    const subH = h - headerH - subPad * 2;
+    const subY = y + headerH + subPad;
+
+    const v0 = varNames[0] || 'A';
+    const rowVars = `${varNames[1] || 'B'}${varNames[2] || 'C'}`;
+    const colVars = `${varNames[3] || 'D'}${varNames[4] || 'E'}`;
+
+    // Submap 1: V0 = 0 (minterms 0 to 15)
+    renderSingleKMapBlock(
+      ctx,
+      x + subPad,
+      subY,
+      subW,
+      subH,
+      dpr,
+      4,
+      rowVars,
+      colVars,
+      ['00', '01', '11', '10'],
+      ['00', '01', '11', '10'],
+      gridData,
+      0, // colOffset = 0
+      `${v0} = 0 (m0 - m15)`,
+      vars,
+      sf,
+      sc
+    );
+
+    // Submap 2: V0 = 1 (minterms 16 to 31)
+    renderSingleKMapBlock(
+      ctx,
+      x + subPad * 2 + subW,
+      subY,
+      subW,
+      subH,
+      dpr,
+      4,
+      rowVars,
+      colVars,
+      ['00', '01', '11', '10'],
+      ['00', '01', '11', '10'],
+      gridData,
+      4, // colOffset = 4
+      `${v0} = 1 (m16 - m31)`,
+      vars,
+      sf,
+      sc
+    );
+  } else {
+    // ─── 2, 3, or 4-VARIABLE STANDARD TRADITIONAL K-MAP ───
+    const pad = sc(16);
+    const mapX = x + pad;
+    const mapY = y + headerH + pad;
+    const mapW = w - pad * 2;
+    const mapH = h - headerH - pad * 2;
+
+    const rowVarText = vars === 2 ? varNames[0] : vars === 3 ? varNames[0] : `${varNames[0]}${varNames[1]}`;
+    const colVarText = vars === 2 ? varNames[1] : vars === 3 ? `${varNames[1]}${varNames[2]}` : `${varNames[2]}${varNames[3]}`;
+
+    const rowLabels = vars === 4 ? ['00', '01', '11', '10'] : ['0', '1'];
+    const colLabels = vars === 2 ? ['0', '1'] : ['00', '01', '11', '10'];
+
+    renderSingleKMapBlock(
+      ctx,
+      mapX,
+      mapY,
+      mapW,
+      mapH,
+      dpr,
+      vars,
+      rowVarText,
+      colVarText,
+      rowLabels,
+      colLabels,
+      gridData,
+      0,
+      '',
+      vars,
+      sf,
+      sc
+    );
+  }
+
+  ctx.textBaseline = 'alphabetic'; // reset
+}
+
+/**
+ * Renders a single traditional K-Map block with diagonal slash header, Gray-code axes,
+ * small decimal minterm index in bottom-right of each cell, and centered cell value.
+ */
+function renderSingleKMapBlock(
+  ctx: CanvasRenderingContext2D,
+  bx: number,
+  by: number,
+  bw: number,
+  bh: number,
+  dpr: number,
+  blockVars: number,
+  rowVarText: string,
+  colVarText: string,
+  rowLabels: string[],
+  colLabels: string[],
+  gridData: any[][],
+  colOffset: number,
+  submapTitle: string,
+  totalVars: number,
+  sf: (px: number) => number,
+  sc: (px: number) => number
+) {
+  let curY = by;
+  let curH = bh;
+
+  // Optional submap title banner (e.g. for 5-variable maps: "A = 0 (m0 - m15)")
+  if (submapTitle) {
+    const titleH = sc(22);
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+    ctx.beginPath();
+    ctx.roundRect(bx, curY, bw, titleH, 4 * dpr);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+    ctx.stroke();
+
+    ctx.font = `bold ${sf(10.5)}px 'JetBrains Mono', monospace`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(submapTitle, bx + bw / 2, curY + titleH / 2);
+
+    curY += titleH + sc(6);
+    curH -= titleH + sc(6);
+  }
+
+  const numRows = rowLabels.length;
+  const numCols = colLabels.length;
+
+  const labelW = sc(colLabels.length === 2 ? 36 : 46);
+  const labelH = sc(26);
+
+  const cellW = (bw - labelW) / numCols;
+  const cellH = (curH - labelH) / numRows;
+
+  // 1. Diagonal Header Cell (e.g. AB \ CD)
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 1.2 * dpr;
+  ctx.strokeRect(bx, curY, labelW, labelH);
+
+  ctx.beginPath();
+  ctx.moveTo(bx, curY);
+  ctx.lineTo(bx + labelW, curY + labelH);
+  ctx.stroke();
+
+  // Top-right of slash: Column Variables
+  ctx.font = `bold ${sf(9)}px 'JetBrains Mono', monospace`;
+  ctx.fillStyle = '#38bdf8';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'top';
+  ctx.fillText(colVarText, bx + labelW - sc(3), curY + sc(3));
+
+  // Bottom-left of slash: Row Variables
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(rowVarText, bx + sc(3), curY + labelH - sc(3));
+
+  // 2. Column Gray Code Headers (e.g. 00, 01, 11, 10)
+  colLabels.forEach((cl, cIdx) => {
+    const cx = bx + labelW + cIdx * cellW;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.lineWidth = 1 * dpr;
+    ctx.strokeRect(cx, curY, cellW, labelH);
+    ctx.fillStyle = 'rgba(251, 191, 36, 0.08)';
+    ctx.fillRect(cx, curY, cellW, labelH);
+
+    ctx.font = `bold ${sf(10)}px 'JetBrains Mono', monospace`;
+    ctx.fillStyle = '#fbbf24';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(cl, cx + cellW / 2, curY + labelH / 2);
+  });
+
+  // 3. Row Gray Code Headers (e.g. 00, 01, 11, 10)
+  rowLabels.forEach((rl, rIdx) => {
+    const ry = curY + labelH + rIdx * cellH;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.lineWidth = 1 * dpr;
+    ctx.strokeRect(bx, ry, labelW, cellH);
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
+    ctx.fillRect(bx, ry, labelW, cellH);
+
+    ctx.font = `bold ${sf(10)}px 'JetBrains Mono', monospace`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(rl, bx + labelW / 2, ry + cellH / 2);
+  });
+
+  // 4. Data Cells with Decimal Indices and Values
+  for (let r = 0; r < numRows; r++) {
+    for (let c = 0; c < numCols; c++) {
+      const cx = bx + labelW + c * cellW;
+      const cy = curY + labelH + r * cellH;
+      const actualCol = c + colOffset;
+      const val = gridData[r]?.[actualCol] ?? '';
+
+      // Authentic minterm decimal index
+      const mintermIdx = getKMapMintermIndex(totalVars, r, actualCol);
+
+      // Cell background based on value
+      ctx.fillStyle = val === '1' || val === 1
+        ? 'rgba(16, 185, 129, 0.14)'
+        : val === 'X' || val === 'x'
+        ? 'rgba(245, 158, 11, 0.14)'
+        : 'rgba(255, 255, 255, 0.02)';
+      ctx.fillRect(cx, cy, cellW, cellH);
+
+      // Textbook cell border
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+      ctx.lineWidth = 1 * dpr;
+      ctx.strokeRect(cx, cy, cellW, cellH);
+
+      // Decimal minterm index in bottom-right corner of each cell
+      ctx.font = `${sf(8.5)}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.75)';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(String(mintermIdx), cx + cellW - sc(4), cy + cellH - sc(3));
+
+      // Cell value centered (if blank, render nothing!)
+      if (val === '1' || val === 1) {
+        ctx.font = `bold ${sf(13.5)}px 'JetBrains Mono', monospace`;
+        ctx.fillStyle = '#10b981';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('1', cx + cellW / 2, cy + cellH / 2);
+      } else if (val === '0' || val === 0) {
+        ctx.font = `${sf(13.5)}px 'JetBrains Mono', monospace`;
+        ctx.fillStyle = '#cbd5e1';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('0', cx + cellW / 2, cy + cellH / 2);
+      } else if (val === 'X' || val === 'x') {
+        ctx.font = `bold ${sf(13.5)}px 'JetBrains Mono', monospace`;
+        ctx.fillStyle = '#f59e0b';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('X', cx + cellW / 2, cy + cellH / 2);
+      }
+    }
+  }
 }
 
 // ─── 6. General Teaching Renderers ────────────────────────────────────────────

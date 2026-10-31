@@ -39,7 +39,21 @@ import { CallStackModal } from './subjectModals/CallStackModal';
 import { MemoryLayoutModal } from './subjectModals/MemoryLayoutModal';
 import { LinkedListModal } from './subjectModals/LinkedListModal';
 import { TreeGraphModal } from './subjectModals/TreeGraphModal';
-import { SortingSearchingModal } from './subjectModals/SortingSearchingModal';
+import { SortingSearchingModal, generateSimulationSteps, AlgorithmType } from './subjectModals/SortingSearchingModal';
+import { DatabaseTableModal } from './subjectModals/DatabaseTableModal';
+import { CpuArchModal } from './subjectModals/CpuArchModal';
+import { InstructionCycleModal } from './subjectModals/InstructionCycleModal';
+import { NetworkTopologyModal } from './subjectModals/NetworkTopologyModal';
+import { LogicGateModal } from './subjectModals/LogicGateModal';
+import { DigitalCircuitModal } from './subjectModals/DigitalCircuitModal';
+import { TruthTableModal } from './subjectModals/TruthTableModal';
+import { KarnaughMapModal } from './subjectModals/KarnaughMapModal';
+import {
+  evaluateMux,
+  evaluateAdder,
+  evaluateFlipFlopNextState,
+  evaluateCounter,
+} from '../services/subjectModules/digitalLogicModule';
 import { isLatexSyntax } from '../services/latexService';
 import { isTypingOrInputFocused } from '../utils/keyboardUtils';
 import { v4 as uuidv4 } from 'uuid';
@@ -115,6 +129,14 @@ export function WhiteboardCanvas(): React.ReactElement {
   const [editingLinkedListShape, setEditingLinkedListShape] = useState<ShapeObject | null>(null);
   const [editingTreeGraphShape, setEditingTreeGraphShape] = useState<ShapeObject | null>(null);
   const [editingSortingShape, setEditingSortingShape] = useState<ShapeObject | null>(null);
+  const [editingDatabaseTableShape, setEditingDatabaseTableShape] = useState<ShapeObject | null>(null);
+  const [editingCpuArchShape, setEditingCpuArchShape] = useState<ShapeObject | null>(null);
+  const [editingInstructionCycleShape, setEditingInstructionCycleShape] = useState<ShapeObject | null>(null);
+  const [editingNetworkTopologyShape, setEditingNetworkTopologyShape] = useState<ShapeObject | null>(null);
+  const [editingLogicGateShape, setEditingLogicGateShape] = useState<ShapeObject | null>(null);
+  const [editingDigitalCircuitShape, setEditingDigitalCircuitShape] = useState<ShapeObject | null>(null);
+  const [editingTruthTableShape, setEditingTruthTableShape] = useState<ShapeObject | null>(null);
+  const [editingKarnaughMapShape, setEditingKarnaughMapShape] = useState<ShapeObject | null>(null);
 
   // Vertical Selection Pill Active Flyout Menu
   const [activeFlyout, setActiveFlyout] = useState<'none' | 'palette' | 'layer' | 'more' | 'thickness' | 'imageFit'>('none');
@@ -589,18 +611,66 @@ export function WhiteboardCanvas(): React.ReactElement {
   }, []); // Mount only
 
   // Auto-minimize toolbar popups and selection menus as soon as user touches/clicks canvas to write or draw
+  // PROTECTED: If user clicks and drags inside ANY textbox/input, dragging out to the board area does not steal focus or dismiss menus
   useEffect(() => {
     const canvas = activeCanvasRef.current;
     if (!canvas) return;
-    const handleCanvasPointerDown = () => {
+
+    let isDragFromInput = false;
+
+    const handleWindowPointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable ||
+          target.getAttribute?.('contenteditable') === 'true' ||
+          target.closest?.(
+            'input, textarea, [contenteditable="true"], .inline-text-editor-box, .board-typography-sidebar, .smartboard-text-modal, .selected-object-vertical-pill, .selected-text-quick-edit-pill'
+          ))
+      ) {
+        isDragFromInput = true;
+      } else {
+        isDragFromInput = false;
+      }
+    };
+
+    const handleWindowPointerUp = () => {
+      if (isDragFromInput) {
+        setTimeout(() => {
+          isDragFromInput = false;
+        }, 150);
+      }
+    };
+
+    const handleWindowClickCapture = (e: MouseEvent) => {
+      if (isDragFromInput) {
+        e.stopPropagation();
+      }
+    };
+
+    const handleCanvasPointerDown = (e: PointerEvent) => {
+      if (isDragFromInput || isTypingOrInputFocused()) {
+        e.stopPropagation();
+        return;
+      }
       closeAllPopups();
       setActiveFlyout('none');
       if (toolState.activeTool !== 'select' && selectedObjectRef.current) {
         setSelectedObject(null);
       }
     };
+
+    window.addEventListener('pointerdown', handleWindowPointerDown, { capture: true });
+    window.addEventListener('pointerup', handleWindowPointerUp, { capture: true });
+    window.addEventListener('click', handleWindowClickCapture, { capture: true });
     canvas.addEventListener('pointerdown', handleCanvasPointerDown, { capture: true });
+
     return () => {
+      window.removeEventListener('pointerdown', handleWindowPointerDown, { capture: true });
+      window.removeEventListener('pointerup', handleWindowPointerUp, { capture: true });
+      window.removeEventListener('click', handleWindowClickCapture, { capture: true });
       canvas.removeEventListener('pointerdown', handleCanvasPointerDown, { capture: true });
     };
   }, [closeAllPopups, toolState.activeTool, setSelectedObject]);
@@ -719,6 +789,16 @@ export function WhiteboardCanvas(): React.ReactElement {
           }
         } else if (hitShape.shapeType === 'atomicModel') {
           setEditingBohrModelShape(hitShape);
+        } else if (hitShape.shapeType === 'logicGate') {
+          if (hitShape.params?.blockType) {
+            setEditingDigitalCircuitShape(hitShape);
+          } else {
+            setEditingLogicGateShape(hitShape);
+          }
+        } else if (hitShape.shapeType === 'truthTable') {
+          setEditingTruthTableShape(hitShape);
+        } else if (hitShape.shapeType === 'karnaughMap') {
+          setEditingKarnaughMapShape(hitShape);
         } else if (hitShape.shapeType === 'labApparatus') {
           setEditingLabApparatusShape(hitShape);
         } else if (hitShape.shapeType === 'csDiagram') {
@@ -741,6 +821,14 @@ export function WhiteboardCanvas(): React.ReactElement {
             setEditingTreeGraphShape(hitShape);
           } else if (dt === 'sortingArray' || dt === 'sortingSearching') {
             setEditingSortingShape(hitShape);
+          } else if (dt === 'databaseTable') {
+            setEditingDatabaseTableShape(hitShape);
+          } else if (dt === 'cpuArchitecture') {
+            setEditingCpuArchShape(hitShape);
+          } else if (dt === 'instructionCycle') {
+            setEditingInstructionCycleShape(hitShape);
+          } else if (dt === 'networkTopology') {
+            setEditingNetworkTopologyShape(hitShape);
           }
         }
       }
@@ -1783,7 +1871,16 @@ export function WhiteboardCanvas(): React.ReactElement {
         className="canvas-layer active-canvas"
         aria-label="Drawing surface"
         role="img"
-        tabIndex={0}
+        tabIndex={-1}
+        onFocus={(e) => {
+          if (isTypingOrInputFocused()) {
+            e.preventDefault();
+            const activeEl = document.activeElement as HTMLElement | null;
+            if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+              activeEl.focus();
+            }
+          }
+        }}
         style={{
           touchAction: 'none',
           cursor:
@@ -2253,6 +2350,10 @@ export function WhiteboardCanvas(): React.ReactElement {
               else if (dt === 'linkedList') setEditingLinkedListShape(s);
               else if (dt === 'binaryTree' || dt === 'graph' || dt === 'treeGraph') setEditingTreeGraphShape(s);
               else if (dt === 'sortingArray' || dt === 'sortingSearching') setEditingSortingShape(s);
+              else if (dt === 'databaseTable') setEditingDatabaseTableShape(s);
+              else if (dt === 'cpuArchitecture') setEditingCpuArchShape(s);
+              else if (dt === 'instructionCycle') setEditingInstructionCycleShape(s);
+              else if (dt === 'networkTopology') setEditingNetworkTopologyShape(s);
               else setEditingCodeShape(s);
             }}
           >
@@ -2273,12 +2374,869 @@ export function WhiteboardCanvas(): React.ReactElement {
                 ? '🌳'
                 : (selectedObject as ShapeObject).params?.diagramType === 'sortingArray'
                 ? '📶'
+                : (selectedObject as ShapeObject).params?.diagramType === 'databaseTable'
+                ? '🗄️'
+                : (selectedObject as ShapeObject).params?.diagramType === 'cpuArchitecture'
+                ? '🖥️'
+                : (selectedObject as ShapeObject).params?.diagramType === 'instructionCycle'
+                ? '🔁'
+                : (selectedObject as ShapeObject).params?.diagramType === 'networkTopology'
+                ? '🌐'
                 : '💻'}
             </span>
             <span>
               {(selectedObject as ShapeObject).label || 'Edit Computer Science Diagram'}
             </span>
           </button>
+
+          {/* Interactive In-Place Step Controls for Sorting Demonstration */}
+          {((selectedObject as ShapeObject).params?.diagramType === 'sortingArray' ||
+            (selectedObject as ShapeObject).params?.diagramType === 'sortingSearching') && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: 'rgba(15, 23, 42, 0.95)',
+                padding: '4px 8px',
+                borderRadius: '8px',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                color: '#fbbf24',
+                fontSize: '12px',
+                fontWeight: 600,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="cs-action-btn-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const s = selectedObject as ShapeObject;
+                  const algo: AlgorithmType = (s.params?.algorithm as AlgorithmType) || 'bubbleSort';
+                  const rawArr: number[] = s.params?.array || [14, 33, 27, 10, 35, 19, 42, 44];
+                  const targetVal: number = s.params?.targetVal ?? 35;
+                  const steps = generateSimulationSteps(algo, rawArr, targetVal);
+                  if (steps.length > 0) {
+                    const step = steps[0];
+                    handleUpdateShape(s, {
+                      ...s,
+                      params: { ...s.params, stepIndex: 0, array: step.array, activeIndices: step.activeIndices, sortedIndices: step.sortedIndices, pointers: step.pointers, statusText: step.statusText },
+                      label: `${s.params?.title || 'Sorting'} (Step 1/${steps.length})`,
+                    });
+                  }
+                }}
+                title="Reset to Step 1"
+                style={{ padding: '2px 6px', fontSize: '11px' }}
+              >
+                ⏮
+              </button>
+              <button
+                className="cs-action-btn-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const s = selectedObject as ShapeObject;
+                  const algo: AlgorithmType = (s.params?.algorithm as AlgorithmType) || 'bubbleSort';
+                  const rawArr: number[] = s.params?.array || [14, 33, 27, 10, 35, 19, 42, 44];
+                  const targetVal: number = s.params?.targetVal ?? 35;
+                  const steps = generateSimulationSteps(algo, rawArr, targetVal);
+                  const cur = s.params?.stepIndex ?? 0;
+                  const prevIdx = Math.max(0, cur - 1);
+                  if (steps[prevIdx]) {
+                    const step = steps[prevIdx];
+                    handleUpdateShape(s, {
+                      ...s,
+                      params: { ...s.params, stepIndex: prevIdx, array: step.array, activeIndices: step.activeIndices, sortedIndices: step.sortedIndices, pointers: step.pointers, statusText: step.statusText },
+                      label: `${s.params?.title || 'Sorting'} (Step ${prevIdx + 1}/${steps.length})`,
+                    });
+                  }
+                }}
+                title="Previous Step"
+                style={{ padding: '2px 8px', fontSize: '11px' }}
+              >
+                ◀ Prev
+              </button>
+              <span style={{ minWidth: '60px', textAlign: 'center', fontSize: '11px', color: '#e2e8f0' }}>
+                Step {((selectedObject as ShapeObject).params?.stepIndex ?? 0) + 1}
+              </span>
+              <button
+                className="cs-action-btn-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const s = selectedObject as ShapeObject;
+                  const algo: AlgorithmType = (s.params?.algorithm as AlgorithmType) || 'bubbleSort';
+                  const rawArr: number[] = s.params?.array || [14, 33, 27, 10, 35, 19, 42, 44];
+                  const targetVal: number = s.params?.targetVal ?? 35;
+                  const steps = generateSimulationSteps(algo, rawArr, targetVal);
+                  const cur = s.params?.stepIndex ?? 0;
+                  const nextIdx = Math.min(steps.length - 1, cur + 1);
+                  if (steps[nextIdx]) {
+                    const step = steps[nextIdx];
+                    handleUpdateShape(s, {
+                      ...s,
+                      params: { ...s.params, stepIndex: nextIdx, array: step.array, activeIndices: step.activeIndices, sortedIndices: step.sortedIndices, pointers: step.pointers, statusText: step.statusText },
+                      label: `${s.params?.title || 'Sorting'} (Step ${nextIdx + 1}/${steps.length})`,
+                    });
+                  }
+                }}
+                title="Next Step"
+                style={{ padding: '2px 8px', fontSize: '11px', background: 'rgba(245,158,11,0.2)', color: '#fbbf24' }}
+              >
+                Next ▶
+              </button>
+              <button
+                className="cs-action-btn-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const s = selectedObject as ShapeObject;
+                  const algo: AlgorithmType = (s.params?.algorithm as AlgorithmType) || 'bubbleSort';
+                  const rawArr: number[] = s.params?.array || [14, 33, 27, 10, 35, 19, 42, 44];
+                  const targetVal: number = s.params?.targetVal ?? 35;
+                  const steps = generateSimulationSteps(algo, rawArr, targetVal);
+                  const lastIdx = steps.length - 1;
+                  if (steps[lastIdx]) {
+                    const step = steps[lastIdx];
+                    handleUpdateShape(s, {
+                      ...s,
+                      params: { ...s.params, stepIndex: lastIdx, array: step.array, activeIndices: step.activeIndices, sortedIndices: step.sortedIndices, pointers: step.pointers, statusText: step.statusText },
+                      label: `${s.params?.title || 'Sorting'} (Step ${lastIdx + 1}/${steps.length})`,
+                    });
+                  }
+                }}
+                title="Final Sorted Step"
+                style={{ padding: '2px 6px', fontSize: '11px' }}
+              >
+                ⏭
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Quick Interactive Logic Gate on-board controls (Swap gate without changing inputs or styling) */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'logicGate' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 46),
+            zIndex: 122,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(15, 23, 42, 0.96)',
+            padding: '4px 8px',
+            borderRadius: '8px',
+            border: '1px solid rgba(56, 189, 248, 0.4)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {/* Gate Type Quick Swap Buttons */}
+          {!((selectedObject as ShapeObject).params?.blockType) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+              {(['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'XNOR'] as const).map((g) => {
+                const s = selectedObject as ShapeObject;
+                const cur = (s.params?.gateType || 'AND').toUpperCase();
+                const isActive = cur === g;
+                return (
+                  <button
+                    key={g}
+                    className="cs-action-btn-sm"
+                    style={{
+                      padding: '2px 7px',
+                      fontSize: '11px',
+                      fontWeight: isActive ? 700 : 500,
+                      background: isActive ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 255, 255, 0.05)',
+                      color: isActive ? '#38bdf8' : '#cbd5e1',
+                      border: isActive ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                    }}
+                    title={`Swap to ${g} Gate`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const prev = s;
+                      const newInputs = g === 'NOT' ? 1 : Math.max(2, s.params?.inputs || 2);
+                      const updated: ShapeObject = {
+                        ...s,
+                        params: {
+                          ...s.params,
+                          gateType: g,
+                          inputs: newInputs,
+                        },
+                        label: `${g} Gate`,
+                      };
+                      handleUpdateShape(prev, updated);
+                    }}
+                  >
+                    {g}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Label Toggle Button */}
+          <button
+            className="cs-action-btn-sm"
+            style={{
+              padding: '2px 8px',
+              fontSize: '11px',
+              background: ((selectedObject as ShapeObject).params?.showLabels ?? true) ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+              color: ((selectedObject as ShapeObject).params?.showLabels ?? true) ? '#34d399' : '#f87171',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '4px',
+              cursor: 'pointer',
+            }}
+            title="Toggle input/output pin labels on gate"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const curShow = s.params?.showLabels ?? true;
+              handleUpdateShape(s, {
+                ...s,
+                params: {
+                  ...s.params,
+                  showLabels: !curShow,
+                },
+              });
+            }}
+          >
+            Labels: {((selectedObject as ShapeObject).params?.showLabels ?? true) ? 'ON' : 'OFF'}
+          </button>
+
+          {/* Font Size Selector */}
+          <select
+            className="cs-modal-select"
+            value={(selectedObject as ShapeObject).params?.fontSize || 14}
+            style={{ padding: '2px 4px', fontSize: '11px', height: '24px', width: '60px' }}
+            title="Font Size"
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              handleUpdateShape(s, {
+                ...s,
+                params: {
+                  ...s.params,
+                  fontSize: Number(e.target.value),
+                },
+              });
+            }}
+          >
+            {[11, 12, 14, 16, 18, 20, 24].map((sz) => (
+              <option key={sz} value={sz}>{sz}px</option>
+            ))}
+          </select>
+
+          {/* Digital Circuit Blocks Quick Toolbar (MUX, Adders, Flip-Flops, Counter) */}
+          {(selectedObject as ShapeObject).params?.blockType && (() => {
+            const s = selectedObject as ShapeObject;
+            const bt = s.params?.blockType as string;
+
+            // 1. MUX Block (N:1 MUX)
+            if (bt === 'MUX' || bt.startsWith('MUX')) {
+              const curSize = Number(s.params?.muxSize) || 4;
+              const inputs = (Array.isArray(s.params?.inputValues) ? s.params.inputValues : [0, 1, 0, 1]) as number[];
+              const curSel = Math.min(curSize - 1, Number(s.params?.selectedChannel) || 0);
+              const outputVal = evaluateMux(curSize, inputs, curSel).outputValue;
+
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  {/* Size Switchers */}
+                  <div style={{ display: 'flex', gap: '2px' }}>
+                    {[2, 4, 8, 16].map((sz) => (
+                      <button
+                        key={sz}
+                        className="cs-action-btn-sm"
+                        style={{
+                          padding: '2px 5px',
+                          fontSize: '11px',
+                          fontWeight: curSize === sz ? 700 : 500,
+                          background: curSize === sz ? 'rgba(56, 189, 248, 0.35)' : 'rgba(255, 255, 255, 0.05)',
+                          color: curSize === sz ? '#38bdf8' : '#cbd5e1',
+                          border: curSize === sz ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                        }}
+                        title={`Set to ${sz}:1 MUX`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newInputs = Array.from({ length: sz }, (_, i) => inputs[i] ?? (i % 2 === 1 ? 1 : 0));
+                          const newSel = Math.min(sz - 1, curSel);
+                          handleUpdateShape(s, {
+                            ...s,
+                            params: {
+                              ...s.params,
+                              muxSize: sz,
+                              inputValues: newInputs,
+                              selectedChannel: newSel,
+                            },
+                            label: `${sz}:1 Multiplexer`,
+                          });
+                        }}
+                      >
+                        {sz}:1
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Channel Stepper: [ ◀ S=1 ▶ ] */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'rgba(0,0,0,0.3)', padding: '1px 4px', borderRadius: '4px' }}>
+                    <button
+                      className="cs-action-btn-sm"
+                      style={{ padding: '1px 5px', fontSize: '11px', cursor: 'pointer' }}
+                      title="Previous select channel"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const nextSel = (curSel - 1 + curSize) % curSize;
+                        handleUpdateShape(s, {
+                          ...s,
+                          params: { ...s.params, selectedChannel: nextSel },
+                        });
+                      }}
+                    >
+                      ◀
+                    </button>
+                    <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#10b981', fontWeight: 700, padding: '0 2px' }}>
+                      S={curSel} (D{curSel}={inputs[curSel] ?? 0})
+                    </span>
+                    <button
+                      className="cs-action-btn-sm"
+                      style={{ padding: '1px 5px', fontSize: '11px', cursor: 'pointer' }}
+                      title="Next select channel"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const nextSel = (curSel + 1) % curSize;
+                        handleUpdateShape(s, {
+                          ...s,
+                          params: { ...s.params, selectedChannel: nextSel },
+                        });
+                      }}
+                    >
+                      ▶
+                    </button>
+                  </div>
+
+                  {/* Toggle Current Channel Input Bit */}
+                  <button
+                    className="cs-action-btn-sm"
+                    style={{
+                      padding: '2px 6px',
+                      fontSize: '11px',
+                      background: (inputs[curSel] ?? 0) === 1 ? 'rgba(16, 185, 129, 0.25)' : 'rgba(148, 163, 184, 0.15)',
+                      color: (inputs[curSel] ?? 0) === 1 ? '#34d399' : '#94a3b8',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                    }}
+                    title={`Toggle bit value for D${curSel}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const newInputs = [...inputs];
+                      while (newInputs.length < curSize) newInputs.push(0);
+                      newInputs[curSel] = (newInputs[curSel] === 1 ? 0 : 1);
+                      handleUpdateShape(s, {
+                        ...s,
+                        params: { ...s.params, inputValues: newInputs },
+                      });
+                    }}
+                  >
+                    D{curSel}: {inputs[curSel] ?? 0} ⇄ {(inputs[curSel] ?? 0) === 1 ? 0 : 1}
+                  </button>
+
+                  {/* Live Out Badge */}
+                  <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#38bdf8', fontWeight: 700, padding: '1px 5px', background: 'rgba(56,189,248,0.15)', borderRadius: '4px' }}>
+                    Y = {outputVal}
+                  </span>
+                </div>
+              );
+            }
+
+            // 2. Arithmetic Adders (Half Adder / Full Adder)
+            if (bt === 'HalfAdder' || bt === 'FullAdder') {
+              const isFull = bt === 'FullAdder';
+              const inA = (s.params?.inputA ?? 1) & 1;
+              const inB = (s.params?.inputB ?? 1) & 1;
+              const inCin = (s.params?.inputCin ?? 0) & 1;
+              const evalRes = evaluateAdder(isFull, inA, inB, inCin);
+
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  {/* Mode Toggle: HA vs FA */}
+                  <button
+                    className="cs-action-btn-sm"
+                    style={{
+                      padding: '2px 7px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      background: 'rgba(56, 189, 248, 0.25)',
+                      color: '#38bdf8',
+                      border: '1px solid #38bdf8',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                    }}
+                    title="Switch between Half Adder and Full Adder"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const nextType = isFull ? 'HalfAdder' : 'FullAdder';
+                      handleUpdateShape(s, {
+                        ...s,
+                        params: { ...s.params, blockType: nextType },
+                        label: nextType === 'FullAdder' ? 'Full Adder (FA)' : 'Half Adder (HA)',
+                      });
+                    }}
+                  >
+                    {isFull ? 'Full Adder (FA)' : 'Half Adder (HA)'}
+                  </button>
+
+                  {/* Input A bit toggle */}
+                  <button
+                    className="cs-action-btn-sm"
+                    style={{
+                      padding: '2px 6px',
+                      fontSize: '11px',
+                      background: inA === 1 ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.2)',
+                      color: inA === 1 ? '#34d399' : '#f87171',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                    }}
+                    title="Toggle input A (0 / 1)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUpdateShape(s, {
+                        ...s,
+                        params: { ...s.params, inputA: 1 - inA },
+                      });
+                    }}
+                  >
+                    A={inA}
+                  </button>
+
+                  {/* Input B bit toggle */}
+                  <button
+                    className="cs-action-btn-sm"
+                    style={{
+                      padding: '2px 6px',
+                      fontSize: '11px',
+                      background: inB === 1 ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.2)',
+                      color: inB === 1 ? '#34d399' : '#f87171',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                    }}
+                    title="Toggle input B (0 / 1)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUpdateShape(s, {
+                        ...s,
+                        params: { ...s.params, inputB: 1 - inB },
+                      });
+                    }}
+                  >
+                    B={inB}
+                  </button>
+
+                  {/* Input Cin bit toggle (for FA) */}
+                  {isFull && (
+                    <button
+                      className="cs-action-btn-sm"
+                      style={{
+                        padding: '2px 6px',
+                        fontSize: '11px',
+                        background: inCin === 1 ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.2)',
+                        color: inCin === 1 ? '#34d399' : '#f87171',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                      }}
+                      title="Toggle Carry-In (0 / 1)"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUpdateShape(s, {
+                          ...s,
+                          params: { ...s.params, inputCin: 1 - inCin },
+                        });
+                      }}
+                    >
+                      Cin={inCin}
+                    </button>
+                  )}
+
+                  {/* Live Results Badge */}
+                  <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#10b981', fontWeight: 700, padding: '1px 6px', background: 'rgba(16,185,129,0.15)', borderRadius: '4px' }}>
+                    Σ={evalRes.sum} {isFull ? `Cout=${evalRes.cout}` : `Carry=${evalRes.cout}`}
+                  </span>
+                </div>
+              );
+            }
+
+            // 3. Clocked Flip-Flop
+            if (bt === 'FlipFlop') {
+              const ffType = (s.params?.ffType || 'D') as 'D' | 'JK' | 'T' | 'SR';
+              const curQ = (s.params?.stateQ ?? 0) & 1;
+              const inD = (s.params?.inputD ?? 1) & 1;
+              const inJ = (s.params?.inputJ ?? 1) & 1;
+              const inK = (s.params?.inputK ?? 0) & 1;
+              const inT = (s.params?.inputT ?? 1) & 1;
+              const inS = (s.params?.inputS ?? 1) & 1;
+              const inR = (s.params?.inputR ?? 0) & 1;
+
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  {/* Flip-Flop Type Selector */}
+                  <div style={{ display: 'flex', gap: '2px' }}>
+                    {(['D', 'JK', 'T', 'SR'] as const).map((t) => (
+                      <button
+                        key={t}
+                        className="cs-action-btn-sm"
+                        style={{
+                          padding: '2px 5px',
+                          fontSize: '11px',
+                          fontWeight: ffType === t ? 700 : 500,
+                          background: ffType === t ? 'rgba(56, 189, 248, 0.35)' : 'rgba(255, 255, 255, 0.05)',
+                          color: ffType === t ? '#38bdf8' : '#cbd5e1',
+                          border: ffType === t ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                        }}
+                        title={`Switch to ${t} Flip-Flop`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdateShape(s, {
+                            ...s,
+                            params: { ...s.params, ffType: t },
+                            label: `${t} Flip-Flop`,
+                          });
+                        }}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Input toggles according to ffType */}
+                  {ffType === 'D' && (
+                    <button
+                      className="cs-action-btn-sm"
+                      style={{ padding: '2px 6px', fontSize: '11px', cursor: 'pointer' }}
+                      title="Toggle D input"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUpdateShape(s, { ...s, params: { ...s.params, inputD: 1 - inD } });
+                      }}
+                    >
+                      D={inD}
+                    </button>
+                  )}
+                  {ffType === 'JK' && (
+                    <>
+                      <button
+                        className="cs-action-btn-sm"
+                        style={{ padding: '2px 6px', fontSize: '11px', cursor: 'pointer' }}
+                        title="Toggle J input"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdateShape(s, { ...s, params: { ...s.params, inputJ: 1 - inJ } });
+                        }}
+                      >
+                        J={inJ}
+                      </button>
+                      <button
+                        className="cs-action-btn-sm"
+                        style={{ padding: '2px 6px', fontSize: '11px', cursor: 'pointer' }}
+                        title="Toggle K input"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdateShape(s, { ...s, params: { ...s.params, inputK: 1 - inK } });
+                        }}
+                      >
+                        K={inK}
+                      </button>
+                    </>
+                  )}
+                  {ffType === 'T' && (
+                    <button
+                      className="cs-action-btn-sm"
+                      style={{ padding: '2px 6px', fontSize: '11px', cursor: 'pointer' }}
+                      title="Toggle T input"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUpdateShape(s, { ...s, params: { ...s.params, inputT: 1 - inT } });
+                      }}
+                    >
+                      T={inT}
+                    </button>
+                  )}
+                  {ffType === 'SR' && (
+                    <>
+                      <button
+                        className="cs-action-btn-sm"
+                        style={{ padding: '2px 6px', fontSize: '11px', cursor: 'pointer' }}
+                        title="Toggle S input"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdateShape(s, { ...s, params: { ...s.params, inputS: 1 - inS } });
+                        }}
+                      >
+                        S={inS}
+                      </button>
+                      <button
+                        className="cs-action-btn-sm"
+                        style={{ padding: '2px 6px', fontSize: '11px', cursor: 'pointer' }}
+                        title="Toggle R input"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdateShape(s, { ...s, params: { ...s.params, inputR: 1 - inR } });
+                        }}
+                      >
+                        R={inR}
+                      </button>
+                    </>
+                  )}
+
+                  {/* ⚡ CLK Pulse Button */}
+                  <button
+                    className="cs-action-btn-sm cs-action-btn-primary"
+                    style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 800 }}
+                    title="Trigger Clock Pulse (CLK)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const res = evaluateFlipFlopNextState(ffType, curQ, {
+                        d: inD,
+                        j: inJ,
+                        k: inK,
+                        t: inT,
+                        s: inS,
+                        r: inR,
+                      });
+                      handleUpdateShape(s, {
+                        ...s,
+                        params: {
+                          ...s.params,
+                          stateQ: res.nextQ,
+                          stateQbar: 1 - res.nextQ,
+                          mode: res.mode,
+                        },
+                      });
+                    }}
+                  >
+                    ⚡ CLK
+                  </button>
+
+                  {/* Live Q and Qbar state */}
+                  <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#10b981', fontWeight: 700, padding: '1px 6px', background: 'rgba(16,185,129,0.15)', borderRadius: '4px' }}>
+                    Q={curQ} Q̄={1 - curQ}
+                  </span>
+                </div>
+              );
+            }
+
+            // 4. 4-Bit Binary Counter
+            if (bt === 'Counter4' || bt === 'BinaryCounter') {
+              const curCount = Number(s.params?.countValue) || 0;
+
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  {/* Count Up (+1) */}
+                  <button
+                    className="cs-action-btn-sm cs-action-btn-primary"
+                    style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 800 }}
+                    title="Clock Pulse: Increment Counter (+1)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const nextVal = evaluateCounter(curCount, 'inc', 15);
+                      handleUpdateShape(s, {
+                        ...s,
+                        params: { ...s.params, countValue: nextVal },
+                      });
+                    }}
+                  >
+                    ⚡ CLK (+1)
+                  </button>
+
+                  {/* Count Down (-1) */}
+                  <button
+                    className="cs-action-btn-sm"
+                    style={{ padding: '2px 6px', fontSize: '11px', cursor: 'pointer' }}
+                    title="Decrement Counter (-1)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const nextVal = evaluateCounter(curCount, 'dec', 15);
+                      handleUpdateShape(s, {
+                        ...s,
+                        params: { ...s.params, countValue: nextVal },
+                      });
+                    }}
+                  >
+                    ◀ -1
+                  </button>
+
+                  {/* Reset (0) */}
+                  <button
+                    className="cs-action-btn-sm"
+                    style={{ padding: '2px 6px', fontSize: '11px', color: '#f87171', cursor: 'pointer' }}
+                    title="Reset Counter to 0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUpdateShape(s, {
+                        ...s,
+                        params: { ...s.params, countValue: 0 },
+                      });
+                    }}
+                  >
+                    ↺ RST
+                  </button>
+
+                  {/* Live Count & Binary Display */}
+                  <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#38bdf8', fontWeight: 700, padding: '1px 6px', background: 'rgba(56,189,248,0.15)', borderRadius: '4px' }}>
+                    {curCount}/15 [ {((curCount >> 3) & 1)} {((curCount >> 2) & 1)} {((curCount >> 1) & 1)} {(curCount & 1)} ]
+                  </span>
+                </div>
+              );
+            }
+
+            return null;
+          })()}
+
+          {/* Full Designer Dialog Button */}
+          <button
+            className="quick-edit-btn"
+            style={{ padding: '2px 8px', fontSize: '11px' }}
+            title={
+              (selectedObject as ShapeObject).params?.blockType
+                ? 'Open Digital Circuit Designer (or double-click)'
+                : 'Open Logic Gate & Circuit Designer (or double-click)'
+            }
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              if (s.params?.blockType) {
+                setEditingDigitalCircuitShape(s);
+              } else {
+                setEditingLogicGateShape(s);
+              }
+            }}
+          >
+            ⚡ Configure
+          </button>
+        </div>
+      )}
+
+      {/* Quick "📋 Configure Truth Table" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'truthTable' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(15, 23, 42, 0.96)',
+            padding: '4px 8px',
+            borderRadius: '8px',
+            border: '1px solid rgba(56, 189, 248, 0.4)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Configure N-Bits & Outputs (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingTruthTableShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>📋</span>
+            <span>{(selectedObject as ShapeObject).label || 'Configure Truth Table'}</span>
+          </button>
+
+          <select
+            className="cs-modal-select"
+            value={(selectedObject as ShapeObject).params?.fontSize || 13}
+            style={{ padding: '2px 4px', fontSize: '11px', height: '24px', width: '60px' }}
+            title="Font Size"
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              handleUpdateShape(s, {
+                ...s,
+                params: {
+                  ...s.params,
+                  fontSize: Number(e.target.value),
+                },
+              });
+            }}
+          >
+            {[11, 12, 13, 14, 16, 18, 20, 24].map((sz) => (
+              <option key={sz} value={sz}>{sz}px</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Quick "🔲 Configure Karnaugh Map" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'karnaughMap' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(15, 23, 42, 0.96)',
+            padding: '4px 8px',
+            borderRadius: '8px',
+            border: '1px solid rgba(56, 189, 248, 0.4)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Configure K-Map Variables, SOP/POS & Cells (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingKarnaughMapShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>🔲</span>
+            <span>{(selectedObject as ShapeObject).label || 'Configure Karnaugh Map'}</span>
+          </button>
+
+          <select
+            className="cs-modal-select"
+            value={(selectedObject as ShapeObject).params?.fontSize || 14}
+            style={{ padding: '2px 4px', fontSize: '11px', height: '24px', width: '60px' }}
+            title="Font Size"
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              handleUpdateShape(s, {
+                ...s,
+                params: {
+                  ...s.params,
+                  fontSize: Number(e.target.value),
+                },
+              });
+            }}
+          >
+            {[11, 12, 14, 16, 18, 20, 24].map((sz) => (
+              <option key={sz} value={sz}>{sz}px</option>
+            ))}
+          </select>
         </div>
       )}
 
@@ -3169,6 +4127,103 @@ export function WhiteboardCanvas(): React.ReactElement {
           onUpdateShape={(updated) => {
             handleUpdateShape(editingSortingShape, updated);
             setEditingSortingShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Database Table & Schema Modal */}
+      {editingDatabaseTableShape && (
+        <DatabaseTableModal
+          existingShape={editingDatabaseTableShape}
+          onClose={() => setEditingDatabaseTableShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingDatabaseTableShape, updated);
+            setEditingDatabaseTableShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive CPU & Architecture Modal */}
+      {editingCpuArchShape && (
+        <CpuArchModal
+          existingShape={editingCpuArchShape}
+          onClose={() => setEditingCpuArchShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingCpuArchShape, updated);
+            setEditingCpuArchShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Instruction Cycle Modal */}
+      {editingInstructionCycleShape && (
+        <InstructionCycleModal
+          existingShape={editingInstructionCycleShape}
+          onClose={() => setEditingInstructionCycleShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingInstructionCycleShape, updated);
+            setEditingInstructionCycleShape(null);
+          }}
+        />
+      )}
+
+      
+      {/* Interactive Logic Gate Modal */}
+      {editingLogicGateShape && (
+        <LogicGateModal
+          existingShape={editingLogicGateShape}
+          onClose={() => setEditingLogicGateShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingLogicGateShape, updated);
+            setEditingLogicGateShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Digital Circuit Modal (MUX, Adders, Flip-Flops, Counter) */}
+      {editingDigitalCircuitShape && (
+        <DigitalCircuitModal
+          existingShape={editingDigitalCircuitShape}
+          onClose={() => setEditingDigitalCircuitShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingDigitalCircuitShape, updated);
+            setEditingDigitalCircuitShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Truth Table Modal */}
+      {editingTruthTableShape && (
+        <TruthTableModal
+          existingShape={editingTruthTableShape}
+          onClose={() => setEditingTruthTableShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingTruthTableShape, updated);
+            setEditingTruthTableShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Karnaugh Map Modal */}
+      {editingKarnaughMapShape && (
+        <KarnaughMapModal
+          existingShape={editingKarnaughMapShape}
+          onClose={() => setEditingKarnaughMapShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingKarnaughMapShape, updated);
+            setEditingKarnaughMapShape(null);
+          }}
+        />
+      )}
+
+      {/* Interactive Network Topology Modal */}
+      {editingNetworkTopologyShape && (
+        <NetworkTopologyModal
+          existingShape={editingNetworkTopologyShape}
+          onClose={() => setEditingNetworkTopologyShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingNetworkTopologyShape, updated);
+            setEditingNetworkTopologyShape(null);
           }}
         />
       )}

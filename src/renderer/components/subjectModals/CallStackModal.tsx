@@ -82,6 +82,9 @@ export function CallStackModal({
   const [frames, setFrames] = useState<StackFrame[]>(
     existingShape?.params?.frames || PRESETS.factorial.frames
   );
+  const [fontSize, setFontSize] = useState<number>(
+    existingShape?.params?.fontSize || 14
+  );
 
   const [newFunc, setNewFunc] = useState<string>('');
   const [newVars, setNewVars] = useState<string>('');
@@ -157,6 +160,7 @@ export function CallStackModal({
       diagramType: 'callStack',
       title,
       frames: sanitizedFrames,
+      fontSize,
     };
 
     if (existingShape && onUpdateShape) {
@@ -240,6 +244,20 @@ export function CallStackModal({
               {Object.entries(PRESETS).map(([key, p]) => (
                 <option key={key} value={key}>
                   {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="cs-toolbar-field" style={{ width: '90px' }}>
+            <label>Font Size:</label>
+            <select
+              className="cs-modal-select"
+              value={fontSize}
+              onChange={(e) => setFontSize(Number(e.target.value))}
+            >
+              {[11, 12, 14, 16, 18, 20, 24].map((sz) => (
+                <option key={sz} value={sz}>
+                  {sz}px
                 </option>
               ))}
             </select>

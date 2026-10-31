@@ -263,13 +263,12 @@ describe('Toolbar Click & Dynamic Icon Subsystem', () => {
       }
 
       getVisibleMenuTools(): string[] {
-        const core = ['menu-hamburger', 'desktop', 'presentation', 'spotlight', 'annotation'];
+        const core = ['menu-hamburger', 'desktop', 'presentation', 'spotlight', 'subject-tools', 'annotation'];
         const expanded = [
           'timer',
           'screenshot',
           'background-styles',
           'layers',
-          'subject-tools',
           'resource-library',
           'activities',
         ];
@@ -299,18 +298,19 @@ describe('Toolbar Click & Dynamic Icon Subsystem', () => {
       expect(dock.getRightBarType()).toBe('navigation');
     });
 
-    it('menu bar defaults to compact view with only 4 core tools + menu hamburger', () => {
+    it('menu bar defaults to compact view with core tools (including subject tools next to spotlight) + menu hamburger', () => {
       const dock = new DockLayoutManager();
       expect(dock.isMenuExpanded).toBe(false);
       const tools = dock.getVisibleMenuTools();
 
-      expect(tools).toHaveLength(5);
+      expect(tools).toHaveLength(6);
       expect(tools).toContain('desktop');
       expect(tools).toContain('presentation');
       expect(tools).toContain('spotlight');
+      expect(tools).toContain('subject-tools');
+      expect(tools.indexOf('subject-tools')).toBe(tools.indexOf('spotlight') + 1);
       expect(tools).toContain('annotation');
       expect(tools).not.toContain('timer');
-      expect(tools).not.toContain('subject-tools');
     });
 
     it('clicking >> expands the menu bar to show all 12 tools, clicking again collapses', () => {
@@ -331,7 +331,7 @@ describe('Toolbar Click & Dynamic Icon Subsystem', () => {
       // Collapse back
       dock.toggleMenuExpand();
       expect(dock.isMenuExpanded).toBe(false);
-      expect(dock.getVisibleMenuTools()).toHaveLength(5);
+      expect(dock.getVisibleMenuTools()).toHaveLength(6);
     });
 
     it('zoom bar does not include redundant hand/pan button', () => {

@@ -13,6 +13,7 @@ import { PeriodicTableModal } from './subjectModals/PeriodicTableModal';
 import { FunctionPlotterModal } from './subjectModals/FunctionPlotterModal';
 import { EquationBalancerModal } from './subjectModals/EquationBalancerModal';
 import { TruthTableModal } from './subjectModals/TruthTableModal';
+import { LogicGateModal } from './subjectModals/LogicGateModal';
 import { AngleConstructionModal } from './subjectModals/AngleConstructionModal';
 import { CartesianPlaneModal } from './subjectModals/CartesianPlaneModal';
 import { NumberLineModal } from './subjectModals/NumberLineModal';
@@ -34,6 +35,12 @@ import { MemoryLayoutModal } from './subjectModals/MemoryLayoutModal';
 import { LinkedListModal } from './subjectModals/LinkedListModal';
 import { TreeGraphModal } from './subjectModals/TreeGraphModal';
 import { SortingSearchingModal } from './subjectModals/SortingSearchingModal';
+import { DatabaseTableModal } from './subjectModals/DatabaseTableModal';
+import { CpuArchModal } from './subjectModals/CpuArchModal';
+import { InstructionCycleModal } from './subjectModals/InstructionCycleModal';
+import { NetworkTopologyModal } from './subjectModals/NetworkTopologyModal';
+import { KarnaughMapModal } from './subjectModals/KarnaughMapModal';
+import { DigitalCircuitModal } from './subjectModals/DigitalCircuitModal';
 import { Solid3DType } from '../engine/geometry3DMath';
 import { executeAddMultipleObjects } from '../services/subjectModules/commonHelpers';
 import './SubjectToolsModal.css';
@@ -58,6 +65,9 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
     | 'functionPlotter'
     | 'equationBalancer'
     | 'truthTable'
+    | 'logicGate'
+    | 'karnaughMap'
+    | 'digitalCircuit'
     | 'angleConstruction'
     | 'cartesianPlane'
     | 'numberLine'
@@ -77,6 +87,10 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
     | 'linkedList'
     | 'treeGraph'
     | 'sortingSearching'
+    | 'databaseTable'
+    | 'cpuArchitecture'
+    | 'instructionCycle'
+    | 'networkTopology'
     | null
   >(null);
   const [bridgePseudocode, setBridgePseudocode] = useState<string>('');
@@ -85,6 +99,7 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
   const [resistorMode, setResistorMode] = useState<'resistor' | 'rheostat'>('resistor');
   const [circuitMode, setCircuitMode] = useState<'seriesCircuit' | 'parallelCircuit'>('seriesCircuit');
   const [apparatusMode, setApparatusMode] = useState<ApparatusMode>('beaker');
+  const [digitalCircuitMode, setDigitalCircuitMode] = useState<'mux' | 'adder' | 'flipflop' | 'counter'>('mux');
 
   const handleSubmodalInsertSuccess = () => {
     setActiveSubmodal(null);
@@ -155,6 +170,21 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
         case 'truthTable':
           setActiveSubmodal('truthTable');
           return;
+        case 'logicGate':
+          setActiveSubmodal('logicGate');
+          return;
+        case 'digitalCircuit': {
+          let mode: 'mux' | 'adder' | 'flipflop' | 'counter' = 'mux';
+          if (tool.id.includes('adder')) mode = 'adder';
+          else if (tool.id.includes('flip-flop')) mode = 'flipflop';
+          else if (tool.id.includes('counter') || tool.id.includes('register')) mode = 'counter';
+          setDigitalCircuitMode(mode);
+          setActiveSubmodal('digitalCircuit');
+          return;
+        }
+        case 'karnaughMap':
+          setActiveSubmodal('karnaughMap');
+          return;
         case 'angleConstruction':
           setActiveSubmodal('angleConstruction');
           return;
@@ -224,6 +254,18 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
         case 'sortingSearching':
           setActiveSubmodal('sortingSearching');
           return;
+        case 'databaseTable':
+          setActiveSubmodal('databaseTable');
+          return;
+        case 'cpuArchitecture':
+          setActiveSubmodal('cpuArchitecture');
+          return;
+        case 'instructionCycle':
+          setActiveSubmodal('instructionCycle');
+          return;
+        case 'networkTopology':
+          setActiveSubmodal('networkTopology');
+          return;
       }
     }
 
@@ -251,10 +293,21 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
     onClose();
   };
 
+  const currentPage = docState.lesson.pages[currentPageIndex];
+  const boardBgColor = currentPage?.background?.color || '#1b4332';
+
   return (
     <>
-      <div className="subject-tools-overlay" onClick={onClose}>
-        <div className="subject-tools-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="subject-tools-overlay"
+        style={{ '--board-bg-color': boardBgColor } as React.CSSProperties}
+        onClick={onClose}
+      >
+        <div
+          className="subject-tools-modal"
+          style={{ '--board-bg-color': boardBgColor } as React.CSSProperties}
+          onClick={(e) => e.stopPropagation()}
+        >
           {/* Header */}
           <div className="subject-tools-header">
             <div className="subject-tools-title-group">
@@ -387,8 +440,20 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
           onInsertSuccess={handleSubmodalInsertSuccess}
         />
       )}
+      {activeSubmodal === 'logicGate' && (
+        <LogicGateModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
       {activeSubmodal === 'truthTable' && (
         <TruthTableModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'karnaughMap' && (
+        <KarnaughMapModal
           onClose={() => setActiveSubmodal(null)}
           onInsertSuccess={handleSubmodalInsertSuccess}
         />
@@ -534,6 +599,37 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
       )}
       {activeSubmodal === 'sortingSearching' && (
         <SortingSearchingModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'databaseTable' && (
+        <DatabaseTableModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'cpuArchitecture' && (
+        <CpuArchModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'instructionCycle' && (
+        <InstructionCycleModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'networkTopology' && (
+        <NetworkTopologyModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'digitalCircuit' && (
+        <DigitalCircuitModal
+          defaultMode={digitalCircuitMode}
           onClose={() => setActiveSubmodal(null)}
           onInsertSuccess={handleSubmodalInsertSuccess}
         />

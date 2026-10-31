@@ -83,6 +83,9 @@ export function MemoryLayoutModal({
   const [cells, setCells] = useState<MemoryCellDef[]>(
     existingShape?.params?.cells || PRESETS.pointerBasic.cells
   );
+  const [fontSize, setFontSize] = useState<number>(
+    existingShape?.params?.fontSize || 14
+  );
 
   const currentPageIndex = docState.currentPageIndex;
 
@@ -137,6 +140,7 @@ export function MemoryLayoutModal({
       diagramType: 'memoryLayout',
       title,
       cells,
+      fontSize,
     };
 
     if (existingShape && onUpdateShape) {
@@ -220,6 +224,20 @@ export function MemoryLayoutModal({
               {Object.entries(PRESETS).map(([key, p]) => (
                 <option key={key} value={key}>
                   {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="cs-toolbar-field" style={{ width: '90px' }}>
+            <label>Font Size:</label>
+            <select
+              className="cs-modal-select"
+              value={fontSize}
+              onChange={(e) => setFontSize(Number(e.target.value))}
+            >
+              {[11, 12, 14, 16, 18, 20, 24].map((sz) => (
+                <option key={sz} value={sz}>
+                  {sz}px
                 </option>
               ))}
             </select>

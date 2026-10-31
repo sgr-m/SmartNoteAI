@@ -142,6 +142,7 @@ export function FlowchartBuilderModal({
 
   // Zoom level for preview
   const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [fontSize, setFontSize] = useState<number>(existingShape?.params?.fontSize || 14);
 
   const currentPageIndex = docState.currentPageIndex;
 
@@ -257,6 +258,7 @@ export function FlowchartBuilderModal({
       nodes: graph.nodes,
       edges: graph.edges,
       sourcePseudocode: pseudocodeText,
+      fontSize,
     };
 
     if (existingShape && onUpdateShape) {
@@ -462,6 +464,21 @@ export function FlowchartBuilderModal({
               <button type="button" className="cs-icon-btn" onClick={() => setZoomLevel((z) => Math.min(1.5, z + 0.15))}>+</button>
               <button type="button" className="cs-icon-btn" onClick={() => setZoomLevel(1)}>Reset</button>
             </div>
+          </div>
+
+          <div className="cs-code-toolbar-group">
+            <label className="cs-label">Font Size:</label>
+            <select
+              className="cs-select"
+              value={fontSize}
+              onChange={(e) => setFontSize(Number(e.target.value))}
+            >
+              {[11, 12, 14, 16, 18, 20, 24].map((sz) => (
+                <option key={sz} value={sz}>
+                  {sz}px
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -798,4 +815,5 @@ export function FlowchartBuilderModal({
     </div>
   );
 }
+
 

@@ -18,9 +18,10 @@ function freshState(): DocumentState {
 }
 
 describe('DocumentReducer', () => {
-  it('creates a new lesson with one page', () => {
+  it('creates a new lesson with one page and default background #1b4332', () => {
     const state = documentReducer(freshState(), { type: 'NEW_LESSON' });
     expect(state.lesson.pages).toHaveLength(1);
+    expect(state.lesson.pages[0].background.color).toBe('#1b4332');
     expect(state.isDirty).toBe(false);
     expect(state.lesson.meta.title).toBe('Untitled Lesson');
   });

@@ -136,7 +136,7 @@ export function convertDocumentPagesToSmartboardPages(
         title,
         width: canvasW,
         height: canvasH,
-        background: { type: 'blank', color: '#1a1a2e' },
+        background: { type: 'blank', color: '#1b4332' },
         layers: [
           { id: 'background', name: 'Background', visible: true, locked: true, opacity: 1, order: 0 },
           { id: 'imported-media', name: 'Imported Media', visible: true, locked: false, opacity: 1, order: 1 },

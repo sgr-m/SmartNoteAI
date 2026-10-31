@@ -24,6 +24,10 @@ describe('Computer Science Interactive Tools', () => {
     expect(toolMap.get('cs-linked-list')?.interactiveModal).toBe('linkedList');
     expect(toolMap.get('cs-tree-graph')?.interactiveModal).toBe('treeGraph');
     expect(toolMap.get('cs-sorting-demo')?.interactiveModal).toBe('sortingSearching');
+    expect(toolMap.get('cs-er-database')?.interactiveModal).toBe('databaseTable');
+    expect(toolMap.get('cs-cpu-architecture')?.interactiveModal).toBe('cpuArchitecture');
+    expect(toolMap.get('cs-instruction-cycle')?.interactiveModal).toBe('instructionCycle');
+    expect(toolMap.get('cs-network-topology')?.interactiveModal).toBe('networkTopology');
   });
 
   it('renders traceTable diagram without throwing on HTML5 canvas mock', () => {
@@ -324,5 +328,253 @@ describe('Computer Science Interactive Tools', () => {
     } as unknown as CanvasRenderingContext2D;
 
     expect(() => renderSubjectShape(ctxMock, sortShape, 1)).not.toThrow();
+  });
+
+  it('renders databaseTable diagram with custom font size without throwing', () => {
+    const dbShape: ShapeObject = {
+      id: 'db-1',
+      type: 'shape',
+      shapeType: 'csDiagram',
+      x: 100,
+      y: 100,
+      width: 480,
+      height: 360,
+      params: {
+        diagramType: 'databaseTable',
+        tableName: 'Students',
+        fontSize: 16,
+        columns: [
+          { name: 'id', type: 'INT', isPK: true },
+          { name: 'name', type: 'VARCHAR(100)', isPK: false },
+          { name: 'email', type: 'VARCHAR(255)', isPK: false },
+          { name: 'course_id', type: 'INT', isFK: true },
+        ],
+      },
+    };
+
+    const ctxMock = {
+      save: () => {},
+      restore: () => {},
+      beginPath: () => {},
+      closePath: () => {},
+      roundRect: () => {},
+      rect: () => {},
+      fillRect: () => {},
+      strokeRect: () => {},
+      fill: () => {},
+      stroke: () => {},
+      moveTo: () => {},
+      lineTo: () => {},
+      arc: () => {},
+      bezierCurveTo: () => {},
+      fillText: () => {},
+      measureText: () => ({ width: 40 }),
+      setLineDash: () => {},
+    } as unknown as CanvasRenderingContext2D;
+
+    expect(() => renderSubjectShape(ctxMock, dbShape, 1)).not.toThrow();
+  });
+
+  it('renders cpuArchitecture diagram with custom font size without throwing', () => {
+    const cpuShape: ShapeObject = {
+      id: 'cpu-1',
+      type: 'shape',
+      shapeType: 'csDiagram',
+      x: 100,
+      y: 100,
+      width: 580,
+      height: 420,
+      params: {
+        diagramType: 'cpuArchitecture',
+        title: 'Von Neumann Architecture',
+        fontSize: 18,
+        busWidth: '64-bit',
+        registers: ['PC', 'MAR', 'MDR', 'ACC', 'CIR'],
+        showIO: true,
+      },
+    };
+
+    const ctxMock = {
+      save: () => {},
+      restore: () => {},
+      beginPath: () => {},
+      closePath: () => {},
+      roundRect: () => {},
+      rect: () => {},
+      fillRect: () => {},
+      strokeRect: () => {},
+      fill: () => {},
+      stroke: () => {},
+      moveTo: () => {},
+      lineTo: () => {},
+      arc: () => {},
+      bezierCurveTo: () => {},
+      fillText: () => {},
+      measureText: () => ({ width: 40 }),
+      setLineDash: () => {},
+    } as unknown as CanvasRenderingContext2D;
+
+    expect(() => renderSubjectShape(ctxMock, cpuShape, 1)).not.toThrow();
+  });
+
+  it('renders instructionCycle diagram with stages without throwing', () => {
+    const cycleShape: ShapeObject = {
+      id: 'cycle-1',
+      type: 'shape',
+      shapeType: 'csDiagram',
+      x: 100,
+      y: 100,
+      width: 540,
+      height: 400,
+      params: {
+        diagramType: 'instructionCycle',
+        title: 'CPU Instruction Cycle (Fetch-Decode-Execute)',
+        fontSize: 16,
+      },
+    };
+
+    const ctxMock = {
+      save: () => {},
+      restore: () => {},
+      beginPath: () => {},
+      closePath: () => {},
+      roundRect: () => {},
+      rect: () => {},
+      fillRect: () => {},
+      strokeRect: () => {},
+      fill: () => {},
+      stroke: () => {},
+      moveTo: () => {},
+      lineTo: () => {},
+      arc: () => {},
+      bezierCurveTo: () => {},
+      fillText: () => {},
+      measureText: () => ({ width: 40 }),
+      setLineDash: () => {},
+    } as unknown as CanvasRenderingContext2D;
+
+    expect(() => renderSubjectShape(ctxMock, cycleShape, 1)).not.toThrow();
+  });
+
+  it('renders networkTopology diagrams for Star, Bus, Mesh, Ring, and Tree without throwing', () => {
+    const topologies = ['star', 'bus', 'mesh', 'ring', 'tree'] as const;
+
+    const ctxMock = {
+      save: () => {},
+      restore: () => {},
+      beginPath: () => {},
+      closePath: () => {},
+      roundRect: () => {},
+      rect: () => {},
+      fillRect: () => {},
+      strokeRect: () => {},
+      fill: () => {},
+      stroke: () => {},
+      moveTo: () => {},
+      lineTo: () => {},
+      arc: () => {},
+      bezierCurveTo: () => {},
+      fillText: () => {},
+      measureText: () => ({ width: 40 }),
+      setLineDash: () => {},
+    } as unknown as CanvasRenderingContext2D;
+
+    for (const topo of topologies) {
+      const netShape: ShapeObject = {
+        id: `net-${topo}`,
+        type: 'shape',
+        shapeType: 'csDiagram',
+        x: 100,
+        y: 100,
+        width: 560,
+        height: 400,
+        params: {
+          diagramType: 'networkTopology',
+          topology: topo,
+          title: `Network Topology (${topo.toUpperCase()})`,
+          fontSize: 16,
+          nodes: [
+            { id: 'SW', name: 'Switch (Core)', type: 'switch', ip: '192.168.1.1' },
+            { id: 'PC1', name: 'PC 1 (Lab)', type: 'pc', ip: '192.168.1.10' },
+            { id: 'PC2', name: 'PC 2 (Lab)', type: 'pc', ip: '192.168.1.11' },
+            { id: 'PRN', name: 'Printer', type: 'printer', ip: '192.168.1.20' },
+          ],
+        },
+      };
+
+      expect(() => renderSubjectShape(ctxMock, netShape, 1)).not.toThrow();
+    }
+  });
+
+  it('proportioned corner resize scaling scales fonts and diagram elements when width and height increase', () => {
+    const renderedFonts: string[] = [];
+    const ctxMock = {
+      save: () => {},
+      restore: () => {},
+      beginPath: () => {},
+      closePath: () => {},
+      roundRect: () => {},
+      rect: () => {},
+      fillRect: () => {},
+      strokeRect: () => {},
+      fill: () => {},
+      stroke: () => {},
+      moveTo: () => {},
+      lineTo: () => {},
+      arc: () => {},
+      bezierCurveTo: () => {},
+      fillText: () => {},
+      measureText: () => ({ width: 40 }),
+      setLineDash: () => {},
+      set font(val: string) {
+        renderedFonts.push(val);
+      },
+    } as unknown as CanvasRenderingContext2D;
+
+    // Small dimensions
+    const smallShape: ShapeObject = {
+      id: 'db-small',
+      type: 'shape',
+      shapeType: 'csDiagram',
+      x: 100,
+      y: 100,
+      width: 480,
+      height: 360,
+      params: {
+        diagramType: 'databaseTable',
+        tableName: 'Students',
+        fontSize: 14,
+      },
+    };
+
+    renderSubjectShape(ctxMock, smallShape, 1);
+    const smallFonts = [...renderedFonts];
+    renderedFonts.length = 0;
+
+    // Enlarge diagram by dragging corners (double the width and height)
+    const largeShape: ShapeObject = {
+      ...smallShape,
+      id: 'db-large',
+      width: 960,
+      height: 720,
+    };
+
+    renderSubjectShape(ctxMock, largeShape, 1);
+    const largeFonts = [...renderedFonts];
+
+    expect(smallFonts.length).toBeGreaterThan(0);
+    expect(largeFonts.length).toBeGreaterThan(0);
+
+    // Extract pixel size numbers from font declarations (e.g., "bold 12px Inter" -> 12)
+    const extractPx = (f: string) => {
+      const match = f.match(/(\d+)px/);
+      return match ? parseInt(match[1], 10) : 0;
+    };
+
+    const maxSmallPx = Math.max(...smallFonts.map(extractPx));
+    const maxLargePx = Math.max(...largeFonts.map(extractPx));
+
+    // When corner is dragged from 480 to 960 width, fonts must scale proportionally larger
+    expect(maxLargePx).toBeGreaterThan(maxSmallPx);
   });
 });

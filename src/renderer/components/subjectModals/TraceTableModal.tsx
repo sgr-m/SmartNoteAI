@@ -99,6 +99,9 @@ export function TraceTableModal({
   const [rows, setRows] = useState<string[][]>(
     existingShape?.params?.rows || PRESETS.accumulatorLoop.rows
   );
+  const [fontSize, setFontSize] = useState<number>(
+    existingShape?.params?.fontSize || 14
+  );
   const [newColName, setNewColName] = useState<string>('');
 
   const currentPageIndex = docState.currentPageIndex;
@@ -177,6 +180,7 @@ export function TraceTableModal({
       title,
       columns,
       rows,
+      fontSize,
     };
 
     if (existingShape && onUpdateShape) {
@@ -260,6 +264,20 @@ export function TraceTableModal({
               {Object.entries(PRESETS).map(([key, p]) => (
                 <option key={key} value={key}>
                   {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="cs-toolbar-field" style={{ width: '90px' }}>
+            <label>Font Size:</label>
+            <select
+              className="cs-modal-select"
+              value={fontSize}
+              onChange={(e) => setFontSize(Number(e.target.value))}
+            >
+              {[11, 12, 14, 16, 18, 20, 24].map((sz) => (
+                <option key={sz} value={sz}>
+                  {sz}px
                 </option>
               ))}
             </select>

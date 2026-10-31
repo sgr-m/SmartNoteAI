@@ -190,6 +190,11 @@ export function TreeGraphModal({
   const [rightRightVal, setRightRightVal] = useState<string>(
     existingShape?.params?.rightRightVal || '80'
   );
+  const [fontSize, setFontSize] = useState<number>(
+    existingShape?.params?.fontSize || 14
+  );
+  const [bstInsertInput, setBstInsertInput] = useState<string>('');
+  const [bstFeedback, setBstFeedback] = useState<string>('');
 
   // Graph State
   const [graphTitle, setGraphTitle] = useState<string>(
@@ -210,6 +215,76 @@ export function TreeGraphModal({
   const [newNodeLabel, setNewNodeLabel] = useState<string>('');
 
   const currentPageIndex = docState.currentPageIndex;
+
+  // BST Node Insertion
+  const compareVals = (a: string, b: string): number => {
+    const numA = Number(a);
+    const numB = Number(b);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return numA - numB;
+    }
+    return a.localeCompare(b);
+  };
+
+  const handleBstInsertNode = () => {
+    const val = bstInsertInput.trim();
+    if (!val) return;
+
+    if (!rootVal.trim()) {
+      setRootVal(val);
+      setBstFeedback(`Tree was empty. Inserted "${val}" as Root Node.`);
+      setBstInsertInput('');
+      return;
+    }
+
+    const cmpRoot = compareVals(val, rootVal);
+    if (cmpRoot < 0) {
+      // Go Left Subtree
+      if (!leftVal.trim()) {
+        setLeftVal(val);
+        setBstFeedback(`${val} < ${rootVal} ➔ Inserted as Left Child.`);
+      } else {
+        const cmpLeft = compareVals(val, leftVal);
+        if (cmpLeft < 0) {
+          setLeftLeftVal(val);
+          setBstFeedback(`${val} < ${rootVal} ➔ < ${leftVal} ➔ Inserted at Left-Left Leaf.`);
+        } else {
+          setLeftRightVal(val);
+          setBstFeedback(`${val} < ${rootVal} ➔ > ${leftVal} ➔ Inserted at Left-Right Leaf.`);
+        }
+      }
+    } else if (cmpRoot > 0) {
+      // Go Right Subtree
+      if (!rightVal.trim()) {
+        setRightVal(val);
+        setBstFeedback(`${val} > ${rootVal} ➔ Inserted as Right Child.`);
+      } else {
+        const cmpRight = compareVals(val, rightVal);
+        if (cmpRight < 0) {
+          setRightLeftVal(val);
+          setBstFeedback(`${val} > ${rootVal} ➔ < ${rightVal} ➔ Inserted at Right-Left Leaf.`);
+        } else {
+          setRightRightVal(val);
+          setBstFeedback(`${val} > ${rootVal} ➔ > ${rightVal} ➔ Inserted at Right-Right Leaf.`);
+        }
+      }
+    } else {
+      setBstFeedback(`Value "${val}" already exists as Root Node.`);
+    }
+
+    setBstInsertInput('');
+  };
+
+  const handleClearTree = () => {
+    setRootVal('');
+    setLeftVal('');
+    setRightVal('');
+    setLeftLeftVal('');
+    setLeftRightVal('');
+    setRightLeftVal('');
+    setRightRightVal('');
+    setBstFeedback('Tree cleared. Enter a value to set new root.');
+  };
 
   // Tree Presets
   const handleSelectTreePreset = (key: string) => {
@@ -285,6 +360,7 @@ export function TreeGraphModal({
         leftRightVal,
         rightLeftVal,
         rightRightVal,
+        fontSize,
       };
 
       if (existingShape && onUpdateShape) {
@@ -319,6 +395,7 @@ export function TreeGraphModal({
         isDirected,
         graphNodes,
         graphEdges,
+        fontSize,
       };
 
       if (existingShape && onUpdateShape) {
@@ -417,6 +494,66 @@ export function TreeGraphModal({
                   ))}
                 </select>
               </div>
+              <div className="cs-toolbar-field" style={{ flex: 1 }}>
+                <label>Font Size:</label>
+                <select
+                  className="cs-modal-select"
+                  value={fontSize}
+                  onChange={(e) => setFontSize(Number(e.target.value))}
+                >
+                  {[11, 12, 14, 16, 18, 20, 24].map((sz) => (
+                    <option key={sz} value={sz}>
+                      {sz}px
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Interactive BST Node Insertion Controller */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                padding: '10px 16px',
+                background: 'rgba(16, 185, 129, 0.08)',
+                borderBottom: '1px solid rgba(16, 185, 129, 0.2)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>
+                  ➕ Insert Node into BST:
+                </span>
+                <input
+                  type="text"
+                  placeholder="Enter value (e.g. 25, 65)..."
+                  className="cs-modal-input"
+                  value={bstInsertInput}
+                  onChange={(e) => setBstInsertInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleBstInsertNode()}
+                  style={{ width: 180, padding: '4px 8px', fontSize: 12 }}
+                />
+                <button
+                  onClick={handleBstInsertNode}
+                  className="cs-action-btn-sm cs-action-btn-primary"
+                  style={{ padding: '5px 12px', background: '#059669', borderColor: '#10b981' }}
+                >
+                  Insert Node
+                </button>
+                <button
+                  onClick={handleClearTree}
+                  className="cs-action-btn-sm"
+                  style={{ padding: '5px 10px', color: '#94a3b8' }}
+                >
+                  Clear Tree
+                </button>
+              </div>
+              {bstFeedback && (
+                <div style={{ fontSize: 11, color: '#34d399', fontWeight: 600 }}>
+                  ⚡ {bstFeedback}
+                </div>
+              )}
             </div>
 
             {/* Visual Tree Node Level Inputs */}
@@ -540,6 +677,20 @@ export function TreeGraphModal({
                 >
                   {isDirected ? 'Directed ➔' : 'Undirected —'}
                 </button>
+              </div>
+              <div className="cs-toolbar-field" style={{ width: '90px' }}>
+                <label>Font Size:</label>
+                <select
+                  className="cs-modal-select"
+                  value={fontSize}
+                  onChange={(e) => setFontSize(Number(e.target.value))}
+                >
+                  {[11, 12, 14, 16, 18, 20, 24].map((sz) => (
+                    <option key={sz} value={sz}>
+                      {sz}px
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
