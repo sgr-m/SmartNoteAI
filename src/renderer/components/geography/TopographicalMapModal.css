@@ -1,0 +1,465 @@
+/**
+ * Topographical Map Modal Styles
+ * Stage 4: Interactive Topographical Map Viewer
+ * Touchscreen-ready design (≥44px touch targets) with dark/light themes.
+ */
+
+.topo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(2, 6, 23, 0.88);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.topo-modal-container {
+  width: 96vw;
+  max-width: 1440px;
+  height: 92vh;
+  max-height: 920px;
+  background: #0f172a;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 14px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #f8fafc;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.topo-modal-container.fullscreen {
+  width: 100vw;
+  max-width: none;
+  height: 100vh;
+  max-height: none;
+  border-radius: 0;
+  border: none;
+}
+
+/* ── Light Theme ── */
+.topo-modal-container.theme-light {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: rgba(2, 132, 199, 0.3);
+}
+
+.topo-modal-container.theme-light .topo-header {
+  background: #ffffff;
+  border-bottom-color: #e2e8f0;
+}
+
+.topo-modal-container.theme-light .topo-sidebar {
+  background: #f1f5f9;
+  border-right-color: #e2e8f0;
+}
+
+.topo-modal-container.theme-light .topo-hud {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+/* ── Header ── */
+.topo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: #1e293b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 60px;
+  box-sizing: border-box;
+}
+
+.topo-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topo-header-icon {
+  font-size: 26px;
+}
+
+.topo-header-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topo-sheet-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #ef4444;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+}
+
+.topo-header-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.topo-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topo-sheet-select {
+  padding: 7px 12px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+}
+
+.topo-btn-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: inherit;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.topo-btn-icon:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+}
+
+.topo-btn-insert {
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  border: 1px solid #38bdf8;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 40px;
+}
+
+.topo-btn-insert:hover {
+  background: linear-gradient(135deg, #0369a1, #075985);
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);
+}
+
+/* ── Body ── */
+.topo-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── Left Sidebar (Tools & Panels) ── */
+.topo-sidebar {
+  width: 380px;
+  min-width: 340px;
+  max-width: 420px;
+  background: #111827;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 10;
+}
+
+.topo-tab-bar {
+  display: flex;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 6px;
+  gap: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-x: auto;
+}
+
+.topo-tab-btn {
+  flex: 1;
+  padding: 8px 6px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  min-height: 36px;
+}
+
+.topo-tab-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.topo-tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  box-sizing: border-box;
+}
+
+/* ── Symbol Item Card ── */
+.topo-symbol-card {
+  padding: 10px 12px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.topo-symbol-card:hover, .topo-symbol-card.selected {
+  background: rgba(2, 132, 199, 0.15);
+  border-color: #38bdf8;
+}
+
+.topo-symbol-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.topo-symbol-name {
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topo-symbol-glyph {
+  font-size: 14px;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.topo-symbol-meaning {
+  font-size: 11px;
+  color: #cbd5e1;
+  line-height: 1.4;
+  margin: 0 0 4px;
+}
+
+.topo-symbol-exam {
+  font-size: 10px;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.12);
+  padding: 4px 6px;
+  border-radius: 4px;
+  border-left: 2px solid #f59e0b;
+}
+
+/* ── Grid Reference Lab Panel ── */
+.topo-gr-box {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.topo-gr-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #c084fc;
+  margin-bottom: 6px;
+}
+
+.topo-gr-value {
+  font-family: monospace;
+  font-size: 20px;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: 2px;
+}
+
+.topo-gr-guide {
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.4;
+  margin-top: 6px;
+}
+
+/* ── Measure Results Card ── */
+.topo-measure-card {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.topo-measure-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.topo-measure-row:last-child {
+  border-bottom: none;
+}
+
+.topo-measure-label {
+  color: #94a3b8;
+}
+
+.topo-measure-val {
+  font-weight: 700;
+  color: #38bdf8;
+  font-family: monospace;
+}
+
+/* ── Main Viewport Area ── */
+.topo-viewport-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #020617;
+}
+
+.topo-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+}
+
+.topo-canvas.measuring {
+  cursor: crosshair;
+}
+
+.topo-canvas:active {
+  cursor: grabbing;
+}
+
+/* ── Viewport Floating HUD ── */
+.topo-hud {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 8px;
+  padding: 8px 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  z-index: 5;
+}
+
+.topo-hud-main {
+  font-size: 13px;
+  font-weight: 700;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topo-hud-sub {
+  font-size: 11px;
+  color: #cbd5e1;
+  font-family: monospace;
+}
+
+.topo-hud-scale {
+  font-size: 10px;
+  color: #fbbf24;
+}
+
+/* ── Viewport Quick Action Controls ── */
+.topo-viewport-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 5;
+}
+
+.topo-ctrl-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f8fafc;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transition: all 0.15s ease;
+}
+
+.topo-ctrl-btn:hover {
+  background: #0284c7;
+  border-color: #38bdf8;
+}
+
+/* ── Layer Toggle Checkbox Group ── */
+.topo-layer-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.topo-layer-item input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #0284c7;
+}
+

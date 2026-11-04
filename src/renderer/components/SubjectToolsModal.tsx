@@ -41,6 +41,14 @@ import { InstructionCycleModal } from './subjectModals/InstructionCycleModal';
 import { NetworkTopologyModal } from './subjectModals/NetworkTopologyModal';
 import { KarnaughMapModal } from './subjectModals/KarnaughMapModal';
 import { DigitalCircuitModal } from './subjectModals/DigitalCircuitModal';
+import { HierarchyChartModal } from './subjectModals/HierarchyChartModal';
+import { MindmapModal } from './subjectModals/MindmapModal';
+import { TimelineModal } from './subjectModals/TimelineModal';
+import { ProcessChartModal } from './subjectModals/ProcessChartModal';
+import { GeographyResourceCentreModal } from './geography/GeographyResourceCentreModal';
+import { GeographyAtlasModal } from './geography/GeographyAtlasModal';
+import { Globe3DModal } from './geography/Globe3DModal';
+import { GisThematicModal } from './geography/GisThematicModal';
 import { Solid3DType } from '../engine/geometry3DMath';
 import { executeAddMultipleObjects } from '../services/subjectModules/commonHelpers';
 import './SubjectToolsModal.css';
@@ -51,7 +59,7 @@ interface SubjectToolsModalProps {
 
 export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.ReactElement {
   const { docState, docDispatch, commandSystem } = useAppContext();
-  const [activeSubject, setActiveSubject] = useState<SubjectId | 'all'>('mathematics');
+  const [activeSubject, setActiveSubject] = useState<SubjectId | 'all'>('commonResources');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'tools' | 'templates'>('tools');
 
@@ -91,6 +99,15 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
     | 'cpuArchitecture'
     | 'instructionCycle'
     | 'networkTopology'
+    | 'hierarchyChart'
+    | 'mindmap'
+    | 'timeline'
+    | 'processChart'
+    | 'geographyResourceCentre'
+    | 'geographyAtlas'
+    | 'topographicalViewer'
+    | 'globe3DModal'
+    | 'gisThematicLab'
     | null
   >(null);
   const [bridgePseudocode, setBridgePseudocode] = useState<string>('');
@@ -266,6 +283,33 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
         case 'networkTopology':
           setActiveSubmodal('networkTopology');
           return;
+        case 'hierarchyChart':
+          setActiveSubmodal('hierarchyChart');
+          return;
+        case 'mindmap':
+          setActiveSubmodal('mindmap');
+          return;
+        case 'timeline':
+          setActiveSubmodal('timeline');
+          return;
+        case 'processChart':
+          setActiveSubmodal('processChart');
+          return;
+        case 'geographyResourceCentre':
+          setActiveSubmodal('geographyResourceCentre');
+          return;
+        case 'geographyAtlas':
+          setActiveSubmodal('geographyAtlas');
+          return;
+        case 'topographicalViewer':
+          setActiveSubmodal('geographyResourceCentre');
+          return;
+        case 'globe3DModal':
+          setActiveSubmodal('globe3DModal');
+          return;
+        case 'gisThematicLab':
+          setActiveSubmodal('gisThematicLab');
+          return;
       }
     }
 
@@ -368,6 +412,40 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
 
           {/* Content Body */}
           <div className="subject-tools-body">
+            {activeSubject === 'geography' && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 18px',
+                  margin: '0 0 16px 0',
+                  background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.25) 0%, rgba(14, 165, 233, 0.12) 100%)',
+                  border: '1px solid rgba(56, 189, 248, 0.4)',
+                  borderRadius: '10px',
+                  color: '#f8fafc',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '28px' }}>🌍</span>
+                  <div>
+                    <strong style={{ fontSize: '14.5px', display: 'block', color: '#38bdf8' }}>
+                      Geography Resource Centre (15 Categories)
+                    </strong>
+                    <span style={{ fontSize: '12px', color: '#cbd5e1' }}>
+                      Atlas, Survey of India official maps, Topography, Climatology, Remote Sensing, GIS & Activities
+                    </span>
+                  </div>
+                </div>
+                <button
+                  className="insert-btn"
+                  style={{ width: 'auto', padding: '8px 16px', fontSize: '13px', background: '#0284c7', color: '#ffffff', fontWeight: 600, border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                  onClick={() => setActiveSubmodal('geographyResourceCentre')}
+                >
+                  Open Resource Centre ↗
+                </button>
+              </div>
+            )}
             {viewMode === 'tools' ? (
               <div className="tools-grid">
                 {displayedTools.map((tool) => (
@@ -632,6 +710,53 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
           defaultMode={digitalCircuitMode}
           onClose={() => setActiveSubmodal(null)}
           onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'hierarchyChart' && (
+        <HierarchyChartModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'mindmap' && (
+        <MindmapModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'timeline' && (
+        <TimelineModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'processChart' && (
+        <ProcessChartModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'geographyResourceCentre' && (
+        <GeographyResourceCentreModal
+          onClose={() => setActiveSubmodal(null)}
+          onOpenAtlas={() => setActiveSubmodal('geographyAtlas')}
+          onOpenGlobe={() => setActiveSubmodal('globe3DModal')}
+          onOpenGisLab={() => setActiveSubmodal('gisThematicLab')}
+        />
+      )}
+      {activeSubmodal === 'geographyAtlas' && (
+        <GeographyAtlasModal
+          onClose={() => setActiveSubmodal(null)}
+        />
+      )}
+      {activeSubmodal === 'globe3DModal' && (
+        <Globe3DModal
+          onClose={() => setActiveSubmodal(null)}
+        />
+      )}
+      {activeSubmodal === 'gisThematicLab' && (
+        <GisThematicModal
+          onClose={() => setActiveSubmodal(null)}
         />
       )}
     </>

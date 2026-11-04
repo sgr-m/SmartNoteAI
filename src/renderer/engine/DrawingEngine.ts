@@ -30,6 +30,9 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { isLatexSyntax, getCachedLatexImage, measureLatexSize } from '../services/latexService';
 import { renderSubjectShape, isSubjectShape } from './subjectShapeRenderer';
+import { isGeoShapeType } from '../services/geography/types';
+import { hitTestGeoFeature, getGeoMapTransform } from './geographyShapeRenderer';
+import { GeoAnnotationItem } from '../services/geography/types';
 
 
 export interface ShapeStyle {
@@ -113,6 +116,12 @@ export class DrawingEngine {
   private isDraggingObject = false;
   private dragStartDocPoint = { x: 0, y: 0 };
   private draggedObjectInitial: CanvasObject | null = null;
+
+  // Embedded Geographic Object Interaction State
+  private isInteractingGeo = false;
+  private geoInteractiveShapeInitial: ShapeObject | null = null;
+  private geoInteractionStartDocPt: Point = { x: 0, y: 0 };
+  private geoInteractionMoved = false;
 
   // Multi-element marquee & lasso selection
   private isMarqueeSelecting = false;
@@ -250,20 +259,6 @@ export class DrawingEngine {
     }
 
     if (e.button !== 0 && e.pointerType === 'mouse') return;
-
-    // If an input/textarea currently has focus or is being edited, do not steal focus or start board operations
-    if (typeof document !== 'undefined') {
-      const activeEl = document.activeElement as HTMLElement | null;
-      if (
-        activeEl &&
-        (activeEl.tagName === 'INPUT' ||
-          activeEl.tagName === 'TEXTAREA' ||
-          activeEl.isContentEditable ||
-          activeEl.getAttribute?.('contenteditable') === 'true')
-      ) {
-        return;
-      }
-    }
 
     // If not in select tool, clear any lingering selection immediately
     if (this.activeTool !== 'select' && this.selectedObjectId) {
@@ -404,10 +399,27 @@ export class DrawingEngine {
           this.requestActiveRender();
 
           // Check if object is locked (cannot be dragged or resized)
-          if (hit.locked) {
+          const hitLayer = this.layersMap.get(hit.layerId);
+          const isHitLocked = hit.locked || (hitLayer && hitLayer.locked);
+          if (isHitLocked) {
             this.clearActiveCanvas();
             this.renderObject(this.activeCtx, hit);
             this.drawSelectionOutline(this.activeCtx, this.getObjectBoundingBox(hit), hit);
+
+            // If this locked object is an interactive geography shape in 'interact' mode, enable map panning/interaction!
+            const isGeoInteract =
+              hit.type === 'shape' &&
+              isGeoShapeType((hit as ShapeObject).shapeType) &&
+              (hit as ShapeObject).params?.interactionMode === 'interact';
+
+            if (isGeoInteract) {
+              this.isInteractingGeo = true;
+              this.geoInteractiveShapeInitial = JSON.parse(JSON.stringify(hit));
+              this.geoInteractionStartDocPt = docPt;
+              this.geoInteractionMoved = false;
+              this.clearActiveCanvas();
+              this.redrawCommitted(this.committedObjects);
+            }
             break;
           }
 
@@ -422,6 +434,22 @@ export class DrawingEngine {
             this.renderObject(this.activeCtx, hit);
             this.drawSelectionOutline(this.activeCtx, this.getObjectBoundingBox(hit), hit);
           } else {
+            // Check if this object is an embedded geography shape in 'interact' mode!
+            const isGeoInteract =
+              hit.type === 'shape' &&
+              isGeoShapeType((hit as ShapeObject).shapeType) &&
+              (hit as ShapeObject).params?.interactionMode === 'interact';
+
+            if (isGeoInteract) {
+              this.isInteractingGeo = true;
+              this.geoInteractiveShapeInitial = JSON.parse(JSON.stringify(hit));
+              this.geoInteractionStartDocPt = docPt;
+              this.geoInteractionMoved = false;
+              this.clearActiveCanvas();
+              this.redrawCommitted(this.committedObjects);
+              break;
+            }
+
             this.isDraggingObject = true;
             this.dragStartDocPoint = docPt;
             if (this.cloneMode) {
@@ -461,22 +489,6 @@ export class DrawingEngine {
     if (!e.isPrimary && e.pointerType === 'touch') return;
     if (this.isPointerDown && e.cancelable) e.preventDefault();
 
-    // If pointer was not pressed down on canvas (e.g. user dragged from an input/textbox), do not handle on canvas
-    if (!this.isPointerDown) {
-      if (typeof document !== 'undefined') {
-        const activeEl = document.activeElement as HTMLElement | null;
-        if (
-          activeEl &&
-          (activeEl.tagName === 'INPUT' ||
-            activeEl.tagName === 'TEXTAREA' ||
-            activeEl.isContentEditable ||
-            activeEl.getAttribute?.('contenteditable') === 'true')
-        ) {
-          return;
-        }
-      }
-    }
-
     const docPt = this.eventToDocPoint(e);
     this.currentPointerPos = docPt;
 
@@ -490,7 +502,7 @@ export class DrawingEngine {
       return;
     }
 
-    // Hover handle cursor changes when not dragging
+    // Hover pointer indicator & resize handle cursor changes when not dragging
     if (!this.isPointerDown) {
       if (this.activeTool === 'eraser') {
         this.requestActiveRender();
@@ -576,7 +588,26 @@ export class DrawingEngine {
       }
 
       case 'select': {
-        if (this.isDraggingObject && this.draggedObjectInitial) {
+        if (this.isInteractingGeo && this.geoInteractiveShapeInitial) {
+          this.currentPointerPos = docPt;
+          const deltaX = docPt.x - this.geoInteractionStartDocPt.x;
+          const deltaY = docPt.y - this.geoInteractionStartDocPt.y;
+          if (Math.hypot(deltaX, deltaY) > 2) {
+            this.geoInteractionMoved = true;
+            const shape = JSON.parse(JSON.stringify(this.geoInteractiveShapeInitial)) as ShapeObject;
+            const initPan = this.geoInteractiveShapeInitial.params?.panOffset || { x: 0, y: 0 };
+            if (!shape.params) shape.params = {};
+            shape.params.panOffset = {
+              x: initPan.x + deltaX,
+              y: initPan.y + deltaY,
+            };
+            const idx = this.committedObjects.findIndex((o) => o.id === shape.id);
+            if (idx >= 0) {
+              this.committedObjects[idx] = shape;
+              this.redrawCommitted(this.committedObjects);
+            }
+          }
+        } else if (this.isDraggingObject && this.draggedObjectInitial) {
           this.currentPointerPos = docPt;
           const deltaX = docPt.x - this.dragStartDocPoint.x;
           const deltaY = docPt.y - this.dragStartDocPoint.y;
@@ -701,6 +732,34 @@ export class DrawingEngine {
 
       case 'select': {
         const pt = this.currentPointerPos || this.eventToDocPoint(e);
+        if (this.isInteractingGeo && this.geoInteractiveShapeInitial) {
+          const shape = this.geoInteractiveShapeInitial;
+          this.isInteractingGeo = false;
+          if (this.geoInteractionMoved) {
+            const currentObj = this.committedObjects.find((o) => o.id === shape.id);
+            if (currentObj) {
+              this.callbacks.onUpdateObject?.(currentObj, shape);
+            }
+          } else {
+            // Tap / Click inside interactive geography object: test features!
+            const hitFeatureId = hitTestGeoFeature(shape, pt);
+            const updated = JSON.parse(JSON.stringify(shape)) as ShapeObject;
+            if (!updated.params) updated.params = {};
+            updated.params.selectedFeatureId =
+              updated.params.selectedFeatureId === hitFeatureId ? null : hitFeatureId;
+            const idx = this.committedObjects.findIndex((o) => o.id === updated.id);
+            if (idx >= 0) {
+              this.committedObjects[idx] = updated;
+            }
+            this.callbacks.onUpdateObject?.(updated, shape);
+            this.redrawCommitted(this.committedObjects);
+          }
+          this.geoInteractiveShapeInitial = null;
+          this.clearActiveCanvas();
+          this.requestActiveRender();
+          break;
+        }
+
         if (this.isDraggingObject && this.draggedObjectInitial) {
           const deltaX = pt.x - this.dragStartDocPoint.x;
           const deltaY = pt.y - this.dragStartDocPoint.y;
@@ -796,6 +855,10 @@ export class DrawingEngine {
         break;
       }
     }
+
+    if (this.currentPointerPos && this.activeTool === 'eraser') {
+      this.requestActiveRender();
+    }
   };
 
   private handlePointerCancel = (e?: PointerEvent): void => {
@@ -815,6 +878,9 @@ export class DrawingEngine {
     this.isPanning = false;
     this.isDraggingObject = false;
     this.draggedObjectInitial = null;
+    this.isInteractingGeo = false;
+    this.geoInteractiveShapeInitial = null;
+    this.geoInteractionMoved = false;
     this.isResizingObject = false;
     this.activeResizeHandle = null;
     this.resizeObjectInitial = null;
@@ -844,6 +910,7 @@ export class DrawingEngine {
   };
 
   private handlePointerLeave = (): void => {
+    this.currentPointerPos = null;
     if (!this.isPointerDown) {
       this.clearActiveCanvas();
     }
@@ -851,6 +918,37 @@ export class DrawingEngine {
 
   private handleWheel = (e: WheelEvent): void => {
     e.preventDefault();
+
+    // Check if hovering over an active embedded geography shape in 'interact' mode
+    if (this.selectedObjectId && this.activeTool === 'select') {
+      const selObj = this.committedObjects.find((o) => o.id === this.selectedObjectId);
+      if (
+        selObj &&
+        selObj.type === 'shape' &&
+        isGeoShapeType((selObj as ShapeObject).shapeType) &&
+        (selObj as ShapeObject).params?.interactionMode === 'interact'
+      ) {
+        const docPt = this.screenToDocPoint({ x: e.clientX, y: e.clientY });
+        const bbox = this.getObjectBoundingBox(selObj);
+        if (
+          docPt.x >= bbox.x &&
+          docPt.x <= bbox.x + bbox.width &&
+          docPt.y >= bbox.y &&
+          docPt.y <= bbox.y + bbox.height
+        ) {
+          const shape = selObj as ShapeObject;
+          const oldZoom = shape.params?.zoomLevel || 1.0;
+          const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+          const newZoom = Math.max(0.5, Math.min(6.0, oldZoom * zoomFactor));
+          const prev = JSON.parse(JSON.stringify(shape));
+          shape.params = { ...shape.params, zoomLevel: newZoom };
+          this.redrawCommitted(this.committedObjects);
+          this.callbacks.onUpdateObject?.(shape, prev);
+          return;
+        }
+      }
+    }
+
     if (e.ctrlKey) {
       const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
       const newZoom = Math.max(0.1, Math.min(10, this.zoom * zoomFactor));
@@ -956,6 +1054,21 @@ export class DrawingEngine {
     // 4. Draw eraser circle indicator
     if (this.activeTool === 'eraser' && this.currentPointerPos) {
       this.drawEraserIndicator(ctx, this.currentPointerPos);
+    }
+
+    // 4b. Draw "+" drawing pointer cursor indicator ONLY while actively drawing
+    if (
+      this.isPointerDown &&
+      this.currentPointerPos &&
+      (this.activeTool === 'pen' ||
+        this.activeTool === 'highlighter' ||
+        this.activeTool === 'shape' ||
+        this.activeTool === 'line') &&
+      !this.isPanning &&
+      !this.isResizingObject &&
+      !this.isDraggingObject
+    ) {
+      this.drawDrawingCursorIndicator(ctx, this.currentPointerPos);
     }
 
     // 5. Draw resizing preview
@@ -1502,6 +1615,44 @@ export class DrawingEngine {
     this.callbacks.onSelectObject?.(shapeObj);
   }
 
+  // ─── Drawing Pointer Cursor Indicator ─────────────────────────────────────
+
+  private drawDrawingCursorIndicator(ctx: CanvasRenderingContext2D, pos: Point): void {
+    const s = this.zoom * this.devicePixelRatio;
+    const cx = (pos.x + this.panX) * s;
+    const cy = (pos.y + this.panY) * s;
+    const dpr = this.devicePixelRatio;
+    const armLength = 9 * dpr;
+
+    ctx.save();
+
+    // High-contrast dual-layer "+" (crosshair plus pointer)
+    // 1. Black outer contour (visible against light/white backgrounds)
+    ctx.lineWidth = 3.5 * dpr;
+    ctx.strokeStyle = '#000000';
+    ctx.lineCap = 'square';
+
+    ctx.beginPath();
+    ctx.moveTo(cx - armLength, cy);
+    ctx.lineTo(cx + armLength, cy);
+    ctx.moveTo(cx, cy - armLength);
+    ctx.lineTo(cx, cy + armLength);
+    ctx.stroke();
+
+    // 2. Crisp bright white inner stroke (visible against dark green / black boards)
+    ctx.lineWidth = 1.8 * dpr;
+    ctx.strokeStyle = '#ffffff';
+
+    ctx.beginPath();
+    ctx.moveTo(cx - armLength, cy);
+    ctx.lineTo(cx + armLength, cy);
+    ctx.moveTo(cx, cy - armLength);
+    ctx.lineTo(cx, cy + armLength);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
   // ─── Eraser Engine ────────────────────────────────────────────────────────
 
   private drawEraserIndicator(ctx: CanvasRenderingContext2D, pos: Point): void {
@@ -1560,9 +1711,17 @@ export class DrawingEngine {
       for (let i = 0; i < this.committedObjects.length; i++) {
         const obj = this.committedObjects[i];
         const layer = this.layersMap.get(obj.layerId);
+
+        const isGeoWithAnns =
+          obj.type === 'shape' &&
+          isGeoShapeType((obj as ShapeObject).shapeType) &&
+          Boolean((obj as ShapeObject).params?.annotations?.length);
+
         if (obj.locked || (layer && (layer.locked || !layer.visible))) {
-          modifiedObjects.push(obj);
-          continue;
+          if (!isGeoWithAnns) {
+            modifiedObjects.push(obj);
+            continue;
+          }
         }
 
         const bbox = obj.type === 'stroke'
@@ -1633,6 +1792,56 @@ export class DrawingEngine {
           for (const sp of splitPieces) {
             modifiedObjects.push(sp);
           }
+        } else if (isGeoWithAnns) {
+          const s = obj as ShapeObject;
+          const transform = getGeoMapTransform(s);
+          const remainingAnns: GeoAnnotationItem[] = [];
+          let erasedAnyAnn = false;
+
+          for (const ann of (s.params?.annotations || [])) {
+            if (ann.points && ann.points.length > 0) {
+              let hitAnn = false;
+              const strokeW = Math.max(1, (ann.width || 4) * transform.baseScale);
+              const thresh = r + strokeW / 2;
+              const threshSq = thresh * thresh;
+
+              for (const pt of ann.points) {
+                const docX = transform.toScreenX(pt[0]);
+                const docY = transform.toScreenY(pt[1]);
+                if (
+                  distSq({ x: docX, y: docY }, pos) <= threshSq ||
+                  distSq({ x: docX, y: docY }, fromPt) <= threshSq ||
+                  distToSegmentSquared({ x: docX, y: docY }, fromPt, pos) <= threshSq
+                ) {
+                  hitAnn = true;
+                  break;
+                }
+              }
+
+              if (hitAnn) {
+                erasedAnyAnn = true;
+              } else {
+                remainingAnns.push(ann);
+              }
+            } else {
+              remainingAnns.push(ann);
+            }
+          }
+
+          if (erasedAnyAnn) {
+            didModify = true;
+            const updatedObj: ShapeObject = {
+              ...s,
+              params: {
+                ...s.params,
+                annotations: remainingAnns,
+              },
+            };
+            modifiedObjects.push(updatedObj);
+            this.callbacks.onUpdateObject?.(updatedObj, s);
+          } else {
+            modifiedObjects.push(obj);
+          }
         } else if (this.eraserMode === 'area') {
           if (this.objectIntersectsCircle(obj, pos, r) || this.objectIntersectsCircle(obj, fromPt, r)) {
             didModify = true;
@@ -1662,9 +1871,16 @@ export class DrawingEngine {
 
     for (const obj of this.committedObjects) {
       const layer = this.layersMap.get(obj.layerId);
+      const isGeoWithAnns =
+        obj.type === 'shape' &&
+        isGeoShapeType((obj as ShapeObject).shapeType) &&
+        Boolean((obj as ShapeObject).params?.annotations?.length);
+
       if (obj.locked || (layer && (layer.locked || !layer.visible))) {
-        remainingObjects.push(obj);
-        continue;
+        if (!isGeoWithAnns) {
+          remainingObjects.push(obj);
+          continue;
+        }
       }
 
       const bbox = obj.type === 'stroke'
@@ -1674,6 +1890,57 @@ export class DrawingEngine {
       if (bbox.x + bbox.width < sweepMinX || bbox.x > sweepMaxX || bbox.y + bbox.height < sweepMinY || bbox.y > sweepMaxY) {
         remainingObjects.push(obj);
         continue;
+      }
+
+      if (isGeoWithAnns) {
+        const s = obj as ShapeObject;
+        const transform = getGeoMapTransform(s);
+        const remainingAnns: GeoAnnotationItem[] = [];
+        let erasedAnyAnn = false;
+
+        for (const ann of (s.params?.annotations || [])) {
+          if (ann.points && ann.points.length > 0) {
+            let hitAnn = false;
+            const strokeW = Math.max(1, (ann.width || 4) * transform.baseScale);
+            const thresh = r + strokeW / 2;
+            const threshSq = thresh * thresh;
+
+            for (const pt of ann.points) {
+              const docX = transform.toScreenX(pt[0]);
+              const docY = transform.toScreenY(pt[1]);
+              if (
+                distSq({ x: docX, y: docY }, pos) <= threshSq ||
+                distSq({ x: docX, y: docY }, fromPt) <= threshSq ||
+                distToSegmentSquared({ x: docX, y: docY }, fromPt, pos) <= threshSq
+              ) {
+                hitAnn = true;
+                break;
+              }
+            }
+
+            if (hitAnn) {
+              erasedAnyAnn = true;
+            } else {
+              remainingAnns.push(ann);
+            }
+          } else {
+            remainingAnns.push(ann);
+          }
+        }
+
+        if (erasedAnyAnn) {
+          didRemove = true;
+          const updatedObj: ShapeObject = {
+            ...s,
+            params: {
+              ...s.params,
+              annotations: remainingAnns,
+            },
+          };
+          remainingObjects.push(updatedObj);
+          this.callbacks.onUpdateObject?.(updatedObj, s);
+          continue;
+        }
       }
 
       const intersects =
@@ -1763,11 +2030,29 @@ export class DrawingEngine {
       return orderB - orderA;
     });
 
+    // First pass: try to select unlocked, visible objects from top to bottom
     for (const obj of sortedObjects) {
       if (obj.locked) continue;
       if (obj.visible === false) continue;
       const layer = this.layersMap.get(obj.layerId);
       if (layer && (!layer.visible || layer.locked)) continue;
+
+      const bbox = this.getObjectBoundingBox(obj);
+      if (
+        pt.x >= bbox.x &&
+        pt.x <= bbox.x + bbox.width &&
+        pt.y >= bbox.y &&
+        pt.y <= bbox.y + bbox.height
+      ) {
+        return obj;
+      }
+    }
+
+    // Second pass: if no unlocked object was clicked, check for locked objects (e.g. locked maps or background elements)
+    for (const obj of sortedObjects) {
+      if (obj.visible === false) continue;
+      const layer = this.layersMap.get(obj.layerId);
+      if (layer && !layer.visible) continue;
 
       const bbox = this.getObjectBoundingBox(obj);
       if (
@@ -2939,6 +3224,15 @@ export class DrawingEngine {
         this.committedObjects[idx] = obj;
       }
       this.requestActiveRender();
+    }
+  }
+
+  public removeCommittedObject(id: string): void {
+    const idx = this.committedObjects.findIndex((o) => o.id === id);
+    if (idx !== -1) {
+      this.committedObjects.splice(idx, 1);
+      this.locallyCommittedIds.delete(id);
+      this.redrawCommitted(this.committedObjects, this.selectedObjectId);
     }
   }
 
@@ -4681,6 +4975,9 @@ export class DrawingEngine {
     this.isPointerDown = false;
     this.isDraggingObject = false;
     this.draggedObjectInitial = null;
+    this.isInteractingGeo = false;
+    this.geoInteractiveShapeInitial = null;
+    this.geoInteractionMoved = false;
     this.isResizingObject = false;
     this.activeResizeHandle = null;
     this.resizeObjectInitial = null;

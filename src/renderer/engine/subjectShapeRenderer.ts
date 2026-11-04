@@ -17,6 +17,7 @@ import {
   evaluateFlipFlopNextState,
   evaluateCounter,
 } from '../services/subjectModules/digitalLogicModule';
+import { renderGeographyShape } from './geographyShapeRenderer';
 
 export function isSubjectShape(shapeType: string): boolean {
   return [
@@ -38,6 +39,15 @@ export function isSubjectShape(shapeType: string): boolean {
     'truthTable',
     'karnaughMap',
     'teachingTemplate',
+    'hierarchyChart',
+    'mindmap',
+    'timeline',
+    'processChart',
+    'geoMap',
+    'geoGlobe',
+    'geoTopoProfile',
+    'geoCoordinateGrid',
+    'geoThematicLayer',
   ].includes(shapeType);
 }
 
@@ -120,6 +130,25 @@ export function renderSubjectShape(
       break;
     case 'teachingTemplate':
       renderTeachingTemplate(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
+      break;
+    case 'hierarchyChart':
+      renderHierarchyChart(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
+      break;
+    case 'mindmap':
+      renderMindmap(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
+      break;
+    case 'timeline':
+      renderTimeline(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
+      break;
+    case 'processChart':
+      renderProcessChart(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
+      break;
+    case 'geoMap':
+    case 'geoGlobe':
+    case 'geoTopoProfile':
+    case 'geoCoordinateGrid':
+    case 'geoThematicLayer':
+      renderGeographyShape(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
   }
 
@@ -7271,3 +7300,901 @@ function renderTeachingTemplate(
     ctx.fillText('✗ CONS & LIMITATIONS', x + 20 * dpr + halfW + halfW / 2, topY + 24 * dpr);
   }
 }
+
+// ─── 8. Common Resources Renderers (Hierarchy, Mindmap, Timeline, Process) ──
+
+const timelineImageCache = new Map<string, HTMLImageElement>();
+function getCachedTimelineImage(src: string): HTMLImageElement | null {
+  if (!src) return null;
+  const existing = timelineImageCache.get(src);
+  if (existing) {
+    if (existing.complete && existing.naturalWidth > 0) return existing;
+    return null;
+  }
+  const img = new Image();
+  img.src = src;
+  timelineImageCache.set(src, img);
+  return null;
+}
+
+// ─── Hierarchy Chart Renderer ───────────────────────────────────────────────
+
+interface HierarchyLayoutBox {
+  id: string;
+  label: string;
+  role?: string;
+  color?: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  children: HierarchyLayoutBox[];
+}
+
+function renderHierarchyChart(
+  ctx: CanvasRenderingContext2D,
+  shape: ShapeObject,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  dpr: number
+) {
+  const tree = shape.params?.tree || {
+    id: 'node-root',
+    label: 'Main Organization / Core Topic',
+    role: 'Root',
+    children: [
+      { id: 'sub-1', label: 'Division A', role: 'Team 1' },
+      { id: 'sub-2', label: 'Division B', role: 'Team 2' },
+      { id: 'sub-3', label: 'Division C', role: 'Team 3' },
+    ],
+  };
+
+  const theme = shape.params?.theme || 'ocean';
+  const style = shape.params?.style || 'rounded';
+  const fontSize = (shape.params?.fontSize || 14) * dpr;
+  const selectedNodeId = shape.params?.selectedNodeId || 'node-root';
+
+  // Theme palettes
+  const THEME_PALETTES: Record<string, { bg: string; border: string; rootBg: string; nodeBg: string; text: string; roleText: string; line: string }> = {
+    ocean: { bg: 'rgba(15, 23, 42, 0.94)', border: '#38bdf8', rootBg: 'rgba(2, 132, 199, 0.4)', nodeBg: 'rgba(30, 41, 59, 0.9)', text: '#f8fafc', roleText: '#38bdf8', line: '#38bdf8' },
+    emerald: { bg: 'rgba(6, 78, 59, 0.94)', border: '#34d399', rootBg: 'rgba(5, 150, 105, 0.4)', nodeBg: 'rgba(6, 95, 70, 0.9)', text: '#ecfdf5', roleText: '#a7f3d0', line: '#34d399' },
+    sunset: { bg: 'rgba(67, 20, 7, 0.94)', border: '#f97316', rootBg: 'rgba(234, 88, 12, 0.4)', nodeBg: 'rgba(124, 45, 18, 0.9)', text: '#fff7ed', roleText: '#fed7aa', line: '#f97316' },
+    purple: { bg: 'rgba(59, 7, 100, 0.94)', border: '#c084fc', rootBg: 'rgba(147, 51, 234, 0.4)', nodeBg: 'rgba(88, 28, 135, 0.9)', text: '#faf5ff', roleText: '#e9d5ff', line: '#c084fc' },
+    monochrome: { bg: 'rgba(24, 24, 27, 0.94)', border: '#a1a1aa', rootBg: 'rgba(63, 63, 70, 0.5)', nodeBg: 'rgba(39, 39, 42, 0.9)', text: '#ffffff', roleText: '#d4d4d8', line: '#a1a1aa' },
+  };
+
+  const pal = THEME_PALETTES[theme] || THEME_PALETTES.ocean;
+
+  // Outer container
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 14 * dpr);
+  ctx.fillStyle = pal.bg;
+  ctx.fill();
+  ctx.strokeStyle = pal.border;
+  ctx.lineWidth = 1.8 * dpr;
+  ctx.stroke();
+
+  // Header Title
+  ctx.font = `bold ${Math.max(12, Math.round(15 * dpr))}px Inter, sans-serif`;
+  ctx.fillStyle = pal.border;
+  ctx.textAlign = 'left';
+  ctx.fillText('🏛️ Hierarchy Chart', x + 16 * dpr, y + 26 * dpr);
+
+  ctx.font = `${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+  ctx.fillStyle = pal.roleText;
+  ctx.fillText(`Theme: ${theme.toUpperCase()} • Style: ${style.toUpperCase()}`, x + 16 * dpr, y + 42 * dpr);
+
+  // Measure and layout tree recursively
+  ctx.font = `bold ${Math.max(10, Math.round(fontSize))}px Inter, sans-serif`;
+
+  function layoutTree(node: any): { box: HierarchyLayoutBox; totalWidth: number } {
+    const labelW = ctx.measureText(node.label || 'Node').width;
+    const boxW = Math.max(96 * dpr, labelW + 28 * dpr);
+    const boxH = node.role ? 46 * dpr : 36 * dpr;
+
+    if (!node.children || node.children.length === 0) {
+      const box: HierarchyLayoutBox = {
+        id: node.id,
+        label: node.label,
+        role: node.role,
+        color: node.color,
+        x: 0,
+        y: 0,
+        w: boxW,
+        h: boxH,
+        children: [],
+      };
+      return { box, totalWidth: boxW };
+    }
+
+    const childResults = node.children.map((c: any) => layoutTree(c));
+    const gap = 16 * dpr;
+    const childrenTotalW = childResults.reduce((acc: number, cur: any) => acc + cur.totalWidth, 0) + (childResults.length - 1) * gap;
+    const totalW = Math.max(boxW, childrenTotalW);
+
+    const box: HierarchyLayoutBox = {
+      id: node.id,
+      label: node.label,
+      role: node.role,
+      color: node.color,
+      x: 0,
+      y: 0,
+      w: boxW,
+      h: boxH,
+      children: childResults.map((r: any) => r.box),
+    };
+
+    return { box, totalWidth: totalW };
+  }
+
+  const { box: rootLayout, totalWidth: treeTotalW } = layoutTree(tree);
+
+  // Position nodes within available area
+  const contentTop = y + 60 * dpr;
+  const contentHeight = h - 75 * dpr;
+  const levelHeight = Math.min(85 * dpr, contentHeight / 3.2);
+
+  function assignPositions(node: HierarchyLayoutBox, left: number, width: number, level: number) {
+    node.x = left + width / 2 - node.w / 2;
+    node.y = contentTop + level * levelHeight;
+
+    if (node.children.length > 0) {
+      const gap = 14 * dpr;
+      let curLeft = left;
+      const childWidth = (width - (node.children.length - 1) * gap) / node.children.length;
+      for (const child of node.children) {
+        assignPositions(child, curLeft, childWidth, level + 1);
+        curLeft += childWidth + gap;
+      }
+    }
+  }
+
+  const startLeft = x + Math.max(16 * dpr, (w - treeTotalW) / 2);
+  const effectiveW = Math.min(w - 32 * dpr, Math.max(treeTotalW, w - 32 * dpr));
+  assignPositions(rootLayout, startLeft, effectiveW, 0);
+
+  // Draw connectors and nodes recursively
+  function drawNodeAndConnectors(node: HierarchyLayoutBox, isRoot = false) {
+    // Connectors to children
+    if (node.children.length > 0) {
+      const parentBottomY = node.y + node.h;
+      const firstChild = node.children[0];
+      const lastChild = node.children[node.children.length - 1];
+      const midY = parentBottomY + (firstChild.y - parentBottomY) * 0.5;
+
+      ctx.save();
+      ctx.strokeStyle = pal.line;
+      ctx.lineWidth = 1.8 * dpr;
+
+      // Stem down from parent
+      ctx.beginPath();
+      ctx.moveTo(node.x + node.w / 2, parentBottomY);
+      ctx.lineTo(node.x + node.w / 2, midY);
+      ctx.stroke();
+
+      // Horizontal bus bar
+      const leftX = firstChild.x + firstChild.w / 2;
+      const rightX = lastChild.x + lastChild.w / 2;
+      ctx.beginPath();
+      ctx.moveTo(leftX, midY);
+      ctx.lineTo(rightX, midY);
+      ctx.stroke();
+
+      // Drops down to each child
+      for (const child of node.children) {
+        ctx.beginPath();
+        ctx.moveTo(child.x + child.w / 2, midY);
+        ctx.lineTo(child.x + child.w / 2, child.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Draw node box
+    const isSelected = node.id === selectedNodeId;
+    const nodeRadius = style === 'sharp' ? 2 * dpr : style === 'pill' ? 22 * dpr : 8 * dpr;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(node.x, node.y, node.w, node.h, nodeRadius);
+    ctx.fillStyle = isRoot ? pal.rootBg : (node.color ? `${node.color}33` : pal.nodeBg);
+    ctx.fill();
+
+    ctx.strokeStyle = isSelected ? '#38bdf8' : (node.color || pal.border);
+    ctx.lineWidth = isSelected ? 3 * dpr : (isRoot ? 2.2 * dpr : 1.5 * dpr);
+    if (isSelected) {
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 10 * dpr;
+    }
+    ctx.stroke();
+
+    // Flat style bottom accent bar
+    if (style === 'flat') {
+      ctx.beginPath();
+      ctx.roundRect(node.x, node.y + node.h - 3 * dpr, node.w, 3 * dpr, [0, 0, 4 * dpr, 4 * dpr]);
+      ctx.fillStyle = node.color || pal.border;
+      ctx.fill();
+    }
+
+    // Role text
+    if (node.role) {
+      ctx.font = `600 ${Math.max(9, Math.round(fontSize * 0.7))}px Inter, sans-serif`;
+      ctx.fillStyle = pal.roleText;
+      ctx.textAlign = 'center';
+      ctx.fillText(node.role.toUpperCase(), node.x + node.w / 2, node.y + 14 * dpr);
+    }
+
+    // Label text
+    ctx.font = `bold ${Math.max(10, Math.round(fontSize))}px Inter, sans-serif`;
+    ctx.fillStyle = pal.text;
+    ctx.textAlign = 'center';
+    const textY = node.role ? node.y + 32 * dpr : node.y + node.h / 2 + fontSize * 0.35;
+    ctx.fillText(node.label, node.x + node.w / 2, textY);
+
+    ctx.restore();
+
+    // Recurse children
+    for (const child of node.children) {
+      drawNodeAndConnectors(child, false);
+    }
+  }
+
+  drawNodeAndConnectors(rootLayout, true);
+}
+
+// ─── Interactive Mindmap Renderer ───────────────────────────────────────────
+
+function renderMindmap(
+  ctx: CanvasRenderingContext2D,
+  shape: ShapeObject,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  dpr: number
+) {
+  const root = shape.params?.root || {
+    id: 'mm-root',
+    text: 'Central Topic',
+    color: '#6366f1',
+    icon: '💡',
+    children: [
+      { id: 'b1', text: 'Subtopic 1', color: '#38bdf8' },
+      { id: 'b2', text: 'Subtopic 2', color: '#10b981' },
+      { id: 'b3', text: 'Subtopic 3', color: '#f59e0b' },
+      { id: 'b4', text: 'Subtopic 4', color: '#ec4899' },
+    ],
+  };
+
+  const selectedNodeId = shape.params?.selectedNodeId || 'mm-root';
+
+  // Outer container
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 14 * dpr);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+  ctx.fill();
+  ctx.strokeStyle = '#6366f1';
+  ctx.lineWidth = 1.8 * dpr;
+  ctx.stroke();
+
+  // Header Title
+  ctx.font = `bold ${Math.max(12, Math.round(15 * dpr))}px Inter, sans-serif`;
+  ctx.fillStyle = '#818cf8';
+  ctx.textAlign = 'left';
+  ctx.fillText('🧠 Interactive Mindmap', x + 16 * dpr, y + 26 * dpr);
+  ctx.font = `${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('Click any node on board to expand, collapse, or highlight branch', x + 16 * dpr, y + 42 * dpr);
+
+  const cx = x + w / 2;
+  const cy = y + 50 * dpr + (h - 50 * dpr) / 2;
+
+  // Central Root Node
+  const rootText = `${root.icon ? root.icon + ' ' : ''}${root.text}`;
+  ctx.font = `bold ${Math.max(12, Math.round(16 * dpr))}px Inter, sans-serif`;
+  const rootTextW = ctx.measureText(rootText).width;
+  const rootW = Math.max(130 * dpr, rootTextW + 36 * dpr);
+  const rootH = 46 * dpr;
+  const isRootSelected = selectedNodeId === root.id;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(cx - rootW / 2, cy - rootH / 2, rootW, rootH, 24 * dpr);
+  ctx.fillStyle = 'rgba(99, 102, 241, 0.35)';
+  ctx.fill();
+  ctx.strokeStyle = isRootSelected ? '#a5b4fc' : '#6366f1';
+  ctx.lineWidth = isRootSelected ? 3 * dpr : 2.2 * dpr;
+  if (isRootSelected) {
+    ctx.shadowColor = '#818cf8';
+    ctx.shadowBlur = 12 * dpr;
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(rootText, cx, cy);
+  ctx.restore();
+
+  // Distribute children between right and left sides
+  const children = root.children || [];
+  if (children.length === 0) return;
+
+  const rightChildren = children.filter((_: any, i: number) => i % 2 === 0);
+  const leftChildren = children.filter((_: any, i: number) => i % 2 === 1);
+
+  function renderBranchSide(nodes: any[], isRight: boolean) {
+    if (nodes.length === 0) return;
+    const startX = isRight ? cx + rootW / 2 : cx - rootW / 2;
+    const targetX = isRight ? cx + w * 0.28 : cx - w * 0.28;
+    const totalSpanY = Math.min(h - 110 * dpr, nodes.length * 75 * dpr);
+    const startY = cy - totalSpanY / 2;
+    const stepY = nodes.length > 1 ? totalSpanY / (nodes.length - 1) : 0;
+
+    nodes.forEach((node: any, idx: number) => {
+      const nodeY = nodes.length === 1 ? cy : startY + idx * stepY;
+      const branchColor = node.color || (isRight ? '#38bdf8' : '#10b981');
+      const isSelected = selectedNodeId === node.id;
+
+      // Smooth Organic Bezier Branch Curve
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(startX, cy);
+      const cpX = (startX + targetX) / 2;
+      if (typeof ctx.bezierCurveTo === 'function') {
+        ctx.bezierCurveTo(cpX, cy, cpX, nodeY, targetX, nodeY);
+      } else {
+        ctx.lineTo(targetX, nodeY);
+      }
+      ctx.strokeStyle = branchColor;
+      ctx.lineWidth = isSelected ? 3 * dpr : 2.2 * dpr;
+      ctx.stroke();
+      ctx.restore();
+
+      // Branch Node Card
+      const text = `${node.icon ? node.icon + ' ' : ''}${node.text}`;
+      ctx.font = `600 ${Math.max(11, Math.round(13 * dpr))}px Inter, sans-serif`;
+      const textW = ctx.measureText(text).width;
+      const cardW = Math.max(90 * dpr, textW + 26 * dpr);
+      const cardH = 34 * dpr;
+      const cardX = isRight ? targetX : targetX - cardW;
+      const cardY = nodeY - cardH / 2;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(cardX, cardY, cardW, cardH, 17 * dpr);
+      ctx.fillStyle = `${branchColor}2b`;
+      ctx.fill();
+      ctx.strokeStyle = isSelected ? '#ffffff' : branchColor;
+      ctx.lineWidth = isSelected ? 2.5 * dpr : 1.6 * dpr;
+      if (isSelected) {
+        ctx.shadowColor = branchColor;
+        ctx.shadowBlur = 10 * dpr;
+      }
+      ctx.stroke();
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, cardX + cardW / 2, cardY + cardH / 2);
+
+      // Collapsed indicator badge (+ N)
+      if (node.children && node.children.length > 0) {
+        if (node.collapsed) {
+          const badgeX = isRight ? cardX + cardW + 10 * dpr : cardX - 10 * dpr;
+          ctx.beginPath();
+          ctx.arc(badgeX, nodeY, 8 * dpr, 0, Math.PI * 2);
+          ctx.fillStyle = branchColor;
+          ctx.fill();
+          ctx.font = `bold ${Math.max(8, Math.round(9 * dpr))}px Inter, sans-serif`;
+          ctx.fillStyle = '#0f172a';
+          ctx.fillText(`+${node.children.length}`, badgeX, nodeY + 1 * dpr);
+        } else {
+          // Render Level 2 sub-nodes
+          const subNodes = node.children;
+          const subStartX = isRight ? cardX + cardW : cardX;
+          const subTargetX = isRight ? cardX + cardW + 80 * dpr : cardX - 80 * dpr;
+          const subSpanY = Math.min(100 * dpr, subNodes.length * 36 * dpr);
+          const subStartY = nodeY - subSpanY / 2;
+          const subStepY = subNodes.length > 1 ? subSpanY / (subNodes.length - 1) : 0;
+
+          subNodes.forEach((sub: any, subIdx: number) => {
+            const subY = subNodes.length === 1 ? nodeY : subStartY + subIdx * subStepY;
+            ctx.beginPath();
+            ctx.moveTo(subStartX, nodeY);
+            ctx.lineTo(subTargetX, subY);
+            ctx.strokeStyle = `${branchColor}88`;
+            ctx.lineWidth = 1.2 * dpr;
+            ctx.stroke();
+
+            ctx.font = `${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+            const subW = ctx.measureText(sub.text).width + 16 * dpr;
+            const subCardX = isRight ? subTargetX : subTargetX - subW;
+            ctx.beginPath();
+            ctx.roundRect(subCardX, subY - 12 * dpr, subW, 24 * dpr, 12 * dpr);
+            ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+            ctx.fill();
+            ctx.strokeStyle = sub.id === selectedNodeId ? '#ffffff' : `${branchColor}aa`;
+            ctx.lineWidth = 1 * dpr;
+            ctx.stroke();
+
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillText(sub.text, subCardX + subW / 2, subY + 1 * dpr);
+          });
+        }
+      }
+
+      ctx.restore();
+    });
+  }
+
+  renderBranchSide(rightChildren, true);
+  renderBranchSide(leftChildren, false);
+}
+
+// ─── Animated Timeline Renderer ─────────────────────────────────────────────
+
+function renderTimeline(
+  ctx: CanvasRenderingContext2D,
+  shape: ShapeObject,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  dpr: number
+) {
+  const events: any[] = shape.params?.events || [
+    { id: '1', dateOrEra: '1969', title: 'Moon Landing', description: 'Apollo 11 lands first humans on Moon.' },
+    { id: '2', dateOrEra: '1977', title: 'Voyager Launch', description: 'Twin probes explore deep space.' },
+    { id: '3', dateOrEra: '1990', title: 'Hubble Telescope', description: 'Space observatory deployed.' },
+  ];
+
+  const orientation = shape.params?.orientation || 'horizontal';
+  const activeEventIndex = Math.min(events.length - 1, Math.max(0, shape.params?.activeEventIndex || 0));
+
+  // Outer container
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 14 * dpr);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+  ctx.fill();
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 1.8 * dpr;
+  ctx.stroke();
+
+  // Header Title & Controls
+  ctx.font = `bold ${Math.max(12, Math.round(15 * dpr))}px Inter, sans-serif`;
+  ctx.fillStyle = '#38bdf8';
+  ctx.textAlign = 'left';
+  ctx.fillText('⏳ Interactive Timeline', x + 16 * dpr, y + 26 * dpr);
+
+  ctx.font = `${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText(`Event ${activeEventIndex + 1} of ${events.length} • Layout: ${orientation.toUpperCase()}`, x + 16 * dpr, y + 42 * dpr);
+
+  // Horizontal Layout
+  if (orientation === 'horizontal') {
+    const axisY = y + h * 0.52;
+    const startX = x + 36 * dpr;
+    const endX = x + w - 36 * dpr;
+    const stepX = events.length > 1 ? (endX - startX) / (events.length - 1) : 0;
+
+    // Timeline Axis Line
+    ctx.beginPath();
+    ctx.moveTo(startX - 12 * dpr, axisY);
+    ctx.lineTo(endX + 12 * dpr, axisY);
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 3 * dpr;
+    ctx.stroke();
+
+    events.forEach((evt: any, i: number) => {
+      const evtX = events.length === 1 ? x + w / 2 : startX + i * stepX;
+      const isActive = i === activeEventIndex;
+      const isTop = i % 2 === 0;
+      const evtColor = evt.color || (isActive ? '#38bdf8' : '#64748b');
+
+      // Milestone circle on axis
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(evtX, axisY, isActive ? 9 * dpr : 6 * dpr, 0, Math.PI * 2);
+      ctx.fillStyle = isActive ? '#38bdf8' : '#0f172a';
+      ctx.fill();
+      ctx.strokeStyle = evtColor;
+      ctx.lineWidth = isActive ? 3 * dpr : 2 * dpr;
+      if (isActive) {
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 10 * dpr;
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      // Connector stem
+      const stemH = 24 * dpr;
+      const cardY = isTop ? axisY - stemH - 85 * dpr : axisY + stemH;
+      ctx.beginPath();
+      ctx.moveTo(evtX, isTop ? axisY - 8 * dpr : axisY + 8 * dpr);
+      ctx.lineTo(evtX, isTop ? axisY - stemH : axisY + stemH);
+      ctx.strokeStyle = evtColor;
+      ctx.lineWidth = 1.6 * dpr;
+      ctx.stroke();
+
+      // Event Card
+      const cardW = Math.min(180 * dpr, Math.max(120 * dpr, (w - 70 * dpr) / events.length));
+      const cardH = 78 * dpr;
+      const cardX = evtX - cardW / 2;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(cardX, cardY, cardW, cardH, 8 * dpr);
+      ctx.fillStyle = isActive ? 'rgba(14, 165, 233, 0.22)' : 'rgba(30, 41, 59, 0.85)';
+      ctx.fill();
+      ctx.strokeStyle = isActive ? '#38bdf8' : 'rgba(148, 163, 184, 0.25)';
+      ctx.lineWidth = isActive ? 2.4 * dpr : 1.2 * dpr;
+      if (isActive) {
+        ctx.shadowColor = '#0ea5e9';
+        ctx.shadowBlur = 8 * dpr;
+      }
+      ctx.stroke();
+
+      // Date badge
+      ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = isActive ? '#38bdf8' : '#94a3b8';
+      ctx.textAlign = 'left';
+      ctx.fillText(evt.dateOrEra, cardX + 8 * dpr, cardY + 16 * dpr);
+
+      // Title
+      ctx.font = `bold ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#f8fafc';
+      const truncatedTitle = evt.title.length > 20 ? evt.title.slice(0, 19) + '…' : evt.title;
+      ctx.fillText(truncatedTitle, cardX + 8 * dpr, cardY + 34 * dpr);
+
+      // Description / Image
+      if (evt.imageDataUrl) {
+        const img = getCachedTimelineImage(evt.imageDataUrl);
+        if (img) {
+          ctx.drawImage(img, cardX + cardW - 38 * dpr, cardY + 8 * dpr, 30 * dpr, 30 * dpr);
+        }
+      }
+
+      ctx.font = `${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#cbd5e1';
+      const truncatedDesc = (evt.description || '').length > 40 ? evt.description.slice(0, 38) + '…' : evt.description;
+      ctx.fillText(truncatedDesc, cardX + 8 * dpr, cardY + 52 * dpr);
+
+      ctx.restore();
+    });
+  }
+  // Vertical Layout
+  else {
+    const spineX = x + w * 0.35;
+    const startY = y + 70 * dpr;
+    const endY = y + h - 30 * dpr;
+    const stepY = events.length > 1 ? (endY - startY) / (events.length - 1) : 0;
+
+    // Vertical spine
+    ctx.beginPath();
+    ctx.moveTo(spineX, startY - 10 * dpr);
+    ctx.lineTo(spineX, endY + 10 * dpr);
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 3 * dpr;
+    ctx.stroke();
+
+    events.forEach((evt: any, i: number) => {
+      const evtY = events.length === 1 ? y + h / 2 : startY + i * stepY;
+      const isActive = i === activeEventIndex;
+      const evtColor = evt.color || (isActive ? '#38bdf8' : '#64748b');
+
+      // Milestone circle
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(spineX, evtY, isActive ? 9 * dpr : 6 * dpr, 0, Math.PI * 2);
+      ctx.fillStyle = isActive ? '#38bdf8' : '#0f172a';
+      ctx.fill();
+      ctx.strokeStyle = evtColor;
+      ctx.lineWidth = isActive ? 3 * dpr : 2 * dpr;
+      ctx.stroke();
+      ctx.restore();
+
+      // Date marker on left
+      ctx.font = `bold ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = isActive ? '#38bdf8' : '#94a3b8';
+      ctx.textAlign = 'right';
+      ctx.fillText(evt.dateOrEra, spineX - 16 * dpr, evtY + 4 * dpr);
+
+      // Card on right
+      const cardX = spineX + 20 * dpr;
+      const cardW = w - (cardX - x) - 16 * dpr;
+      const cardH = 50 * dpr;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(cardX, evtY - cardH / 2, cardW, cardH, 8 * dpr);
+      ctx.fillStyle = isActive ? 'rgba(14, 165, 233, 0.22)' : 'rgba(30, 41, 59, 0.85)';
+      ctx.fill();
+      ctx.strokeStyle = isActive ? '#38bdf8' : 'rgba(148, 163, 184, 0.25)';
+      ctx.lineWidth = isActive ? 2.4 * dpr : 1.2 * dpr;
+      ctx.stroke();
+
+      ctx.font = `bold ${Math.max(11, Math.round(12 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#f8fafc';
+      ctx.textAlign = 'left';
+      ctx.fillText(evt.title, cardX + 10 * dpr, evtY - 6 * dpr);
+
+      ctx.font = `${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText(evt.description || '', cardX + 10 * dpr, evtY + 12 * dpr);
+
+      if (evt.imageDataUrl) {
+        const img = getCachedTimelineImage(evt.imageDataUrl);
+        if (img) {
+          ctx.drawImage(img, cardX + cardW - 42 * dpr, evtY - 18 * dpr, 36 * dpr, 36 * dpr);
+        }
+      }
+
+      ctx.restore();
+    });
+  }
+}
+
+// ─── Process Flow Chart Renderer ────────────────────────────────────────────
+
+function renderProcessChart(
+  ctx: CanvasRenderingContext2D,
+  shape: ShapeObject,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  dpr: number
+) {
+  const steps: any[] = shape.params?.steps || [
+    { id: '1', stepNumber: 1, title: 'Step 1: Input', description: 'Initialize data' },
+    { id: '2', stepNumber: 2, title: 'Step 2: Process', description: 'Compute results' },
+    { id: '3', stepNumber: 3, title: 'Step 3: Output', description: 'Display values' },
+  ];
+
+  const style = shape.params?.style || 'chevron';
+  const activeStepIndex = Math.min(steps.length - 1, Math.max(0, shape.params?.activeStepIndex || 0));
+
+  // Outer container
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 14 * dpr);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+  ctx.fill();
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 1.8 * dpr;
+  ctx.stroke();
+
+  // Header Title
+  ctx.font = `bold ${Math.max(12, Math.round(15 * dpr))}px Inter, sans-serif`;
+  ctx.fillStyle = '#38bdf8';
+  ctx.textAlign = 'left';
+  ctx.fillText('🔄 Process Flow Chart', x + 16 * dpr, y + 26 * dpr);
+
+  ctx.font = `${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText(`Style: ${style.toUpperCase()} • Step ${activeStepIndex + 1} of ${steps.length}`, x + 16 * dpr, y + 42 * dpr);
+
+  const contentY = y + 60 * dpr;
+  const contentH = h - 75 * dpr;
+
+  // 1. Chevron Flow Style
+  if (style === 'chevron') {
+    const gap = 6 * dpr;
+    const arrowIndent = 16 * dpr;
+    const stepW = (w - 32 * dpr - (steps.length - 1) * gap) / steps.length;
+    const stepH = Math.min(120 * dpr, contentH);
+    const startX = x + 16 * dpr;
+
+    steps.forEach((step: any, i: number) => {
+      const stepX = startX + i * (stepW + gap);
+      const isActive = i === activeStepIndex;
+      const stepColor = step.color || (isActive ? '#38bdf8' : '#0284c7');
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(stepX, contentY);
+      ctx.lineTo(stepX + stepW - arrowIndent, contentY);
+      ctx.lineTo(stepX + stepW, contentY + stepH / 2);
+      ctx.lineTo(stepX + stepW - arrowIndent, contentY + stepH);
+      ctx.lineTo(stepX, contentY + stepH);
+      if (i > 0) {
+        ctx.lineTo(stepX + arrowIndent, contentY + stepH / 2);
+      }
+      ctx.closePath();
+
+      ctx.fillStyle = isActive ? 'rgba(14, 165, 233, 0.35)' : 'rgba(30, 41, 59, 0.9)';
+      ctx.fill();
+      ctx.strokeStyle = isActive ? '#38bdf8' : 'rgba(56, 189, 248, 0.4)';
+      ctx.lineWidth = isActive ? 2.5 * dpr : 1.4 * dpr;
+      if (isActive) {
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 10 * dpr;
+      }
+      ctx.stroke();
+
+      // Step Number circle
+      const numX = stepX + (i > 0 ? arrowIndent + 16 * dpr : 18 * dpr);
+      const numY = contentY + 24 * dpr;
+      ctx.beginPath();
+      ctx.arc(numX, numY, 11 * dpr, 0, Math.PI * 2);
+      ctx.fillStyle = stepColor;
+      ctx.fill();
+      ctx.font = `bold ${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(step.stepNumber || i + 1), numX, numY);
+
+      // Title & Description
+      ctx.font = `bold ${Math.max(10, Math.round(12 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#f8fafc';
+      ctx.textAlign = 'left';
+      ctx.fillText(step.title, numX + 16 * dpr, numY);
+
+      ctx.font = `${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText(step.description || '', stepX + (i > 0 ? arrowIndent + 8 * dpr : 10 * dpr), contentY + 54 * dpr);
+
+      ctx.restore();
+    });
+  }
+  // 2. Numbered Cards Style
+  else if (style === 'cards') {
+    const gap = 14 * dpr;
+    const cardW = (w - 32 * dpr - (steps.length - 1) * gap) / steps.length;
+    const cardH = Math.min(130 * dpr, contentH);
+    const startX = x + 16 * dpr;
+
+    steps.forEach((step: any, i: number) => {
+      const cardX = startX + i * (cardW + gap);
+      const isActive = i === activeStepIndex;
+      const stepColor = step.color || (isActive ? '#38bdf8' : '#10b981');
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(cardX, contentY, cardW, cardH, 10 * dpr);
+      ctx.fillStyle = isActive ? 'rgba(14, 165, 233, 0.28)' : 'rgba(30, 41, 59, 0.9)';
+      ctx.fill();
+      ctx.strokeStyle = isActive ? '#38bdf8' : 'rgba(148, 163, 184, 0.25)';
+      ctx.lineWidth = isActive ? 2.5 * dpr : 1.2 * dpr;
+      if (isActive) {
+        ctx.shadowColor = '#0ea5e9';
+        ctx.shadowBlur = 8 * dpr;
+      }
+      ctx.stroke();
+
+      // Large stylized number badge
+      ctx.font = `900 ${Math.max(16, Math.round(20 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = stepColor;
+      ctx.textAlign = 'left';
+      ctx.fillText(`0${step.stepNumber || i + 1}`, cardX + 12 * dpr, contentY + 28 * dpr);
+
+      // Title
+      ctx.font = `bold ${Math.max(10, Math.round(12 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText(step.title, cardX + 12 * dpr, contentY + 52 * dpr);
+
+      // Description
+      ctx.font = `${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(step.description || '', cardX + 12 * dpr, contentY + 74 * dpr);
+
+      // Arrow link to next card
+      if (i < steps.length - 1) {
+        const arrowX = cardX + cardW + gap / 2;
+        const arrowY = contentY + cardH / 2;
+        ctx.font = `bold ${Math.max(12, Math.round(14 * dpr))}px Inter, sans-serif`;
+        ctx.fillStyle = '#38bdf8';
+        ctx.textAlign = 'center';
+        ctx.fillText('➔', arrowX, arrowY);
+      }
+
+      ctx.restore();
+    });
+  }
+  // 3. Circular Cycle Style
+  else if (style === 'cycle') {
+    const cx = x + w / 2;
+    const cy = contentY + contentH / 2;
+    const radius = Math.min(w * 0.35, contentH * 0.42);
+
+    // Central circular hub
+    ctx.beginPath();
+    ctx.arc(cx, cy, 32 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+    ctx.fill();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2 * dpr;
+    ctx.stroke();
+
+    ctx.font = `bold ${Math.max(10, Math.round(11 * dpr))}px Inter, sans-serif`;
+    ctx.fillStyle = '#38bdf8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('CYCLE', cx, cy);
+
+    steps.forEach((step: any, i: number) => {
+      const angle = (i / steps.length) * Math.PI * 2 - Math.PI / 2;
+      const nx = cx + Math.cos(angle) * radius;
+      const ny = cy + Math.sin(angle) * radius;
+      const isActive = i === activeStepIndex;
+      const stepColor = step.color || '#38bdf8';
+
+      // Curved directional arrow arc
+      const nextAngle = ((i + 0.7) / steps.length) * Math.PI * 2 - Math.PI / 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, angle + 0.25, nextAngle);
+      ctx.strokeStyle = `${stepColor}88`;
+      ctx.lineWidth = 2 * dpr;
+      ctx.stroke();
+
+      // Step node
+      ctx.save();
+      const nodeW = 100 * dpr;
+      const nodeH = 40 * dpr;
+      ctx.beginPath();
+      ctx.roundRect(nx - nodeW / 2, ny - nodeH / 2, nodeW, nodeH, 8 * dpr);
+      ctx.fillStyle = isActive ? 'rgba(14, 165, 233, 0.4)' : 'rgba(30, 41, 59, 0.9)';
+      ctx.fill();
+      ctx.strokeStyle = isActive ? '#38bdf8' : stepColor;
+      ctx.lineWidth = isActive ? 2.5 * dpr : 1.4 * dpr;
+      if (isActive) {
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 8 * dpr;
+      }
+      ctx.stroke();
+
+      ctx.font = `bold ${Math.max(9, Math.round(11 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#f8fafc';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${step.stepNumber || i + 1}. ${step.title}`, nx, ny);
+      ctx.restore();
+    });
+  }
+  // 4. Staged Pipeline / Funnel Style
+  else {
+    const stepW = (w - 32 * dpr) / steps.length;
+    const startX = x + 16 * dpr;
+
+    steps.forEach((step: any, i: number) => {
+      const pipeX = startX + i * stepW;
+      const isActive = i === activeStepIndex;
+      const stepColor = step.color || (isActive ? '#38bdf8' : '#0ea5e9');
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(pipeX + 4 * dpr, contentY, stepW - 8 * dpr, contentH, 8 * dpr);
+      ctx.fillStyle = isActive ? 'rgba(14, 165, 233, 0.3)' : 'rgba(30, 41, 59, 0.9)';
+      ctx.fill();
+      ctx.strokeStyle = isActive ? '#38bdf8' : 'rgba(148, 163, 184, 0.25)';
+      ctx.lineWidth = isActive ? 2.5 * dpr : 1.2 * dpr;
+      ctx.stroke();
+
+      // Progress bar fill
+      const progressH = ((i + 1) / steps.length) * (contentH - 40 * dpr);
+      ctx.beginPath();
+      ctx.roundRect(pipeX + 8 * dpr, contentY + contentH - progressH - 8 * dpr, stepW - 16 * dpr, progressH, 4 * dpr);
+      ctx.fillStyle = `${stepColor}33`;
+      ctx.fill();
+
+      // Title & Step #
+      ctx.font = `bold ${Math.max(10, Math.round(12 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = stepColor;
+      ctx.textAlign = 'left';
+      ctx.fillText(`Stage ${step.stepNumber || i + 1}`, pipeX + 12 * dpr, contentY + 24 * dpr);
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText(step.title, pipeX + 12 * dpr, contentY + 44 * dpr);
+
+      ctx.font = `${Math.max(9, Math.round(10 * dpr))}px Inter, sans-serif`;
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText(step.description || '', pipeX + 12 * dpr, contentY + 64 * dpr);
+
+      ctx.restore();
+    });
+  }
+}
+

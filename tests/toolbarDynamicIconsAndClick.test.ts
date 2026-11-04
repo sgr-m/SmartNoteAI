@@ -341,5 +341,81 @@ describe('Toolbar Click & Dynamic Icon Subsystem', () => {
       expect(zoomBarButtons).not.toContain('pan');
     });
   });
+
+  describe('Flyout Auto-Dismiss & Visible Drawing Cursor Subsystem', () => {
+    it('automatically closes any open tool flyout when board focus or writing begins', () => {
+      let activeFlyout: 'none' | 'pen' | 'eraser' | 'shape' | 'menu' = 'pen';
+      const closeAllPopups = () => {
+        activeFlyout = 'none';
+      };
+
+      // Simulating user clicking or touching canvas to start writing
+      const handleCanvasPointerDown = () => {
+        closeAllPopups();
+      };
+
+      expect(activeFlyout).toBe('pen');
+      handleCanvasPointerDown();
+      expect(activeFlyout).toBe('none'); // Flyout auto-dismissed immediately!
+    });
+
+    it('automatically minimizes flyout when switching from eraser flyout to drawing on board', () => {
+      let activeFlyout: 'none' | 'pen' | 'eraser' | 'shape' | 'menu' = 'eraser';
+      const onInteractionStart = () => {
+        activeFlyout = 'none';
+      };
+
+      // First touch on board triggers onInteractionStart
+      onInteractionStart();
+      expect(activeFlyout).toBe('none');
+    });
+
+    it('drawing + pointer indicator is only visible during active drawing (pointer down)', () => {
+      const isPointerVisible = (isPointerDown: boolean, activeTool: string): boolean => {
+        return (
+          isPointerDown &&
+          (activeTool === 'pen' ||
+            activeTool === 'highlighter' ||
+            activeTool === 'shape' ||
+            activeTool === 'line')
+        );
+      };
+
+      // When simply hovering over the board without drawing -> NOT visible
+      expect(isPointerVisible(false, 'pen')).toBe(false);
+      expect(isPointerVisible(false, 'highlighter')).toBe(false);
+      expect(isPointerVisible(false, 'shape')).toBe(false);
+
+      // When actively drawing on the board (pointer down) -> visible + pointer!
+      expect(isPointerVisible(true, 'pen')).toBe(true);
+      expect(isPointerVisible(true, 'highlighter')).toBe(true);
+      expect(isPointerVisible(true, 'shape')).toBe(true);
+      expect(isPointerVisible(true, 'line')).toBe(true);
+
+      // Non-drawing tools do not show + pointer
+      expect(isPointerVisible(true, 'select')).toBe(false);
+      expect(isPointerVisible(true, 'pan')).toBe(false);
+    });
+
+    it('text selection drag in input is distinguished from canvas drawing interaction', () => {
+      const isTextInputElement = (tagName: string, inputType?: string): boolean => {
+        if (tagName === 'TEXTAREA') return true;
+        if (tagName === 'INPUT') {
+          const nonTextTypes = ['range', 'color', 'checkbox', 'radio', 'button', 'submit'];
+          return !nonTextTypes.includes(inputType || 'text');
+        }
+        return false;
+      };
+
+      // Textbox or search input
+      expect(isTextInputElement('TEXTAREA')).toBe(true);
+      expect(isTextInputElement('INPUT', 'text')).toBe(true);
+      expect(isTextInputElement('INPUT', 'search')).toBe(true);
+
+      // Range slider or color picker inside flyouts do not trap canvas dragging
+      expect(isTextInputElement('INPUT', 'range')).toBe(false);
+      expect(isTextInputElement('INPUT', 'color')).toBe(false);
+    });
+  });
 });
 

@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1000" width="1200" height="1000">
+  <defs>
+    <style>
+      .state-title { font-family: 'system-ui', -apple-system, sans-serif; font-size: 26px; font-weight: 800; fill: #0f172a; text-anchor: middle; letter-spacing: 1.5px; }
+      .state-sub { font-family: 'system-ui', -apple-system, sans-serif; font-size: 13px; font-weight: 700; fill: #dc2626; text-anchor: middle; letter-spacing: 0.5px; }
+      .state-meta { font-family: 'system-ui', -apple-system, sans-serif; font-size: 12px; fill: #475569; text-anchor: middle; }
+      .dist-name { font-family: 'system-ui', -apple-system, sans-serif; font-size: 11px; font-weight: 600; fill: #0f172a; paint-order: stroke; stroke: #ffffff; stroke-width: 2.5px; stroke-linejoin: round; }
+      .cap-badge { font-family: 'system-ui', -apple-system, sans-serif; font-size: 13px; font-weight: 800; fill: #b91c1c; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; }
+      .scale-text { font-family: monospace; font-size: 11px; fill: #1e293b; font-weight: 600; }
+      .legend-title { font-family: 'system-ui', sans-serif; font-size: 12px; font-weight: 700; fill: #0f172a; }
+      .legend-item { font-family: 'system-ui', sans-serif; font-size: 11px; fill: #334155; }
+    </style>
+    <filter id="cardShadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.1" />
+    </filter>
+  </defs>
+
+  <!-- 100% Transparent Outer Canvas (No black/dark background) -->
+  <rect width="100%" height="100%" fill="none" />
+
+  <!-- Survey of India Official Style Border Frame -->
+  <rect x="25" y="25" width="1150" height="950" rx="8" fill="none" stroke="#0f172a" stroke-width="2.5" />
+  <rect x="31" y="31" width="1138" height="938" rx="5" fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="6,4" />
+
+  <!-- Cartographic Header Block -->
+  <g id="header-block">
+    <text x="600" y="66" class="state-title">DADRA AND NAGAR HAVELI AND DAMAN AND DIU</text>
+    <text x="600" y="90" class="state-sub">OFFICIAL STATE MAP — SURVEY OF INDIA &amp; CENSUS STANDARD</text>
+    <text x="600" y="112" class="state-meta">Capital: Daman | Region: Western India | Area: 603 km² | 3 Districts</text>
+  </g>
+
+  <!-- Districts Multi-Polygon Fills & Boundaries -->
+  <g id="district-polygons">
+    <path d="M 904.5,809.6 L 906.3,810.2 L 904.6,813.4 L 904.5,809.6 Z M 1006.7,413.5 L 1002.3,408.6 L 1006.2,400.5 L 1014.5,404.3 L 1015.2,405.8 L 1011.7,414.3 L 1010.2,416.9 L 1006.7,413.5 Z M 1006.6,459.0 L 1006.8,459.0 L 1005.2,450.1 L 1004.5,446.9 L 990.5,438.9 L 984.9,429.3 L 993.0,418.2 L 1010.7,429.8 L 1010.8,429.5 L 1014.9,420.6 L 1027.7,419.9 L 1026.6,409.9 L 1030.8,411.5 L 1030.4,418.8 L 1038.6,419.8 L 1042.1,403.9 L 1057.7,404.9 L 1066.2,387.5 L 1072.9,398.3 L 1068.3,414.4 L 1090.5,407.6 L 1097.0,411.3 L 1097.4,421.2 L 1093.4,425.1 L 1087.9,422.1 L 1086.5,428.2 L 1066.7,444.5 L 1066.7,450.0 L 1054.6,448.0 L 1052.3,450.0 L 1050.8,451.3 L 1050.0,452.0 L 1046.3,460.1 L 1045.2,462.8 L 1045.0,463.0 L 1049.8,465.9 L 1051.7,482.0 L 1051.9,482.6 L 1056.0,484.1 L 1058.6,475.7 L 1074.7,485.6 L 1076.2,478.2 L 1086.3,473.8 L 1083.3,463.4 L 1084.0,460.9 L 1093.1,463.8 L 1098.0,459.2 L 1102.3,466.6 L 1108.5,464.3 L 1120.0,469.7 L 1115.7,478.8 L 1112.4,480.5 L 1107.5,479.9 L 1107.4,483.1 L 1106.7,496.6 L 1106.7,496.8 L 1116.8,500.6 L 1116.8,517.1 L 1107.2,521.1 L 1108.6,534.2 L 1097.0,531.7 L 1084.1,517.0 L 1073.0,522.6 L 1069.2,515.3 L 1051.7,511.1 L 1048.0,510.9 L 1047.9,512.4 L 1046.6,527.1 L 1042.7,526.4 L 1023.8,504.8 L 1026.8,497.6 L 1027.8,495.3 L 1028.3,494.0 L 1022.4,490.1 L 1019.6,502.1 L 1018.3,502.5 L 1012.3,503.3 L 1008.3,499.0 L 1007.5,497.6 L 1013.2,472.8 L 1006.2,470.2 L 1006.2,469.0 L 1006.6,459.0 Z M 1017.7,455.7 L 1020.2,455.7 L 1023.9,455.6 L 1025.0,451.3 L 1025.6,448.6 L 1025.8,448.0 L 1024.2,447.9 L 1016.1,447.1 L 1014.1,446.9 L 1014.1,449.0 L 1012.1,450.9 L 1014.1,452.6 L 1014.1,455.7 L 1017.7,455.7 Z" fill="#fef3c7" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>Dadra and Nagar Haveli (Dadra and Nagar Haveli and Daman and Diu)</title>
+    </path>
+    <path d="M 972.8,339.0 L 976.8,347.6 L 967.7,346.9 L 959.8,359.6 L 978.4,361.2 L 979.0,362.8 L 971.1,369.5 L 977.0,378.3 L 977.0,378.5 L 959.4,381.2 L 950.4,381.1 L 947.3,383.2 L 943.8,383.7 L 950.6,343.2 L 958.9,336.6 L 972.8,339.0 Z" fill="#fee2e2" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>Daman (Dadra and Nagar Haveli and Daman and Diu)</title>
+    </path>
+    <path d="M 99.6,206.4 L 100.2,206.7 L 104.3,209.2 L 107.7,211.3 L 117.5,209.3 L 126.5,215.9 L 126.6,215.8 L 133.4,208.3 L 134.9,206.8 L 138.3,209.0 L 129.5,215.9 L 133.7,220.2 L 124.8,225.6 L 103.6,220.9 L 90.4,226.8 L 80.0,222.2 L 84.0,214.4 L 97.6,211.1 L 99.6,206.4 Z M 202.6,198.6 L 202.3,196.6 L 203.3,198.2 L 202.6,198.6 Z" fill="#dbeafe" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>Diu (Dadra and Nagar Haveli and Daman and Diu)</title>
+    </path>
+
+  </g>
+
+  <!-- District Labels Layer -->
+  <g id="district-labels">
+    <g transform="translate(1041.9, 472.5)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">Dadra and Nagar Haveli</text>
+    </g>
+    <g transform="translate(965.2, 362.0)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">Daman</text>
+    </g>
+    <g transform="translate(127.9, 211.1)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">Diu</text>
+    </g>
+
+  </g>
+
+  <!-- State Capital Star Marker -->
+  <g id="capital-marker" transform="translate(965.2, 362.0)">
+    <circle r="7" fill="#dc2626" stroke="#ffffff" stroke-width="2" />
+    <circle r="3" fill="#ffffff" />
+    <text x="12" y="4" class="cap-badge">★ Daman (Capital)</text>
+  </g>
+
+  <!-- North Arrow Compass Rose -->
+  <g id="compass" transform="translate(1110, 85)">
+    <circle r="22" fill="#ffffff" stroke="#0f172a" stroke-width="1.5" />
+    <polygon points="0,-18 5,-2 0,2 -5,-2" fill="#dc2626" />
+    <polygon points="0,18 5,2 0,-2 -5,2" fill="#0f172a" />
+    <text x="0" y="-22" text-anchor="middle" font-family="system-ui" font-size="11" font-weight="800" fill="#dc2626">N</text>
+  </g>
+
+  <!-- Graphic Scale Bar -->
+  <g id="scale-bar" transform="translate(60, 910)" filter="url(#cardShadow)">
+    <rect x="-10" y="-18" width="272" height="44" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />
+    <text x="0" y="-4" class="scale-text">SCALE 1 : 1,000,000</text>
+    <rect x="0" y="4" width="212" height="6" fill="#0f172a" />
+    <rect x="0" y="4" width="106" height="6" fill="#dc2626" />
+    <text x="0" y="22" class="scale-text">0</text>
+    <text x="106" y="22" class="scale-text">25</text>
+    <text x="212" y="22" class="scale-text">50 km</text>
+  </g>
+
+  <!-- Legend & Symbology Card -->
+  <g id="legend" transform="translate(930, 810)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="220" height="140" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />
+    <text x="14" y="22" class="legend-title">MAP LEGEND &amp; SYMBOLS</text>
+    <g transform="translate(14, 40)">
+      <circle cx="6" cy="4" r="5" fill="#dc2626" />
+      <text x="18" y="8" class="legend-item">State Capital (★)</text>
+    </g>
+    <g transform="translate(14, 62)">
+      <circle cx="6" cy="4" r="3.5" fill="#475569" />
+      <text x="18" y="8" class="legend-item">District Headquarters (●)</text>
+    </g>
+    <g transform="translate(14, 84)">
+      <line x1="0" y1="4" x2="14" y2="4" stroke="#0f172a" stroke-width="2.5" />
+      <text x="18" y="8" class="legend-item">State Boundary (Survey of India)</text>
+    </g>
+    <g transform="translate(14, 106)">
+      <line x1="0" y1="4" x2="14" y2="4" stroke="#64748b" stroke-width="1.2" stroke-dasharray="3,2" />
+      <text x="18" y="8" class="legend-item">Internal District Boundary</text>
+    </g>
+    <g transform="translate(14, 126)">
+      <line x1="0" y1="4" x2="14" y2="4" stroke="#0284c7" stroke-width="2" />
+      <text x="18" y="8" class="legend-item">Major Drainage River</text>
+    </g>
+  </g>
+
+  <!-- Official Government Attribution Footer -->
+  <text x="600" y="964" text-anchor="middle" font-family="system-ui" font-size="10" fill="#64748b">
+    © Survey of India / Registrar General &amp; Census Commissioner of India. Official boundary and territorial integrity strictly preserved. Source: https://ddd.gov.in
+  </text>
+</svg>

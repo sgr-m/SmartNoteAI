@@ -6,3 +6,4 @@ release/
 .env.local
 *.sbl
 backup_v0.1.0_windows_setup/
+assets/MapsData/

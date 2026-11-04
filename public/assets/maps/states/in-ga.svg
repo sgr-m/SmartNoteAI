@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1000" width="1200" height="1000">
+  <defs>
+    <style>
+      .state-title { font-family: 'system-ui', -apple-system, sans-serif; font-size: 26px; font-weight: 800; fill: #0f172a; text-anchor: middle; letter-spacing: 1.5px; }
+      .state-sub { font-family: 'system-ui', -apple-system, sans-serif; font-size: 13px; font-weight: 700; fill: #dc2626; text-anchor: middle; letter-spacing: 0.5px; }
+      .state-meta { font-family: 'system-ui', -apple-system, sans-serif; font-size: 12px; fill: #475569; text-anchor: middle; }
+      .dist-name { font-family: 'system-ui', -apple-system, sans-serif; font-size: 11px; font-weight: 600; fill: #0f172a; paint-order: stroke; stroke: #ffffff; stroke-width: 2.5px; stroke-linejoin: round; }
+      .cap-badge { font-family: 'system-ui', -apple-system, sans-serif; font-size: 13px; font-weight: 800; fill: #b91c1c; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; }
+      .scale-text { font-family: monospace; font-size: 11px; fill: #1e293b; font-weight: 600; }
+      .legend-title { font-family: 'system-ui', sans-serif; font-size: 12px; font-weight: 700; fill: #0f172a; }
+      .legend-item { font-family: 'system-ui', sans-serif; font-size: 11px; fill: #334155; }
+    </style>
+    <filter id="cardShadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.1" />
+    </filter>
+  </defs>
+
+  <!-- 100% Transparent Outer Canvas (No black/dark background) -->
+  <rect width="100%" height="100%" fill="none" />
+
+  <!-- Survey of India Official Style Border Frame -->
+  <rect x="25" y="25" width="1150" height="950" rx="8" fill="none" stroke="#0f172a" stroke-width="2.5" />
+  <rect x="31" y="31" width="1138" height="938" rx="5" fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="6,4" />
+
+  <!-- Cartographic Header Block -->
+  <g id="header-block">
+    <text x="600" y="66" class="state-title">GOA</text>
+    <text x="600" y="90" class="state-sub">OFFICIAL STATE MAP — SURVEY OF INDIA &amp; CENSUS STANDARD</text>
+    <text x="600" y="112" class="state-meta">Capital: Panaji | Region: Western India | Area: 3,702 km² | 2 Districts</text>
+  </g>
+
+  <!-- Districts Multi-Polygon Fills & Boundaries -->
+  <g id="district-polygons">
+    <path d="M 794.1,388.8 L 753.2,409.5 L 736.8,433.5 L 693.2,432.9 L 681.9,448.4 L 677.0,441.5 L 649.2,454.7 L 639.2,458.4 L 638.9,457.9 L 637.3,435.8 L 622.2,425.8 L 627.3,421.8 L 615.1,403.4 L 619.2,399.1 L 564.3,349.0 L 550.5,361.9 L 564.3,379.4 L 564.3,379.7 L 558.9,392.6 L 555.4,400.3 L 560.5,411.2 L 560.8,411.7 L 551.6,424.4 L 542.4,437.0 L 518.6,449.6 L 500.0,435.2 L 486.2,440.1 L 475.1,420.9 L 438.4,422.6 L 426.5,411.5 L 438.1,413.5 L 447.8,388.5 L 429.5,381.4 L 409.2,386.3 L 400.5,343.6 L 382.2,307.2 L 386.5,285.4 L 374.9,274.2 L 348.9,198.9 L 338.4,193.2 L 344.3,194.3 L 352.2,198.6 L 379.2,200.9 L 390.5,188.0 L 424.3,196.3 L 424.6,196.3 L 424.9,195.7 L 437.6,186.3 L 452.4,184.0 L 454.9,183.7 L 455.7,183.4 L 456.2,180.8 L 468.9,157.1 L 477.0,150.8 L 479.5,137.0 L 480.5,135.0 L 481.6,135.3 L 499.2,156.2 L 495.7,175.4 L 546.2,182.0 L 556.5,203.8 L 550.0,218.4 L 566.2,224.7 L 568.9,270.2 L 569.2,274.5 L 587.6,290.0 L 611.6,294.6 L 619.5,280.8 L 674.6,264.5 L 684.6,261.6 L 688.6,256.8 L 689.5,256.5 L 695.1,256.2 L 702.4,259.6 L 725.4,255.3 L 727.6,240.4 L 738.4,231.8 L 746.2,234.4 L 743.2,243.9 L 756.8,247.0 L 757.6,257.6 L 782.4,243.0 L 794.9,254.8 L 788.6,278.0 L 804.6,286.8 L 789.5,326.9 L 802.4,328.4 L 815.4,343.9 L 815.7,363.0 L 794.1,388.5 L 794.1,388.8 Z" fill="#fef3c7" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>North Goa (Goa)</title>
+    </path>
+    <path d="M 542.4,437.0 L 551.6,424.4 L 560.8,411.7 L 560.5,411.2 L 555.4,400.3 L 558.9,392.6 L 564.3,379.7 L 564.3,379.4 L 550.5,361.9 L 564.3,349.0 L 619.2,399.1 L 615.1,403.4 L 627.3,421.8 L 622.2,425.8 L 637.3,435.8 L 638.9,457.9 L 639.2,458.4 L 649.2,454.7 L 677.0,441.5 L 681.9,448.4 L 693.2,432.9 L 736.8,433.5 L 753.2,409.5 L 794.1,388.8 L 813.5,423.5 L 808.1,448.4 L 813.8,471.1 L 851.4,490.5 L 846.5,522.3 L 861.6,550.7 L 853.8,560.1 L 814.1,560.1 L 794.3,580.5 L 800.8,594.8 L 834.1,608.6 L 846.5,639.8 L 821.1,670.7 L 820.8,699.4 L 811.1,712.8 L 830.0,759.3 L 807.3,791.9 L 795.9,795.1 L 804.6,810.8 L 795.1,827.2 L 782.4,820.9 L 754.6,854.7 L 737.0,828.9 L 725.7,827.7 L 724.6,827.7 L 717.3,840.0 L 723.2,865.8 L 693.2,854.9 L 662.7,875.0 L 658.9,867.0 L 629.7,861.2 L 634.3,826.9 L 622.4,795.6 L 611.6,783.6 L 585.9,776.4 L 580.5,748.1 L 572.4,750.1 L 568.1,738.3 L 525.1,722.6 L 536.8,713.4 L 529.7,704.3 L 543.5,700.8 L 544.1,683.1 L 554.9,674.2 L 503.0,501.4 L 492.4,487.7 L 469.2,496.8 L 442.7,482.8 L 440.8,469.0 L 429.2,468.8 L 423.2,456.7 L 431.9,452.1 L 441.9,464.7 L 449.7,455.3 L 456.8,461.6 L 468.1,455.3 L 473.0,465.6 L 494.9,467.0 L 509.2,457.0 L 547.0,457.0 L 536.2,445.6 L 542.4,437.0 Z" fill="#fee2e2" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>South Goa (Goa)</title>
+    </path>
+
+  </g>
+
+  <!-- District Labels Layer -->
+  <g id="district-labels">
+    <g transform="translate(578.3, 305.0)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">North Goa</text>
+    </g>
+    <g transform="translate(641.3, 579.1)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">South Goa</text>
+    </g>
+
+  </g>
+
+  <!-- State Capital Star Marker -->
+  <g id="capital-marker" transform="translate(600.0, 505.0)">
+    <circle r="7" fill="#dc2626" stroke="#ffffff" stroke-width="2" />
+    <circle r="3" fill="#ffffff" />
+    <text x="12" y="4" class="cap-badge">★ Panaji (Capital)</text>
+  </g>
+
+  <!-- North Arrow Compass Rose -->
+  <g id="compass" transform="translate(1110, 85)">
+    <circle r="22" fill="#ffffff" stroke="#0f172a" stroke-width="1.5" />
+    <polygon points="0,-18 5,-2 0,2 -5,-2" fill="#dc2626" />
+    <polygon points="0,18 5,2 0,-2 -5,2" fill="#0f172a" />
+    <text x="0" y="-22" text-anchor="middle" font-family="system-ui" font-size="11" font-weight="800" fill="#dc2626">N</text>
+  </g>
+
+  <!-- Graphic Scale Bar -->
+  <g id="scale-bar" transform="translate(60, 910)" filter="url(#cardShadow)">
+    <rect x="-10" y="-18" width="430" height="44" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />
+    <text x="0" y="-4" class="scale-text">SCALE 1 : 1,000,000</text>
+    <rect x="0" y="4" width="370" height="6" fill="#0f172a" />
+    <rect x="0" y="4" width="185" height="6" fill="#dc2626" />
+    <text x="0" y="22" class="scale-text">0</text>
+    <text x="185" y="22" class="scale-text">25</text>
+    <text x="370" y="22" class="scale-text">50 km</text>
+  </g>
+
+  <!-- Legend & Symbology Card -->
+  <g id="legend" transform="translate(930, 810)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="220" height="140" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />
+    <text x="14" y="22" class="legend-title">MAP LEGEND &amp; SYMBOLS</text>
+    <g transform="translate(14, 40)">
+      <circle cx="6" cy="4" r="5" fill="#dc2626" />
+      <text x="18" y="8" class="legend-item">State Capital (★)</text>
+    </g>
+    <g transform="translate(14, 62)">
+      <circle cx="6" cy="4" r="3.5" fill="#475569" />
+      <text x="18" y="8" class="legend-item">District Headquarters (●)</text>
+    </g>
+    <g transform="translate(14, 84)">
+      <line x1="0" y1="4" x2="14" y2="4" stroke="#0f172a" stroke-width="2.5" />
+      <text x="18" y="8" class="legend-item">State Boundary (Survey of India)</text>
+    </g>
+    <g transform="translate(14, 106)">
+      <line x1="0" y1="4" x2="14" y2="4" stroke="#64748b" stroke-width="1.2" stroke-dasharray="3,2" />
+      <text x="18" y="8" class="legend-item">Internal District Boundary</text>
+    </g>
+    <g transform="translate(14, 126)">
+      <line x1="0" y1="4" x2="14" y2="4" stroke="#0284c7" stroke-width="2" />
+      <text x="18" y="8" class="legend-item">Major Drainage River</text>
+    </g>
+  </g>
+
+  <!-- Official Government Attribution Footer -->
+  <text x="600" y="964" text-anchor="middle" font-family="system-ui" font-size="10" fill="#64748b">
+    © Survey of India / Registrar General &amp; Census Commissioner of India. Official boundary and territorial integrity strictly preserved. Source: https://www.goa.gov.in
+  </text>
+</svg>

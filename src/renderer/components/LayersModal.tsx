@@ -169,7 +169,6 @@ export function LayersModal({ onClose }: LayersModalProps): React.ReactElement {
       if (selectedObject?.id === obj.id) {
         setSelectedObject(updated);
       }
-      setToastMessage?.(`Locked "${info.title}" & moved to bottom layer`);
     } else {
       // Unlock element and restore to standard layer
       const restoredLayer = obj.type === 'image' ? 'imported-media' : 'objects';
@@ -183,7 +182,6 @@ export function LayersModal({ onClose }: LayersModalProps): React.ReactElement {
       if (selectedObject?.id === obj.id) {
         setSelectedObject(updated);
       }
-      setToastMessage?.(`Unlocked "${info.title}"`);
     }
   };
 
@@ -270,7 +268,6 @@ export function LayersModal({ onClose }: LayersModalProps): React.ReactElement {
         object: { ...stroke, locked: nextLock, layerId: nextLock ? 'background' : 'drawing' },
       });
     }
-    setToastMessage?.(nextLock ? 'Freehand drawing locked & protected' : 'Freehand drawing unlocked');
   };
 
   // ─── Global Layer Handlers ──────────────────────────────────────────────────
@@ -307,7 +304,6 @@ export function LayersModal({ onClose }: LayersModalProps): React.ReactElement {
         pageIndex,
         layers: updatedLayers,
       });
-      setToastMessage?.(`Layer "${targetLayer.name}" locked & moved to bottom layer`);
     } else {
       docDispatch({
         type: 'SET_LAYER_LOCKED',
@@ -315,7 +311,6 @@ export function LayersModal({ onClose }: LayersModalProps): React.ReactElement {
         layerId,
         locked: false,
       });
-      setToastMessage?.('Layer unlocked');
     }
   };
 
@@ -374,7 +369,6 @@ export function LayersModal({ onClose }: LayersModalProps): React.ReactElement {
         docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: { ...o, locked: false } });
       }
     }
-    setToastMessage?.('All elements and layers unlocked');
   };
 
   return (

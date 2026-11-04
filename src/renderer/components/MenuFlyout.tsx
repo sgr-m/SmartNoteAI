@@ -4,10 +4,26 @@
  * Includes File, Import, Export, Print, Teaching/Presentation Mode, Settings, Help, Exit
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { PresentationTool } from './PresentationFloatingToolbar';
 import './MenuFlyout.css';
+
+interface UpdateState {
+  status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+  currentVersion: string;
+  latestVersion?: string;
+  releaseName?: string;
+  releaseNotes?: string;
+  releaseDate?: string;
+  downloadPercent?: number;
+  downloadBytesPerSecond?: number;
+  downloadTransferred?: number;
+  downloadTotal?: number;
+  downloadUrl?: string;
+  installerPath?: string;
+  error?: string;
+}
 
 interface MenuFlyoutProps {
   onClose: () => void;
@@ -46,8 +62,90 @@ export function MenuFlyout({
   onDesktop,
   alignRight = false,
 }: MenuFlyoutProps): React.ReactElement {
-  const { newLesson, openLesson, saveLesson, saveLessonAs } = useAppContext();
-  const [activeTab, setActiveTab] = useState<'file' | 'mode' | 'import' | 'export' | 'settings' | 'help'>('file');
+  const { newLesson, openLesson, saveLesson, saveLessonAs, pasteObject, canPaste } = useAppContext();
+  const [activeTab, setActiveTab] = useState<'file' | 'mode' | 'import' | 'export' | 'settings' | 'help' | 'update'>('file');
+  const [updateState, setUpdateState] = useState<UpdateState>({
+    status: 'idle',
+    currentVersion: '0.2.0',
+  });
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    const api = (window as any).electronAPI;
+    if (api && typeof api.invoke === 'function') {
+      api.invoke('updater:getState').then((res: any) => {
+        if (res && res.status) {
+          setUpdateState(res);
+        }
+      }).catch(() => {});
+
+      if (typeof api.on === 'function') {
+        unlisten = api.on('updater:status', (state: any) => {
+          if (state && state.status) {
+            setUpdateState(state);
+          }
+        });
+      }
+    }
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
+  const handleCheckForUpdates = async () => {
+    const api = (window as any).electronAPI;
+    if (api && typeof api.invoke === 'function') {
+      setUpdateState((prev) => ({ ...prev, status: 'checking', error: undefined }));
+      try {
+        const res = await api.invoke('updater:check');
+        if (res && res.status) {
+          setUpdateState(res);
+        }
+      } catch (err: any) {
+        setUpdateState((prev) => ({
+          ...prev,
+          status: 'error',
+          error: err.message || 'Update check failed',
+        }));
+      }
+    } else {
+      // Mock fallback for unit tests and browser environment
+      setUpdateState((prev) => ({ ...prev, status: 'checking' }));
+      setTimeout(() => {
+        setUpdateState((prev) => ({
+          ...prev,
+          status: 'not-available',
+          currentVersion: '0.2.0',
+          latestVersion: '0.2.0',
+        }));
+      }, 500);
+    }
+  };
+
+  const handleDownloadUpdate = async () => {
+    const api = (window as any).electronAPI;
+    if (api && typeof api.invoke === 'function') {
+      try {
+        const res = await api.invoke('updater:download');
+        if (res && res.status) {
+          setUpdateState(res);
+        }
+      } catch (err: any) {
+        setUpdateState((prev) => ({
+          ...prev,
+          status: 'error',
+          error: err.message || 'Download failed',
+        }));
+      }
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    const api = (window as any).electronAPI;
+    if (api && typeof api.invoke === 'function') {
+      await api.invoke('updater:install');
+    }
+  };
 
   const handleAction = (action: () => void) => {
     action();
@@ -137,6 +235,33 @@ export function MenuFlyout({
           </button>
 
           <button
+            className={`menu-category-btn ${activeTab === 'update' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('update');
+              if (updateState.status === 'idle') {
+                handleCheckForUpdates();
+              }
+            }}
+          >
+            <div className="menu-btn-content">
+              <span
+                className="menu-btn-icon"
+                style={{
+                  display: 'inline-block',
+                  animation: updateState.status === 'checking' ? 'spin 1.2s linear infinite' : 'none',
+                }}
+              >
+                🔄
+              </span>
+              <span className="menu-btn-text">Updates</span>
+            </div>
+            {updateState.status === 'available' && (
+              <span className="badge-new" style={{ position: 'static' }}>NEW</span>
+            )}
+            <span className="menu-arrow">►</span>
+          </button>
+
+          <button
             className="menu-category-btn exit-btn"
             onClick={() => {
               if (window.confirm('Save and exit SmartNoteAI?')) {
@@ -191,6 +316,16 @@ export function MenuFlyout({
               >
                 <div className="submenu-icon-box">📑</div>
                 <span className="submenu-label">Layers</span>
+              </button>
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(pasteObject)}
+                disabled={!canPaste}
+                title="Paste copied element to this page (Ctrl+V)"
+                style={{ opacity: canPaste ? 1 : 0.45 }}
+              >
+                <div className="submenu-icon-box">📋</div>
+                <span className="submenu-label">Paste</span>
               </button>
             </div>
           )}
@@ -321,17 +456,26 @@ export function MenuFlyout({
             <div style={{ padding: 10, fontSize: 12, color: '#333' }}>
               <div style={{ fontWeight: 600, marginBottom: 8 }}>Preferences</div>
               <p style={{ color: '#666', lineHeight: 1.5, marginBottom: 12 }}>
-                SmartNoteAI v0.1.0<br />
+                SmartNoteAI v{updateState.currentVersion}<br />
                 Bottom docked classroom interface.<br />
                 Hardware acceleration: 120 FPS capable.<br />
                 Latency optimized.
               </p>
               <button
                 className="btn btn-primary"
-                style={{ width: '100%', fontSize: 12, padding: '6px 12px' }}
+                style={{ width: '100%', fontSize: 12, padding: '6px 12px', marginBottom: 8 }}
                 onClick={() => handleAction(() => onOpenSettings?.())}
               >
                 ⚙️ Open Full Settings & Plugins
+              </button>
+              <button
+                className="updater-btn secondary"
+                onClick={() => {
+                  setActiveTab('update');
+                  handleCheckForUpdates();
+                }}
+              >
+                🔄 Check for Updates...
               </button>
             </div>
           )}
@@ -351,6 +495,186 @@ export function MenuFlyout({
                 <li><b>F11</b> — Full Screen Teaching</li>
                 <li><b>Esc</b> — Close overlays / Fullscreen</li>
               </ul>
+            </div>
+          )}
+
+          {activeTab === 'update' && (
+            <div className="updater-container">
+              <div className="updater-header">
+                <span className="updater-title">Software Updates</span>
+                <span className="updater-ver-tag">Current: v{updateState.currentVersion}</span>
+              </div>
+
+              {/* Status: Checking */}
+              {updateState.status === 'checking' && (
+                <div className="updater-card" style={{ textAlign: 'center', padding: '16px 10px' }}>
+                  <div style={{ fontSize: 24, animation: 'spin 1.2s linear infinite', display: 'inline-block' }}>
+                    🔄
+                  </div>
+                  <div style={{ fontWeight: 600, color: '#1f2328', marginTop: 8 }}>
+                    Checking for updates...
+                  </div>
+                  <div style={{ fontSize: 11, color: '#57606a' }}>
+                    Connecting to GitHub repository
+                  </div>
+                </div>
+              )}
+
+              {/* Status: Idle */}
+              {updateState.status === 'idle' && (
+                <div className="updater-card">
+                  <div className="updater-state-row">
+                    <span style={{ fontSize: 18 }}>💡</span>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>Stay up to date</div>
+                      <div style={{ fontSize: 11, color: '#57606a' }}>
+                        Check for new features, bug fixes, and security improvements.
+                      </div>
+                    </div>
+                  </div>
+                  <button className="updater-btn action" onClick={handleCheckForUpdates}>
+                    <span>🔄</span> Check for Updates Now
+                  </button>
+                </div>
+              )}
+
+              {/* Status: Up to date (not-available) */}
+              {updateState.status === 'not-available' && (
+                <div className="updater-card">
+                  <div className="updater-state-row">
+                    <span style={{ fontSize: 20 }}>✅</span>
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#1a7f37' }}>You are on the latest version!</div>
+                      <div style={{ fontSize: 11, color: '#57606a' }}>
+                        SmartNoteAI v{updateState.currentVersion} is currently the newest available release.
+                      </div>
+                    </div>
+                  </div>
+                  <button className="updater-btn secondary" onClick={handleCheckForUpdates}>
+                    <span>🔄</span> Check Again
+                  </button>
+                </div>
+              )}
+
+              {/* Status: Update Available */}
+              {updateState.status === 'available' && (
+                <div className="updater-card">
+                  <div className="updater-state-row">
+                    <span style={{ fontSize: 22 }}>🚀</span>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#0969da', fontSize: 13 }}>
+                        New Version: v{updateState.latestVersion}
+                      </div>
+                      {updateState.releaseName && (
+                        <div style={{ fontSize: 11, color: '#57606a', fontWeight: 500 }}>
+                          {updateState.releaseName}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {updateState.releaseNotes && (
+                    <>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: '#57606a', textTransform: 'uppercase' }}>
+                        Release Highlights:
+                      </div>
+                      <div className="updater-notes-box">
+                        {updateState.releaseNotes}
+                      </div>
+                    </>
+                  )}
+
+                  <button className="updater-btn primary" onClick={handleDownloadUpdate}>
+                    <span>⬇️</span> Download & Install Update
+                  </button>
+                </div>
+              )}
+
+              {/* Status: Downloading */}
+              {updateState.status === 'downloading' && (
+                <div className="updater-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 600, color: '#0969da' }}>
+                      Downloading v{updateState.latestVersion}...
+                    </span>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: '#1f2328' }}>
+                      {Math.round(updateState.downloadPercent || 0)}%
+                    </span>
+                  </div>
+
+                  <div className="updater-progress-track">
+                    <div
+                      className="updater-progress-bar"
+                      style={{ width: `${Math.min(100, Math.max(0, updateState.downloadPercent || 0))}%` }}
+                    />
+                  </div>
+
+                  <div className="updater-progress-stats">
+                    <span>
+                      {updateState.downloadTransferred
+                        ? `${(updateState.downloadTransferred / (1024 * 1024)).toFixed(1)} MB`
+                        : '0 MB'}
+                      {updateState.downloadTotal
+                        ? ` / ${(updateState.downloadTotal / (1024 * 1024)).toFixed(1)} MB`
+                        : ''}
+                    </span>
+                    <span>
+                      {updateState.downloadBytesPerSecond
+                        ? `${(updateState.downloadBytesPerSecond / (1024 * 1024)).toFixed(2)} MB/s`
+                        : 'Downloading...'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Status: Downloaded */}
+              {updateState.status === 'downloaded' && (
+                <div className="updater-card" style={{ borderColor: '#2ea44f' }}>
+                  <div className="updater-state-row">
+                    <span style={{ fontSize: 22 }}>🎉</span>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#1a7f37', fontSize: 13 }}>
+                        Update Ready to Install!
+                      </div>
+                      <div style={{ fontSize: 11, color: '#57606a' }}>
+                        The update has been downloaded and verified. Restart to apply.
+                      </div>
+                    </div>
+                  </div>
+                  <button className="updater-btn primary" onClick={handleInstallUpdate}>
+                    <span>🔄</span> Restart & Install Now
+                  </button>
+                </div>
+              )}
+
+              {/* Status: Error */}
+              {updateState.status === 'error' && (
+                <div className="updater-card">
+                  <div className="updater-error-box">
+                    <div style={{ fontWeight: 600, marginBottom: 2 }}>⚠️ Update Check Failed</div>
+                    <div>{updateState.error || 'Unable to connect to GitHub releases.'}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    <button className="updater-btn secondary" style={{ flex: 1 }} onClick={handleCheckForUpdates}>
+                      Retry
+                    </button>
+                    <button
+                      className="updater-btn secondary"
+                      style={{ flex: 1 }}
+                      onClick={() => {
+                        const api = (window as any).electronAPI;
+                        if (api && typeof api.openExternal === 'function') {
+                          api.openExternal('https://github.com/sgr-m/SmartNoteAI/releases');
+                        } else {
+                          window.open('https://github.com/sgr-m/SmartNoteAI/releases', '_blank');
+                        }
+                      }}
+                    >
+                      Web Releases
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

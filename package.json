@@ -1,6 +1,6 @@
 {
   "name": "smartnoteai",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "SmartNoteAI — Intelligent Digital Whiteboard & Teaching Application",
   "main": "dist/main/main.js",
   "author": "SmartNoteAI Team",
@@ -60,6 +60,14 @@
   "build": {
     "appId": "com.smartnoteai.app",
     "productName": "SmartNoteAI",
+    "afterPack": "scripts/afterPack.js",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "sgr-m",
+        "repo": "SmartNoteAI"
+      }
+    ],
     "win": {
       "target": [
         {
@@ -70,6 +78,7 @@
         }
       ],
       "icon": "assets/icons/icon.ico",
+      "executableName": "SmartNoteAI",
       "signAndEditExecutable": false
     },
     "nsis": {
@@ -79,6 +88,7 @@
       "createStartMenuShortcut": true,
       "installerIcon": "assets/icons/icon.ico",
       "uninstallerIcon": "assets/icons/icon.ico",
+      "installerHeaderIcon": "assets/icons/icon.ico",
       "shortcutName": "SmartNoteAI"
     },
     "files": [
@@ -86,9 +96,15 @@
       "assets/**/*",
       "node_modules/**/*"
     ],
-    "extraFiles": [],
+    "extraResources": [
+      {
+        "from": "assets/icons",
+        "to": "assets/icons",
+        "filter": ["**/*"]
+      }
+    ],
     "directories": {
-      "buildResources": "assets",
+      "buildResources": "build",
       "output": "release"
     }
   }

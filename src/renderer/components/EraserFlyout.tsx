@@ -69,7 +69,7 @@ export function EraserFlyout({ onClose }: EraserFlyoutProps): React.ReactElement
   };
 
   return (
-    <div className="smartboard-eraser-flyout" role="dialog" aria-label="Eraser Settings">
+    <div className="smartboard-eraser-flyout" role="region" aria-label="Eraser Settings">
       {/* Black Title Header Bar */}
       <div className="flyout-header-bar">
         <span className="flyout-title">

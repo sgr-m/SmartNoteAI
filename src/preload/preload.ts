@@ -54,6 +54,11 @@ const ALLOWED_INVOKE = new Set([
   'desktop:updateToolbarBounds',
   'desktop:setToolMode',
   'app:quit',
+  'updater:check',
+  'updater:download',
+  'updater:install',
+  'updater:getVersion',
+  'updater:getState',
 ]);
 
 // Whitelist of allowed channels the renderer may listen on (from main)
@@ -78,6 +83,7 @@ const ALLOWED_LISTEN = new Set([
   'menu:tool:desktopannotation',
   'menu:tool:spotlight',
   'app:update-available',
+  'updater:status',
   'annotation:closed',
   'annotation:doClear',
   'desktop:doInsertImage',

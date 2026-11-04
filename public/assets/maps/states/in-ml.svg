@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1000" width="1200" height="1000">
+  <defs>
+    <style>
+      .state-title { font-family: 'system-ui', -apple-system, sans-serif; font-size: 26px; font-weight: 800; fill: #0f172a; text-anchor: middle; letter-spacing: 1.5px; }
+      .state-sub { font-family: 'system-ui', -apple-system, sans-serif; font-size: 13px; font-weight: 700; fill: #dc2626; text-anchor: middle; letter-spacing: 0.5px; }
+      .state-meta { font-family: 'system-ui', -apple-system, sans-serif; font-size: 12px; fill: #475569; text-anchor: middle; }
+      .dist-name { font-family: 'system-ui', -apple-system, sans-serif; font-size: 11px; font-weight: 600; fill: #0f172a; paint-order: stroke; stroke: #ffffff; stroke-width: 2.5px; stroke-linejoin: round; }
+      .cap-badge { font-family: 'system-ui', -apple-system, sans-serif; font-size: 13px; font-weight: 800; fill: #b91c1c; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; }
+      .scale-text { font-family: monospace; font-size: 11px; fill: #1e293b; font-weight: 600; }
+      .legend-title { font-family: 'system-ui', sans-serif; font-size: 12px; font-weight: 700; fill: #0f172a; }
+      .legend-item { font-family: 'system-ui', sans-serif; font-size: 11px; fill: #334155; }
+    </style>
+    <filter id="cardShadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.1" />
+    </filter>
+  </defs>
+
+  <!-- 100% Transparent Outer Canvas (No black/dark background) -->
+  <rect width="100%" height="100%" fill="none" />
+
+  <!-- Survey of India Official Style Border Frame -->
+  <rect x="25" y="25" width="1150" height="950" rx="8" fill="none" stroke="#0f172a" stroke-width="2.5" />
+  <rect x="31" y="31" width="1138" height="938" rx="5" fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="6,4" />
+
+  <!-- Cartographic Header Block -->
+  <g id="header-block">
+    <text x="600" y="66" class="state-title">MEGHALAYA</text>
+    <text x="600" y="90" class="state-sub">OFFICIAL STATE MAP — SURVEY OF INDIA &amp; CENSUS STANDARD</text>
+    <text x="600" y="112" class="state-meta">Capital: Shillong | Region: North-Eastern India | Area: 22,429 km² | 12 Districts</text>
+  </g>
+
+  <!-- Districts Multi-Polygon Fills & Boundaries -->
+  <g id="district-polygons">
+    <path d="M 894.0,467.7 L 893.8,467.9 L 894.6,477.8 L 892.9,474.7 L 889.8,478.2 L 888.8,479.4 L 886.9,479.4 L 783.1,478.2 L 781.1,466.8 L 777.3,454.4 L 774.5,445.1 L 774.0,443.7 L 762.1,440.4 L 760.4,438.8 L 766.9,421.6 L 753.6,407.5 L 738.9,410.3 L 735.5,416.1 L 722.2,412.4 L 717.0,416.4 L 697.0,413.3 L 652.2,422.5 L 639.8,420.6 L 638.1,416.8 L 620.2,415.6 L 615.1,411.4 L 611.6,405.8 L 609.5,402.3 L 621.9,400.1 L 639.6,396.9 L 647.6,402.7 L 653.8,395.9 L 669.7,392.2 L 657.8,389.4 L 661.0,382.0 L 668.1,382.8 L 668.4,376.3 L 679.5,367.3 L 667.8,374.0 L 667.6,369.1 L 673.6,364.0 L 673.0,356.3 L 684.4,349.7 L 694.5,328.0 L 700.6,333.8 L 712.3,332.3 L 710.6,345.9 L 715.6,354.7 L 711.8,362.7 L 705.5,361.9 L 704.8,364.9 L 719.4,377.0 L 726.0,377.7 L 741.0,362.3 L 741.8,360.4 L 743.6,355.5 L 744.1,353.9 L 744.2,349.3 L 744.4,327.3 L 747.1,318.1 L 763.2,306.2 L 768.1,307.9 L 780.0,294.6 L 780.5,294.9 L 798.7,302.9 L 794.5,324.5 L 800.0,330.6 L 811.1,332.8 L 809.4,337.4 L 809.7,337.8 L 812.7,341.3 L 816.9,336.0 L 835.1,330.8 L 836.9,325.8 L 858.8,328.1 L 874.7,321.7 L 886.9,323.6 L 899.8,310.8 L 901.0,311.6 L 902.2,312.5 L 905.0,314.4 L 915.8,315.1 L 932.3,315.4 L 936.0,315.4 L 933.0,318.2 L 933.0,318.4 L 932.5,328.0 L 901.9,349.5 L 897.9,352.3 L 894.0,362.2 L 896.9,368.6 L 894.6,375.0 L 894.7,375.0 L 901.9,376.6 L 908.5,372.2 L 911.2,377.0 L 919.3,375.8 L 902.5,389.9 L 902.7,398.1 L 893.5,411.6 L 892.3,428.5 L 897.2,440.2 L 891.0,450.0 L 891.0,450.1 L 891.0,450.1 L 891.2,450.2 L 894.9,458.6 L 895.2,465.5 L 894.0,467.7 Z" fill="#fef3c7" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>Ribhoi (Meghalaya)</title>
+    </path>
+    <path d="M 609.5,402.3 L 611.6,405.8 L 615.1,411.4 L 620.2,415.6 L 638.1,416.8 L 639.8,420.6 L 652.2,422.5 L 697.0,413.3 L 717.0,416.4 L 722.2,412.4 L 735.5,416.1 L 738.9,410.3 L 753.6,407.5 L 766.9,421.6 L 760.4,438.8 L 762.1,440.4 L 774.0,443.7 L 774.5,445.1 L 777.3,454.4 L 781.1,466.8 L 780.5,467.3 L 774.0,472.5 L 771.1,491.6 L 764.6,499.2 L 747.9,504.8 L 732.4,523.8 L 725.9,525.3 L 721.9,523.0 L 720.2,513.8 L 681.2,529.5 L 683.8,540.8 L 682.9,540.9 L 676.8,541.8 L 672.6,551.0 L 648.3,550.4 L 628.6,549.8 L 600.2,555.3 L 591.4,567.8 L 585.9,568.8 L 572.8,548.4 L 570.0,553.8 L 565.3,548.8 L 559.2,548.8 L 555.2,553.9 L 551.4,546.9 L 529.5,558.5 L 532.7,567.3 L 540.5,572.7 L 523.7,588.6 L 526.7,599.3 L 525.5,600.4 L 522.3,603.4 L 509.9,594.8 L 501.0,596.2 L 488.7,580.5 L 487.6,586.0 L 482.4,588.6 L 483.9,595.8 L 465.9,591.2 L 454.9,599.8 L 446.1,599.5 L 436.5,608.1 L 436.4,608.2 L 436.4,608.1 L 438.5,593.4 L 436.2,589.8 L 425.5,584.7 L 414.6,586.5 L 404.7,580.4 L 410.2,566.0 L 407.3,560.9 L 409.4,555.2 L 405.9,552.8 L 408.8,549.8 L 413.6,552.6 L 419.2,546.4 L 413.6,545.9 L 419.2,539.4 L 419.4,531.3 L 409.3,514.4 L 409.6,513.7 L 409.6,513.7 L 413.0,503.9 L 416.5,501.5 L 418.5,507.1 L 422.9,499.7 L 423.0,499.7 L 423.0,499.7 L 427.5,504.6 L 431.2,499.1 L 448.7,492.3 L 486.8,440.1 L 472.1,435.6 L 472.1,435.6 L 472.6,432.3 L 473.2,428.7 L 477.6,426.8 L 486.4,417.2 L 492.9,408.4 L 493.2,408.4 L 495.1,408.5 L 496.6,408.6 L 508.8,399.3 L 509.2,399.1 L 509.3,399.0 L 519.9,397.6 L 517.6,403.0 L 509.5,406.7 L 514.0,409.9 L 534.4,405.3 L 543.9,398.5 L 555.2,401.0 L 560.7,394.3 L 563.4,401.3 L 557.3,410.9 L 554.6,426.7 L 558.9,438.1 L 570.0,447.9 L 588.1,437.1 L 609.3,402.3 L 609.3,402.3 L 609.5,402.3 Z" fill="#fee2e2" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>West Khasi Hills (Meghalaya)</title>
+    </path>
+    <path d="M 1039.1,547.3 L 1042.9,544.6 L 1043.5,544.8 L 1043.7,544.8 L 1049.3,546.9 L 1052.1,567.3 L 1059.4,564.0 L 1058.7,559.0 L 1063.6,565.6 L 1068.5,559.5 L 1071.2,569.9 L 1075.3,567.0 L 1090.8,583.0 L 1097.8,580.4 L 1095.8,584.4 L 1102.0,594.0 L 1113.1,598.2 L 1116.8,617.8 L 1108.5,623.4 L 1111.7,627.2 L 1106.2,631.6 L 1109.6,638.1 L 1120.0,643.7 L 1111.1,649.8 L 1099.5,647.2 L 1082.5,657.7 L 1071.8,658.7 L 1069.2,667.0 L 1059.6,673.6 L 1057.3,682.5 L 1022.7,673.1 L 1022.7,673.2 L 1022.7,674.0 L 1023.0,678.2 L 1028.7,688.6 L 1008.4,685.0 L 1005.1,701.0 L 999.9,706.1 L 1002.5,712.4 L 994.9,709.4 L 989.1,715.4 L 960.9,707.5 L 957.0,695.1 L 944.4,699.1 L 913.7,683.8 L 919.0,681.1 L 910.5,678.6 L 919.2,663.8 L 922.6,649.7 L 917.2,640.0 L 912.3,639.2 L 910.3,614.2 L 900.5,597.2 L 901.4,590.3 L 934.3,574.0 L 970.9,570.2 L 997.6,564.1 L 1012.3,556.5 L 1027.2,559.1 L 1030.8,550.0 L 1031.3,550.1 L 1038.2,550.7 L 1038.3,550.6 L 1038.6,550.4 L 1039.1,547.3 Z" fill="#dbeafe" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>East Jaintia Hills (Meghalaya)</title>
+    </path>
+    <path d="M 781.1,466.8 L 783.1,478.2 L 886.9,479.4 L 887.2,480.1 L 887.4,480.1 L 888.9,485.5 L 877.4,509.8 L 880.5,516.6 L 873.9,536.1 L 878.8,545.0 L 873.8,552.8 L 880.2,568.4 L 876.2,573.0 L 879.7,580.2 L 879.4,597.0 L 882.3,599.0 L 879.6,608.7 L 856.5,603.0 L 836.8,618.4 L 835.5,632.0 L 848.2,648.9 L 847.8,653.3 L 846.5,653.9 L 834.9,660.7 L 822.4,656.2 L 752.6,660.7 L 751.6,669.6 L 738.0,666.4 L 734.3,672.7 L 716.1,679.0 L 708.0,670.3 L 701.9,670.2 L 702.5,659.9 L 664.2,674.9 L 656.6,674.4 L 655.1,669.2 L 645.6,668.2 L 636.7,660.4 L 633.2,662.8 L 624.8,658.6 L 615.9,636.5 L 626.8,634.4 L 632.7,625.2 L 639.8,625.8 L 645.1,621.5 L 659.3,625.2 L 665.2,617.5 L 678.0,620.2 L 683.4,616.1 L 684.0,599.5 L 675.1,592.2 L 686.1,561.3 L 682.9,540.9 L 683.8,540.8 L 681.2,529.5 L 720.2,513.8 L 721.9,523.0 L 725.9,525.3 L 732.4,523.8 L 747.9,504.8 L 764.6,499.2 L 771.1,491.6 L 774.0,472.5 L 780.5,467.3 L 781.1,466.8 Z" fill="#dcfce7" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>East Khasi Hills (Meghalaya)</title>
+    </path>
+    <path d="M 409.6,513.7 L 409.3,514.4 L 419.4,531.3 L 419.2,539.4 L 413.6,545.9 L 419.2,546.4 L 413.6,552.6 L 408.8,549.8 L 405.9,552.8 L 409.4,555.2 L 407.3,560.9 L 410.2,566.0 L 404.7,580.4 L 414.6,586.5 L 425.5,584.7 L 436.2,589.8 L 438.5,593.4 L 436.4,608.1 L 436.4,608.2 L 436.5,608.1 L 437.1,608.7 L 444.5,613.2 L 458.2,612.2 L 463.1,619.9 L 468.6,619.7 L 468.6,619.6 L 469.1,620.1 L 476.7,630.0 L 478.1,631.6 L 477.6,633.6 L 475.0,644.0 L 481.5,649.2 L 481.9,660.3 L 441.9,665.2 L 429.6,663.8 L 415.9,655.9 L 409.1,663.2 L 402.4,663.2 L 401.0,667.6 L 395.2,663.3 L 385.7,665.2 L 379.3,662.3 L 372.4,652.4 L 365.8,660.0 L 322.0,661.9 L 299.0,671.5 L 275.6,664.5 L 259.7,652.9 L 250.4,654.8 L 225.6,648.2 L 224.1,636.1 L 230.3,629.0 L 235.2,602.9 L 251.8,585.8 L 253.4,578.5 L 249.9,565.4 L 255.4,547.7 L 255.7,547.8 L 256.6,548.4 L 272.9,550.0 L 298.1,549.1 L 324.9,559.5 L 368.8,566.3 L 380.7,540.9 L 409.6,513.7 Z" fill="#f3e8ff" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>South Garo Hills (Meghalaya)</title>
+    </path>
+    <path d="M 255.7,547.8 L 255.4,547.7 L 249.9,565.4 L 253.4,578.5 L 251.8,585.8 L 235.2,602.9 L 230.3,629.0 L 224.1,636.1 L 225.6,648.2 L 199.8,640.7 L 183.4,640.3 L 165.0,628.1 L 137.5,616.8 L 135.4,611.3 L 141.8,606.1 L 142.1,603.3 L 148.4,600.7 L 156.5,594.0 L 197.0,582.2 L 200.7,576.9 L 197.5,572.9 L 203.7,516.6 L 195.8,516.5 L 193.5,513.1 L 192.7,519.3 L 192.6,519.3 L 191.6,519.3 L 189.4,519.3 L 189.4,518.9 L 189.5,509.8 L 189.0,509.8 L 183.7,510.4 L 175.7,499.8 L 151.1,492.5 L 150.4,492.2 L 145.6,484.8 L 138.3,484.8 L 126.8,473.5 L 126.5,473.1 L 124.8,464.6 L 114.3,452.4 L 109.1,446.4 L 107.7,439.9 L 107.5,439.5 L 107.5,439.3 L 114.4,440.9 L 117.9,441.7 L 121.9,439.4 L 122.4,439.2 L 121.6,435.6 L 130.0,425.7 L 126.2,408.1 L 129.4,406.7 L 128.2,409.8 L 130.9,410.2 L 131.5,405.2 L 134.1,407.7 L 145.5,402.8 L 149.6,396.4 L 152.0,392.6 L 152.0,391.7 L 150.5,390.1 L 147.1,386.6 L 147.0,386.5 L 148.4,385.2 L 151.3,382.6 L 153.0,381.0 L 158.9,384.1 L 165.2,374.2 L 174.2,371.9 L 176.2,364.6 L 180.9,360.7 L 184.9,357.2 L 186.8,356.7 L 196.8,353.7 L 199.3,357.2 L 205.7,356.6 L 209.2,362.3 L 214.9,355.8 L 217.8,359.0 L 257.3,351.0 L 270.0,337.8 L 270.4,337.4 L 271.0,337.4 L 284.8,337.3 L 285.4,337.3 L 286.3,339.0 L 291.2,344.0 L 294.6,344.0 L 295.3,344.0 L 295.3,347.9 L 288.6,370.6 L 277.4,391.8 L 277.9,402.1 L 263.5,407.1 L 262.3,416.1 L 280.7,418.4 L 284.3,432.8 L 284.3,433.1 L 283.7,433.9 L 279.0,439.9 L 285.7,447.9 L 288.2,473.0 L 280.7,478.9 L 282.8,483.4 L 277.1,500.4 L 279.9,516.0 L 279.1,517.5 L 277.4,520.3 L 275.0,524.8 L 266.0,528.6 L 264.1,530.0 L 255.0,544.0 L 255.7,547.8 Z" fill="#ffedd5" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>West Garo Hills (Meghalaya)</title>
+    </path>
+    <path d="M 472.1,435.6 L 486.8,440.1 L 448.7,492.3 L 431.2,499.1 L 427.5,504.6 L 423.0,499.7 L 423.0,499.7 L 422.9,499.7 L 418.5,507.1 L 416.5,501.5 L 413.0,503.9 L 409.6,513.7 L 409.6,513.7 L 380.7,540.9 L 368.8,566.3 L 324.9,559.5 L 298.1,549.1 L 272.9,550.0 L 256.6,548.4 L 255.7,547.8 L 255.0,544.0 L 264.1,530.0 L 266.0,528.6 L 275.0,524.8 L 277.4,520.3 L 279.1,517.5 L 279.9,516.0 L 277.1,500.4 L 282.8,483.4 L 280.7,478.9 L 288.2,473.0 L 285.7,447.9 L 279.0,439.9 L 283.7,433.9 L 295.3,440.3 L 313.4,450.1 L 318.4,449.6 L 323.6,440.8 L 333.1,425.0 L 342.4,427.1 L 350.9,439.8 L 361.6,442.6 L 380.8,424.5 L 405.0,417.7 L 415.6,412.3 L 428.6,411.0 L 432.5,410.7 L 434.1,410.4 L 454.4,433.9 L 468.5,437.0 L 472.1,435.6 Z" fill="#e0f2fe" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>East Garo Hills (Meghalaya)</title>
+    </path>
+    <path d="M 886.9,479.4 L 888.8,479.4 L 889.8,478.2 L 892.9,474.7 L 894.6,477.8 L 893.8,467.9 L 894.0,467.7 L 900.1,469.3 L 919.0,450.5 L 919.3,450.5 L 922.4,453.7 L 932.8,453.0 L 949.2,445.8 L 957.0,447.3 L 974.7,435.6 L 973.8,440.3 L 982.4,439.4 L 984.2,445.0 L 990.9,444.1 L 995.5,449.0 L 994.3,459.9 L 1004.7,466.1 L 1016.9,488.9 L 1033.7,489.5 L 1034.7,506.5 L 1041.5,512.1 L 1044.4,514.4 L 1046.4,513.5 L 1051.6,511.2 L 1057.4,508.6 L 1062.2,503.4 L 1067.7,499.3 L 1069.7,502.0 L 1071.2,506.0 L 1070.9,506.2 L 1070.4,506.3 L 1065.7,512.2 L 1065.7,512.2 L 1064.6,520.3 L 1040.6,537.5 L 1037.4,544.0 L 1038.2,547.9 L 1039.1,547.3 L 1038.6,550.4 L 1038.3,550.6 L 1038.2,550.7 L 1031.3,550.1 L 1030.8,550.0 L 1027.2,559.1 L 1012.3,556.5 L 997.6,564.1 L 970.9,570.2 L 934.3,574.0 L 901.4,590.3 L 900.5,597.2 L 910.3,614.2 L 912.3,639.2 L 917.2,640.0 L 922.6,649.7 L 919.2,663.8 L 910.5,678.6 L 906.2,674.4 L 907.0,679.7 L 902.1,679.4 L 888.0,671.6 L 883.4,662.8 L 869.2,655.9 L 846.4,654.4 L 846.5,653.9 L 847.8,653.3 L 848.2,648.9 L 835.5,632.0 L 836.8,618.4 L 856.5,603.0 L 879.6,608.7 L 882.3,599.0 L 879.4,597.0 L 879.7,580.2 L 876.2,573.0 L 880.2,568.4 L 873.8,552.8 L 878.8,545.0 L 873.9,536.1 L 880.5,516.6 L 877.4,509.8 L 888.9,485.5 L 887.4,480.1 L 887.2,480.1 L 886.9,479.4 Z" fill="#f1f5f9" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>West Jaintia Hills (Meghalaya)</title>
+    </path>
+    <path d="M 436.5,608.1 L 446.1,599.5 L 454.9,599.8 L 465.9,591.2 L 483.9,595.8 L 482.4,588.6 L 487.6,586.0 L 488.7,580.5 L 501.0,596.2 L 509.9,594.8 L 522.3,603.4 L 525.5,600.4 L 526.7,599.3 L 523.7,588.6 L 540.5,572.7 L 532.7,567.3 L 529.5,558.5 L 551.4,546.9 L 555.2,553.9 L 559.2,548.8 L 565.3,548.8 L 570.0,553.8 L 572.8,548.4 L 585.9,568.8 L 591.4,567.8 L 600.2,555.3 L 628.6,549.8 L 648.3,550.4 L 672.6,551.0 L 676.8,541.8 L 682.9,540.9 L 686.1,561.3 L 675.1,592.2 L 684.0,599.5 L 683.4,616.1 L 678.0,620.2 L 665.2,617.5 L 659.3,625.2 L 645.1,621.5 L 639.8,625.8 L 632.7,625.2 L 626.8,634.4 L 615.9,636.5 L 626.0,662.2 L 595.4,655.4 L 584.7,647.0 L 580.3,650.6 L 539.4,652.4 L 520.9,648.9 L 481.9,660.3 L 481.5,649.2 L 475.0,644.0 L 477.6,633.6 L 478.1,631.6 L 476.7,630.0 L 469.1,620.1 L 468.6,619.6 L 468.6,619.7 L 463.1,619.9 L 458.2,612.2 L 444.5,613.2 L 437.1,608.7 L 436.5,608.1 Z" fill="#fae8ff" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>South West Khasi Hills (Meghalaya)</title>
+    </path>
+    <path d="M 495.1,408.5 L 493.2,408.4 L 492.9,408.4 L 486.4,417.2 L 477.6,426.8 L 473.2,428.7 L 472.6,432.3 L 472.1,435.6 L 472.1,435.6 L 468.5,437.0 L 454.4,433.9 L 434.1,410.4 L 432.5,410.7 L 428.6,411.0 L 415.6,412.3 L 405.0,417.7 L 380.8,424.5 L 361.6,442.6 L 350.9,439.8 L 342.4,427.1 L 333.1,425.0 L 323.6,440.8 L 318.4,449.6 L 313.4,450.1 L 295.3,440.3 L 283.7,433.9 L 284.3,433.1 L 284.3,432.8 L 280.7,418.4 L 262.3,416.1 L 263.5,407.1 L 277.9,402.1 L 277.4,391.8 L 288.6,370.6 L 295.3,347.9 L 295.3,344.0 L 310.0,337.0 L 330.5,360.2 L 321.3,378.7 L 323.0,380.8 L 335.4,373.4 L 333.6,370.2 L 345.0,365.1 L 348.9,357.0 L 361.6,364.2 L 355.3,373.0 L 360.8,380.3 L 364.0,372.0 L 366.0,370.8 L 394.0,358.3 L 394.1,358.1 L 396.4,361.3 L 402.7,358.4 L 402.1,364.1 L 404.2,368.6 L 405.9,367.3 L 406.4,367.7 L 405.6,369.3 L 403.9,372.5 L 402.7,374.5 L 409.1,371.0 L 407.8,375.2 L 413.3,375.8 L 415.2,376.1 L 415.7,375.2 L 426.0,359.1 L 435.4,360.7 L 435.1,365.3 L 438.2,361.6 L 451.0,362.8 L 452.3,359.9 L 463.6,373.9 L 463.7,362.2 L 469.4,364.0 L 474.1,360.8 L 480.9,373.9 L 481.6,385.1 L 501.4,384.8 L 501.7,387.0 L 497.8,399.5 L 495.1,408.5 Z" fill="#ecfccb" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>North Garo Hills (Meghalaya)</title>
+    </path>
+    <path d="M 151.1,492.5 L 175.7,499.8 L 183.7,510.4 L 189.0,509.8 L 189.5,509.8 L 189.4,518.9 L 189.4,519.3 L 191.6,519.3 L 192.6,519.3 L 192.7,519.3 L 193.5,513.1 L 195.8,516.5 L 203.7,516.6 L 197.5,572.9 L 200.7,576.9 L 197.0,582.2 L 156.5,594.0 L 148.4,600.7 L 142.1,603.3 L 141.8,606.1 L 135.4,611.3 L 112.1,608.1 L 100.5,616.0 L 86.7,612.6 L 88.4,603.9 L 81.5,592.7 L 80.0,576.8 L 89.2,553.3 L 99.4,542.6 L 99.9,531.0 L 104.5,530.8 L 103.6,526.4 L 98.2,524.5 L 101.4,514.9 L 101.6,514.9 L 134.4,505.4 L 138.1,498.7 L 138.3,498.7 L 145.2,500.9 L 151.1,492.5 Z" fill="#ffe4e6" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>South West Garo Hills (Meghalaya)</title>
+    </path>
+
+  </g>
+
+  <!-- District Labels Layer -->
+  <g id="district-labels">
+    <g transform="translate(790.8, 381.0)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">Ribhoi</text>
+    </g>
+    <g transform="translate(554.6, 494.8)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">West Khasi Hills</text>
+    </g>
+    <g transform="translate(1025.5, 620.3)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">East Jaintia Hills</text>
+    </g>
+    <g transform="translate(758.2, 587.3)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">East Khasi Hills</text>
+    </g>
+    <g transform="translate(380.8, 603.2)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">South Garo Hills</text>
+    </g>
+    <g transform="translate(201.0, 461.1)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">West Garo Hills</text>
+    </g>
+    <g transform="translate(356.2, 480.8)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">East Garo Hills</text>
+    </g>
+    <g transform="translate(950.9, 540.6)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">West Jaintia Hills</text>
+    </g>
+    <g transform="translate(552.0, 600.3)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">South West Khasi Hills</text>
+    </g>
+    <g transform="translate(393.7, 391.6)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">North Garo Hills</text>
+    </g>
+    <g transform="translate(145.3, 543.9)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">South West Garo Hills</text>
+    </g>
+
+  </g>
+
+  <!-- State Capital Star Marker -->
+  <g id="capital-marker" transform="translate(600.0, 505.0)">
+    <circle r="7" fill="#dc2626" stroke="#ffffff" stroke-width="2" />
+    <circle r="3" fill="#ffffff" />
+    <text x="12" y="4" class="cap-badge">★ Shillong (Capital)</text>
+  </g>
+
+  <!-- North Arrow Compass Rose -->
+  <g id="compass" transform="translate(1110, 85)">
+    <circle r="22" fill="#ffffff" stroke="#0f172a" stroke-width="1.5" />
+    <polygon points="0,-18 5,-2 0,2 -5,-2" fill="#dc2626" />
+    <polygon points="0,18 5,2 0,-2 -5,2" fill="#0f172a" />
+    <text x="0" y="-22" text-anchor="middle" font-family="system-ui" font-size="11" font-weight="800" fill="#dc2626">N</text>
+  </g>
+
+  <!-- Graphic Scale Bar -->
+  <g id="scale-bar" transform="translate(60, 910)" filter="url(#cardShadow)">
+    <rect x="-10" y="-18" width="233" height="44" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />
+    <text x="0" y="-4" class="scale-text">SCALE 1 : 1,000,000</text>
+    <rect x="0" y="4" width="173" height="6" fill="#0f172a" />
+    <rect x="0" y="4" width="87" height="6" fill="#dc2626" />
+    <text x="0" y="22" class="scale-text">0</text>
+    <text x="87" y="22" class="scale-text">25</text>
+    <text x="173" y="22" class="scale-text">50 km</text>
+  </g>
+
+  <!-- Legend & Symbology Card -->
+  <g id="legend" transform="translate(930, 810)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="220" height="140" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />
+    <text x="14" y="22" class="legend-title">MAP LEGEND &amp; SYMBOLS</text>
+    <g transform="translate(14, 40)">
+      <circle cx="6" cy="4" r="5" fill="#dc2626" />
+      <text x="18" y="8" class="legend-item">State Capital (★)</text>
+    </g>
+    <g transform="translate(14, 62)">
+      <circle cx="6" cy="4" r="3.5" fill="#475569" />
+      <text x="18" y="8" class="legend-item">District Headquarters (●)</text>
+    </g>
+    <g transform="translate(14, 84)">
+      <line x1="0" y1="4" x2="14" y2="4" stroke="#0f172a" stroke-width="2.5" />
+      <text x="18" y="8" class="legend-item">State Boundary (Survey of India)</text>
+    </g>
+    <g transform="translate(14, 106)">
+      <line x1="0" y1="4" x2="14" y2="4" stroke="#64748b" stroke-width="1.2" stroke-dasharray="3,2" />
+      <text x="18" y="8" class="legend-item">Internal District Boundary</text>
+    </g>
+    <g transform="translate(14, 126)">
+      <line x1="0" y1="4" x2="14" y2="4" stroke="#0284c7" stroke-width="2" />
+      <text x="18" y="8" class="legend-item">Major Drainage River</text>
+    </g>
+  </g>
+
+  <!-- Official Government Attribution Footer -->
+  <text x="600" y="964" text-anchor="middle" font-family="system-ui" font-size="10" fill="#64748b">
+    © Survey of India / Registrar General &amp; Census Commissioner of India. Official boundary and territorial integrity strictly preserved. Source: https://meghalaya.gov.in
+  </text>
+</svg>

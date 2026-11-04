@@ -7,11 +7,13 @@ import { CanvasObject } from '../../../shared/types';
 import { CommandSystem } from '../../engine/CommandSystem';
 
 export type SubjectId =
+  | 'commonResources'
   | 'mathematics'
   | 'physics'
   | 'chemistry'
   | 'computerScience'
   | 'digitalLogic'
+  | 'geography'
   | 'flowcharts'
   | 'generalTeaching';
 

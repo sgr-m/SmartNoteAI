@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 950" width="1600" height="950">
+  <defs>
+    <!-- Ocean Deep Space Gradient -->
+    <linearGradient id="oceanSpaceGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0b172a" />
+      <stop offset="50%" stop-color="#091e3a" />
+      <stop offset="100%" stop-color="#0a192f" />
+    </linearGradient>
+
+    <!-- Continent Fill Gradient -->
+    <linearGradient id="landGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+
+    <!-- Warm Arrow Marker (Red) -->
+    <marker id="warmArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#ef4444" />
+    </marker>
+
+    <!-- Cold Arrow Marker (Cyan) -->
+    <marker id="coldArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#06b6d4" />
+    </marker>
+
+    <!-- Warm Current Glow Filter -->
+    <filter id="warmGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#ef4444" flood-opacity="0.6" />
+    </filter>
+
+    <!-- Cold Current Glow Filter -->
+    <filter id="coldGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#06b6d4" flood-opacity="0.6" />
+    </filter>
+
+    <!-- Card Background Shadow -->
+    <filter id="darkCardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000000" flood-opacity="0.5" />
+    </filter>
+  </defs>
+
+  <!-- Deep Ocean Base -->
+  <rect width="1600" height="950" fill="url(#oceanSpaceGrad)" />
+
+  <!-- Global Latitude / Longitude Graticule Grid -->
+  <g stroke="#1e3a5f" stroke-width="0.75" opacity="0.6" stroke-dasharray="3 3">
+    <line x1="307" y1="80" x2="307" y2="870" />
+    <text x="307" y="70" font-family="'Segoe UI', sans-serif" font-size="10" fill="#64748b" text-anchor="middle">120°W</text>
+    <line x1="553" y1="80" x2="553" y2="870" />
+    <text x="553" y="70" font-family="'Segoe UI', sans-serif" font-size="10" fill="#64748b" text-anchor="middle">60°W</text>
+    <line x1="800" y1="80" x2="800" y2="870" />
+    <text x="800" y="70" font-family="'Segoe UI', sans-serif" font-size="10" fill="#64748b" text-anchor="middle">0° (Prime Meridian)</text>
+    <line x1="1047" y1="80" x2="1047" y2="870" />
+    <text x="1047" y="70" font-family="'Segoe UI', sans-serif" font-size="10" fill="#64748b" text-anchor="middle">60°E</text>
+    <line x1="1293" y1="80" x2="1293" y2="870" />
+    <text x="1293" y="70" font-family="'Segoe UI', sans-serif" font-size="10" fill="#64748b" text-anchor="middle">120°E</text>
+    <line x1="60" y1="166" x2="1540" y2="166" stroke="#1e3a5f" stroke-width="0.75" />
+    <text x="50" y="170" font-family="'Segoe UI', sans-serif" font-size="10" font-weight="500" fill="#1e3a5f" text-anchor="end">66.5° N Arctic Circle</text>
+    <text x="1550" y="170" font-family="'Segoe UI', sans-serif" font-size="10" fill="#1e3a5f" text-anchor="start">66.5°N</text>
+    <line x1="60" y1="366" x2="1540" y2="366" stroke="#f59e0b" stroke-width="1.2" />
+    <text x="50" y="370" font-family="'Segoe UI', sans-serif" font-size="10" font-weight="500" fill="#f59e0b" text-anchor="end">23.5° N Tropic of Cancer</text>
+    <text x="1550" y="370" font-family="'Segoe UI', sans-serif" font-size="10" fill="#f59e0b" text-anchor="start">23.5°N</text>
+    <line x1="60" y1="475" x2="1540" y2="475" stroke="#38bdf8" stroke-width="1.5" />
+    <text x="50" y="479" font-family="'Segoe UI', sans-serif" font-size="10" font-weight="800" fill="#38bdf8" text-anchor="end">0° EQUATOR</text>
+    <text x="1550" y="479" font-family="'Segoe UI', sans-serif" font-size="10" fill="#38bdf8" text-anchor="start">0°</text>
+    <line x1="60" y1="584" x2="1540" y2="584" stroke="#f59e0b" stroke-width="1.2" />
+    <text x="50" y="588" font-family="'Segoe UI', sans-serif" font-size="10" font-weight="500" fill="#f59e0b" text-anchor="end">23.5° S Tropic of Capricorn</text>
+    <text x="1550" y="588" font-family="'Segoe UI', sans-serif" font-size="10" fill="#f59e0b" text-anchor="start">23.5°S</text>
+    <line x1="60" y1="784" x2="1540" y2="784" stroke="#1e3a5f" stroke-width="0.75" />
+    <text x="50" y="788" font-family="'Segoe UI', sans-serif" font-size="10" font-weight="500" fill="#1e3a5f" text-anchor="end">66.5° S Antarctic Circle</text>
+    <text x="1550" y="788" font-family="'Segoe UI', sans-serif" font-size="10" fill="#1e3a5f" text-anchor="start">66.5°S</text>
+  </g>
+
+  <!-- Global Continents (Accurate Terrestrial Silhouettes) -->
+  <g id="continents">
+    <!-- North America -->
+    <path d="M109,173 L142,145 L224,150 L286,154 L389,154 L471,150 L533,196 L574,233 L553,266 L512,280 L492,312 L471,359 L438,377 L438,401 L459,433 L483,438 L471,429 L451,410 L409,401 L368,382 L348,363 L327,336 L290,298 L286,252 L245,215 L204,196 L142,205 L109,173 Z" fill="url(#landGrad)" stroke="#334155" stroke-width="1.2" />
+    <!-- South America -->
+    <path d="M483,438 L512,419 L553,429 L594,475 L656,498 L648,531 L636,577 L603,605 L574,638 L533,684 L520,726 L492,707 L492,670 L504,624 L512,568 L479,512 L467,494 L483,438 Z" fill="url(#landGrad)" stroke="#334155" stroke-width="1.2" />
+    <!-- Eurasia -->
+    <path d="M763,308 L763,271 L792,271 L816,233 L833,219 L874,219 L903,196 L915,150 L985,159 L1047,150 L1129,136 L1232,122 L1334,140 L1499,159 L1499,196 L1458,233 L1384,243 L1334,280 L1302,298 L1293,336 L1252,382 L1232,429 L1211,456 L1203,429 L1170,373 L1129,415 L1108,438 L1088,373 L1047,359 L1006,345 L973,415 L981,345 L944,326 L915,284 L882,289 L858,298 L800,298 L763,308 Z" fill="url(#landGrad)" stroke="#334155" stroke-width="1.2" />
+    <!-- Africa -->
+    <path d="M763,308 L841,303 L903,326 L932,331 L973,415 L1010,419 L997,452 L973,498 L964,545 L944,591 L923,624 L882,633 L874,633 L849,568 L841,498 L833,456 L808,447 L751,438 L730,405 L738,359 L763,308 Z" fill="url(#landGrad)" stroke="#334155" stroke-width="1.2" />
+    <!-- Australia -->
+    <path d="M1269,577 L1293,545 L1355,531 L1384,521 L1400,559 L1429,605 L1417,647 L1376,652 L1355,633 L1314,624 L1273,633 L1269,577 Z" fill="url(#landGrad)" stroke="#334155" stroke-width="1.2" />
+    <!-- Greenland -->
+    <path d="M615,196 L656,168 L697,126 L656,94 L594,99 L553,122 L574,159 L615,196 Z" fill="url(#landGrad)" stroke="#334155" stroke-width="1.2" />
+    <!-- Antarctica -->
+    <path d="M60,824 L307,824 L553,777 L677,824 L800,800 L1047,791 L1293,791 L1417,810 L1540,824 L1540,870 L60,870 L60,824 Z" fill="url(#landGrad)" stroke="#334155" stroke-width="1.2" />
+    <!-- Madagascar -->
+    <path d="M981,531 L1006,545 L997,591 L981,591 L981,531 Z" fill="url(#landGrad)" stroke="#334155" stroke-width="1.2" />
+    <!-- British Isles -->
+    <path d="M779,243 L804,233 L800,205 L779,205 L775,224 L779,243 Z" fill="url(#landGrad)" stroke="#334155" stroke-width="1.2" />
+    <!-- Japan -->
+    <path d="M1334,326 L1355,317 L1380,298 L1396,271 L1380,271 L1363,303 L1334,326 Z" fill="url(#landGrad)" stroke="#334155" stroke-width="1.2" />
+    <!-- New Zealand -->
+    <path d="M1491,684 L1515,666 L1532,652 L1519,642 L1507,675 L1491,684 Z" fill="url(#landGrad)" stroke="#334155" stroke-width="1.2" />
+  </g>
+
+  <!-- Major Ocean Labels -->
+  <g font-family="'Segoe UI', Roboto, sans-serif" font-size="16" font-style="italic" font-weight="700" fill="#38bdf8" opacity="0.35" letter-spacing="4">
+    <text x="656" y="336" text-anchor="middle">NORTH ATLANTIC OCEAN</text>
+    <text x="697" y="591" text-anchor="middle">SOUTH ATLANTIC OCEAN</text>
+    <text x="163" y="382" text-anchor="middle">NORTH PACIFIC OCEAN</text>
+    <text x="266" y="614" text-anchor="middle">SOUTH PACIFIC OCEAN</text>
+    <text x="1108" y="545" text-anchor="middle">INDIAN OCEAN</text>
+    <text x="800" y="777" text-anchor="middle">SOUTHERN OCEAN</text>
+    <text x="800" y="103" text-anchor="middle">ARCTIC OCEAN</text>
+  </g>
+
+  <!-- The 5 Subtropical Oceanic Gyres (Circulating Centers) -->
+  <g id="subtropicalGyres">
+    <g transform="translate(615, 345)">
+      <ellipse cx="0" cy="0" rx="90" ry="45" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.55" />
+      <circle cx="0" cy="0" r="3" fill="#38bdf8" opacity="0.8" />
+      <text x="0" y="4" font-family="'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="800" fill="#38bdf8" text-anchor="middle" letter-spacing="1">NORTH ATLANTIC GYRE</text>
+      <text x="0" y="18" font-family="'Segoe UI', sans-serif" font-size="9.5" font-weight="600" fill="#94a3b8" text-anchor="middle">(Sargasso Sea)</text>
+    </g>
+    <g transform="translate(718, 577)">
+      <ellipse cx="0" cy="0" rx="80" ry="45" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.55" />
+      <circle cx="0" cy="0" r="3" fill="#38bdf8" opacity="0.8" />
+      <text x="0" y="4" font-family="'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="800" fill="#38bdf8" text-anchor="middle" letter-spacing="1">SOUTH ATLANTIC GYRE</text>
+    </g>
+    <g transform="translate(142, 345)">
+      <ellipse cx="0" cy="0" rx="110" ry="48" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.55" />
+      <circle cx="0" cy="0" r="3" fill="#38bdf8" opacity="0.8" />
+      <text x="0" y="4" font-family="'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="800" fill="#38bdf8" text-anchor="middle" letter-spacing="1">NORTH PACIFIC GYRE</text>
+    </g>
+    <g transform="translate(266, 591)">
+      <ellipse cx="0" cy="0" rx="110" ry="50" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.55" />
+      <circle cx="0" cy="0" r="3" fill="#38bdf8" opacity="0.8" />
+      <text x="0" y="4" font-family="'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="800" fill="#38bdf8" text-anchor="middle" letter-spacing="1">SOUTH PACIFIC GYRE</text>
+    </g>
+    <g transform="translate(1108, 577)">
+      <ellipse cx="0" cy="0" rx="85" ry="45" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.55" />
+      <circle cx="0" cy="0" r="3" fill="#38bdf8" opacity="0.8" />
+      <text x="0" y="4" font-family="'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="800" fill="#38bdf8" text-anchor="middle" letter-spacing="1">INDIAN OCEAN GYRE</text>
+    </g>
+  </g>
+
+  <!-- Warm Ocean Currents (Red Arrows) -->
+  <g id="warmCurrents" filter="url(#warmGlow)">
+    <path d="M 471 359 Q 496 317 574 280" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 574 280 Q 677 252 759 215" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 779 196 Q 821 168 882 140" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 718 405 Q 615 410 512 405" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 821 494 Q 718 498 636 512" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 594 456 Q 677 452 759 456" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 644 531 Q 627 577 594 638" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 1314 382 Q 1355 336 1408 308" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 1408 308 Q 1540 280 204 271" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 348 419 Q 142 415 1355 415" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 430 494 Q 183 498 1437 503" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 1396 452 Q 101 447 327 447" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 1433 568 Q 1441 614 1425 661" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 956 591 Q 932 624 899 642" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 973 531 Q 964 559 948 596" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 1211 521 Q 1108 526 1006 526" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+    <path d="M 1026 429 Q 1088 410 1149 419" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" marker-end="url(#warmArrow)" />
+  </g>
+
+  <!-- Warm Currents Text Labels -->
+  <g id="warmLabels">
+    <text x="504" y="322" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Gulf Stream</text>
+    <text x="668" y="238" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">North Atlantic Drift</text>
+    <text x="833" y="154" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Norwegian Current</text>
+    <text x="615" y="396" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">North Equatorial Current (Atl.)</text>
+    <text x="718" y="489" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">South Equatorial Current (Atl.)</text>
+    <text x="677" y="442" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Equatorial Counter Current</text>
+    <text x="615" y="587" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Brazil Current</text>
+    <text x="1367" y="345" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Kuroshio (Japan Current)</text>
+    <text x="101" y="261" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">North Pacific Current</text>
+    <text x="183" y="405" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">North Equatorial Current (Pac.)</text>
+    <text x="224" y="489" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">South Equatorial Current (Pac.)</text>
+    <text x="142" y="438" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Equatorial Counter Current (Pac.)</text>
+    <text x="1458" y="614" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">East Australian Current</text>
+    <text x="948" y="633" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Agulhas Current</text>
+    <text x="977" y="568" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Mozambique Current</text>
+    <text x="1108" y="517" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">South Equatorial Current (Ind.)</text>
+    <text x="1088" y="401" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#fca5a5" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Southwest Monsoon Current</text>
+  </g>
+
+  <!-- Cold Ocean Currents (Cyan Arrows) -->
+  <g id="coldCurrents" filter="url(#coldGlow)">
+    <path d="M 545 187 Q 562 224 586 261" fill="none" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" marker-end="url(#coldArrow)" />
+    <path d="M 738 317 Q 718 363 710 401" fill="none" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" marker-end="url(#coldArrow)" />
+    <path d="M 862 633 Q 841 587 821 531" fill="none" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" marker-end="url(#coldArrow)" />
+    <path d="M 533 726 Q 553 698 578 661" fill="none" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" marker-end="url(#coldArrow)" />
+    <path d="M 718 126 Q 677 159 627 196" fill="none" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" marker-end="url(#coldArrow)" />
+    <path d="M 274 252 Q 290 298 315 359" fill="none" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" marker-end="url(#coldArrow)" />
+    <path d="M 492 684 Q 496 614 471 531" fill="none" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" marker-end="url(#coldArrow)" />
+    <path d="M 1478 205 Q 1437 252 1400 289" fill="none" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" marker-end="url(#coldArrow)" />
+    <path d="M 1260 633 Q 1252 596 1244 559" fill="none" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" marker-end="url(#coldArrow)" />
+    <path d="M 142 735 Q 471 735 800 735" fill="none" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" marker-end="url(#coldArrow)" />
+    <path d="M 800 735 Q 1170 735 1499 735" fill="none" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" marker-end="url(#coldArrow)" />
+  </g>
+
+  <!-- Cold Currents Text Labels -->
+  <g id="coldLabels">
+    <text x="549" y="229" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#a5f3fc" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Labrador Current</text>
+    <text x="710" y="354" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#a5f3fc" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Canaries Current</text>
+    <text x="833" y="577" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#a5f3fc" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Benguela Current</text>
+    <text x="541" y="689" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#a5f3fc" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Falkland Current</text>
+    <text x="668" y="150" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#a5f3fc" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">East Greenland Current</text>
+    <text x="278" y="317" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#a5f3fc" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">California Current</text>
+    <text x="467" y="605" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#a5f3fc" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Peru (Humboldt) Current</text>
+    <text x="1445" y="243" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#a5f3fc" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">Oyashio (Kuril) Current</text>
+    <text x="1269" y="596" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#a5f3fc" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">West Australian Current</text>
+    <text x="471" y="721" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#a5f3fc" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">West Wind Drift (Circumpolar)</text>
+    <text x="1170" y="721" font-family="'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="700" fill="#a5f3fc" stroke="#091e3a" stroke-width="3" stroke-linejoin="round" paint-order="stroke" text-anchor="middle">West Wind Drift (East Arc)</text>
+  </g>
+
+  <!-- Famous Marine Confluences & Fishing Banks -->
+  <g id="fishingBanks">
+    <g transform="translate(586, 271)">
+      <circle cx="0" cy="0" r="5" fill="#facc15" stroke="#ffffff" stroke-width="1.5" />
+      <text x="8" y="3" font-family="'Segoe UI', Roboto, sans-serif" font-size="10" font-weight="800" fill="#fef08a" stroke="#091e3a" stroke-width="2.5" stroke-linejoin="round" paint-order="stroke">⭐ Grand Banks (Newfoundland)</text>
+      <text x="8" y="14" font-family="'Segoe UI', sans-serif" font-size="8.5" font-weight="600" fill="#e2e8f0" stroke="#091e3a" stroke-width="2" stroke-linejoin="round" paint-order="stroke">(Gulf Stream + Labrador)</text>
+    </g>
+    <g transform="translate(1392, 298)">
+      <circle cx="0" cy="0" r="5" fill="#facc15" stroke="#ffffff" stroke-width="1.5" />
+      <text x="8" y="3" font-family="'Segoe UI', Roboto, sans-serif" font-size="10" font-weight="800" fill="#fef08a" stroke="#091e3a" stroke-width="2.5" stroke-linejoin="round" paint-order="stroke">⭐ Japan Coast / Kuril</text>
+      <text x="8" y="14" font-family="'Segoe UI', sans-serif" font-size="8.5" font-weight="600" fill="#e2e8f0" stroke="#091e3a" stroke-width="2" stroke-linejoin="round" paint-order="stroke">(Kuroshio + Oyashio)</text>
+    </g>
+    <g transform="translate(479, 540)">
+      <circle cx="0" cy="0" r="5" fill="#facc15" stroke="#ffffff" stroke-width="1.5" />
+      <text x="8" y="3" font-family="'Segoe UI', Roboto, sans-serif" font-size="10" font-weight="800" fill="#fef08a" stroke="#091e3a" stroke-width="2.5" stroke-linejoin="round" paint-order="stroke">⭐ Peruvian Anchoveta Upwelling</text>
+      <text x="8" y="14" font-family="'Segoe UI', sans-serif" font-size="8.5" font-weight="600" fill="#e2e8f0" stroke="#091e3a" stroke-width="2" stroke-linejoin="round" paint-order="stroke">(Humboldt Cold Upwelling)</text>
+    </g>
+  </g>
+
+  <!-- Main Title Banner (Classroom Standard) -->
+  <g transform="translate(60, 20)" filter="url(#darkCardShadow)">
+    <rect width="640" height="54" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1.5" />
+    <rect x="0" y="0" width="6" height="54" rx="3" fill="#38bdf8" />
+    <text x="20" y="24" font-family="'Segoe UI', 'Arial Black', sans-serif" font-size="17" font-weight="900" fill="#f8fafc" letter-spacing="1">MAJOR GLOBAL OCEAN CURRENTS &amp; OCEANIC GYRES</text>
+    <text x="20" y="44" font-family="'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="500" fill="#94a3b8">Surface Oceanic Circulation • Thermohaline Drift • Subtropical Gyres &amp; Upwelling Zones</text>
+  </g>
+
+  <!-- Legend Card (Bottom Left) -->
+  <g transform="translate(60, 750)" filter="url(#darkCardShadow)">
+    <rect width="360" height="120" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1.5" />
+    <rect x="0" y="0" width="360" height="24" rx="6" fill="#1e293b" />
+    <text x="14" y="17" font-family="'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="800" fill="#f8fafc">OCEAN CIRCULATION SYMBOLOGY</text>
+
+    <!-- Warm Current Entry -->
+    <line x1="20" y1="44" x2="65" y2="44" stroke="#ef4444" stroke-width="3.5" marker-end="url(#warmArrow)" />
+    <text x="80" y="48" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="700" fill="#fca5a5">Warm Ocean Currents</text>
+    <text x="215" y="48" font-family="'Segoe UI', sans-serif" font-size="10" fill="#94a3b8">(Flow from Equator to Poles)</text>
+
+    <!-- Cold Current Entry -->
+    <line x1="20" y1="68" x2="65" y2="68" stroke="#06b6d4" stroke-width="3.5" marker-end="url(#coldArrow)" />
+    <text x="80" y="72" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="700" fill="#a5f3fc">Cold Ocean Currents</text>
+    <text x="215" y="72" font-family="'Segoe UI', sans-serif" font-size="10" fill="#94a3b8">(Flow from Poles to Equator)</text>
+
+    <!-- Gyre and Fishing Zones -->
+    <ellipse cx="30" cy="94" rx="14" ry="8" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="3 2" />
+    <text x="54" y="98" font-family="'Segoe UI', sans-serif" font-size="10.5" fill="#38bdf8">Subtropical Gyre</text>
+
+    <circle cx="170" cy="94" r="4.5" fill="#facc15" />
+    <text x="182" y="98" font-family="'Segoe UI', sans-serif" font-size="10.5" fill="#fef08a">Major Confluence / Fishing Grounds</text>
+  </g>
+
+  <!-- Compass Rose -->
+  <g transform="translate(1520, 50)">
+    <circle cx="0" cy="0" r="18" fill="#0f172a" stroke="#334155" stroke-width="1" />
+    <polygon points="0,-16 4,-2 0,0" fill="#ef4444" />
+    <polygon points="0,-16 -4,-2 0,0" fill="#b91c1c" />
+    <polygon points="0,16 4,2 0,0" fill="#64748b" />
+    <polygon points="0,16 -4,2 0,0" fill="#475569" />
+    <text x="0" y="-19" font-family="'Segoe UI', sans-serif" font-size="9" font-weight="900" fill="#ef4444" text-anchor="middle">N</text>
+  </g>
+
+  <!-- Bottom Attribution -->
+  <g transform="translate(800, 930)">
+    <text x="0" y="0" font-family="'Segoe UI', sans-serif" font-size="9" font-weight="500" fill="#64748b" text-anchor="middle">
+      Global Surface Ocean Currents • National Oceanic and Atmospheric Administration (NOAA) &amp; Survey of India Standard
+    </text>
+  </g>
+</svg>

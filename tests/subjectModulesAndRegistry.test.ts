@@ -35,36 +35,47 @@ describe('Subject Tool Registry System', () => {
     initializeSubjectModules();
   });
 
-  it('registers all 7 core curriculum modules', () => {
+  it('registers all 8 core curriculum modules with Common Resources first', () => {
     const modules = SubjectRegistry.getAllModules();
-    expect(modules.length).toBe(7);
+    expect(modules.length).toBe(8);
 
     const ids = modules.map((m) => m.id);
+    expect(ids[0]).toBe('commonResources'); // Placed at the beginning of other tabs
+    expect(ids).toContain('commonResources');
     expect(ids).toContain('mathematics');
     expect(ids).toContain('physics');
     expect(ids).toContain('chemistry');
     expect(ids).toContain('computerScience');
     expect(ids).toContain('digitalLogic');
-    expect(ids).toContain('flowcharts');
+    expect(ids).toContain('geography');
     expect(ids).toContain('generalTeaching');
+    expect(ids).not.toContain('flowcharts'); // Flowchart module removed from platform tabs
   });
 
-  it('provides tools for each subject module', () => {
+  it('provides tools for each subject module including Common Resources and Geography', () => {
+    const commonTools = SubjectRegistry.getToolsBySubject('commonResources');
     const mathTools = SubjectRegistry.getToolsBySubject('mathematics');
     const physTools = SubjectRegistry.getToolsBySubject('physics');
     const chemTools = SubjectRegistry.getToolsBySubject('chemistry');
     const csTools = SubjectRegistry.getToolsBySubject('computerScience');
     const logicTools = SubjectRegistry.getToolsBySubject('digitalLogic');
-    const flowTools = SubjectRegistry.getToolsBySubject('flowcharts');
+    const geoTools = SubjectRegistry.getToolsBySubject('geography');
     const generalTools = SubjectRegistry.getToolsBySubject('generalTeaching');
 
+    expect(commonTools.length).toBeGreaterThanOrEqual(4);
     expect(mathTools.length).toBeGreaterThanOrEqual(10);
     expect(physTools.length).toBeGreaterThanOrEqual(8);
     expect(chemTools.length).toBeGreaterThanOrEqual(7);
     expect(csTools.length).toBeGreaterThanOrEqual(10);
     expect(logicTools.length).toBeGreaterThanOrEqual(7);
-    expect(flowTools.length).toBeGreaterThanOrEqual(5);
+    expect(geoTools.length).toBeGreaterThanOrEqual(7);
     expect(generalTools.length).toBeGreaterThanOrEqual(6);
+
+    const commonToolIds = commonTools.map((t) => t.id);
+    expect(commonToolIds).toContain('common-hierarchy-chart');
+    expect(commonToolIds).toContain('common-mindmap');
+    expect(commonToolIds).toContain('common-timeline');
+    expect(commonToolIds).toContain('common-process-chart');
   });
 
   it('searches tools accurately across name, description, and tags', () => {
@@ -346,6 +357,8 @@ describe('Subject Shape Rendering & Export Parity', () => {
       arc: () => {},
       arcTo: () => {},
       quadraticCurveTo: () => {},
+      bezierCurveTo: () => {},
+      drawImage: () => {},
       fillRect: () => {},
       fillText: () => {},
       setLineDash: () => {},
@@ -573,9 +586,98 @@ describe('Subject Shape Rendering & Export Parity', () => {
           ],
         },
       },
+      {
+        id: 'test-hierarchy-chart',
+        type: 'shape',
+        shapeType: 'hierarchyChart',
+        x: 100,
+        y: 100,
+        width: 600,
+        height: 380,
+        rotation: 0,
+        fillColor: 'transparent',
+        fillOpacity: 1,
+        strokeColor: '#38bdf8',
+        strokeWidth: 2,
+        strokeOpacity: 1,
+        strokeStyle: 'solid',
+        locked: false,
+        layerId: 'objects',
+        params: {
+          theme: 'ocean',
+          style: 'rounded',
+          fontSize: 14,
+        },
+      },
+      {
+        id: 'test-mindmap',
+        type: 'shape',
+        shapeType: 'mindmap',
+        x: 100,
+        y: 100,
+        width: 650,
+        height: 420,
+        rotation: 0,
+        fillColor: 'transparent',
+        fillOpacity: 1,
+        strokeColor: '#818cf8',
+        strokeWidth: 2,
+        strokeOpacity: 1,
+        strokeStyle: 'solid',
+        locked: false,
+        layerId: 'objects',
+        params: {
+          selectedNodeId: 'mm-root',
+        },
+      },
+      {
+        id: 'test-timeline',
+        type: 'shape',
+        shapeType: 'timeline',
+        x: 100,
+        y: 100,
+        width: 700,
+        height: 350,
+        rotation: 0,
+        fillColor: 'transparent',
+        fillOpacity: 1,
+        strokeColor: '#0284c7',
+        strokeWidth: 2,
+        strokeOpacity: 1,
+        strokeStyle: 'solid',
+        locked: false,
+        layerId: 'objects',
+        params: {
+          orientation: 'horizontal',
+          activeEventIndex: 1,
+        },
+      },
+      {
+        id: 'test-process-chart',
+        type: 'shape',
+        shapeType: 'processChart',
+        x: 100,
+        y: 100,
+        width: 700,
+        height: 250,
+        rotation: 0,
+        fillColor: 'transparent',
+        fillOpacity: 1,
+        strokeColor: '#0284c7',
+        strokeWidth: 2,
+        strokeOpacity: 1,
+        strokeStyle: 'solid',
+        locked: false,
+        layerId: 'objects',
+        params: {
+          style: 'chevron',
+          activeStepIndex: 2,
+        },
+      },
     ];
 
     testShapes.forEach((shape) => {
+      expect(isSubjectShape(shape.shapeType)).toBe(true);
       expect(() => {
         renderSubjectShape(mockCtx, shape, shape.x, shape.y, shape.width, shape.height, 1);
       }).not.toThrow();

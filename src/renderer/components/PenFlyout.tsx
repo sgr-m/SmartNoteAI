@@ -127,7 +127,7 @@ export function PenFlyout({ onClose }: PenFlyoutProps): React.ReactElement {
   };
 
   return (
-    <div className="smartboard-pen-flyout" role="dialog" aria-label="Pen Settings">
+    <div className="smartboard-pen-flyout" role="region" aria-label="Pen Settings">
       {/* Top Black Header Bar */}
       <div className="flyout-header-bar">
         <span className="flyout-title">{activePenOption.label}</span>

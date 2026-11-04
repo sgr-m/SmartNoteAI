@@ -9,6 +9,7 @@ import fs from 'fs';
 import { DatabaseService } from '../services/DatabaseService';
 import { SettingsService } from '../services/SettingsService';
 import { FileService } from '../services/FileService';
+import { UpdateService } from '../services/UpdateService';
 
 // ─── Desktop Annotation Overlay Window ──────────────────────────────────────
 let annotationWindow: BrowserWindow | null = null;
@@ -49,15 +50,25 @@ function getRendererHtmlPath(): string {
   return candidates[0];
 }
 
-function getAppIconPath(): string {
+function getAppIcon(): Electron.NativeImage | string {
   const candidates = [
+    path.join(process.resourcesPath || '', 'assets/icons/icon.ico'),
+    path.join(process.resourcesPath || '', 'assets/icons/icon.png'),
+    path.join(process.resourcesPath || '', 'icon.ico'),
     path.join(__dirname, '../../assets/icons/icon.ico'),
+    path.join(__dirname, '../../assets/icons/icon.png'),
     path.join(__dirname, '../assets/icons/icon.ico'),
+    path.join(__dirname, '../assets/icons/icon.png'),
     path.join(app.getAppPath(), 'assets/icons/icon.ico'),
+    path.join(app.getAppPath(), 'assets/icons/icon.png'),
   ];
   for (const c of candidates) {
     try {
-      if (fs.existsSync(c)) return c;
+      if (fs.existsSync(c)) {
+        const img = nativeImage.createFromPath(c);
+        if (!img.isEmpty()) return img;
+        return c;
+      }
     } catch {
       // ignore
     }
@@ -69,6 +80,7 @@ interface Services {
   db: DatabaseService;
   settings: SettingsService;
   fileService: FileService;
+  updateService?: UpdateService;
   getMainWindow?: () => BrowserWindow | null;
 }
 
@@ -310,7 +322,7 @@ export function setupIpcHandlers(services: Services): void {
       resizable: false,
       skipTaskbar: true,
       title: 'SmartBoard Studio - Return',
-      icon: getAppIconPath(),
+      icon: getAppIcon(),
       hasShadow: false,
       backgroundColor: '#00000000',
       webPreferences: {
@@ -517,5 +529,38 @@ export function setupIpcHandlers(services: Services): void {
       annotationWindow.webContents.send('annotation:doClear');
     }
     return true;
+  });
+
+  // ─── Auto-Updater ────────────────────────────────────────────────────────
+  ipcMain.handle('updater:check', async () => {
+    if (services.updateService) {
+      return services.updateService.checkForUpdates();
+    }
+    return { status: 'idle', currentVersion: app.getVersion() || '0.2.0' };
+  });
+
+  ipcMain.handle('updater:download', async () => {
+    if (services.updateService) {
+      return services.updateService.downloadUpdate();
+    }
+    return { status: 'idle', currentVersion: app.getVersion() || '0.2.0' };
+  });
+
+  ipcMain.handle('updater:install', async () => {
+    if (services.updateService) {
+      await services.updateService.installUpdate();
+    }
+    return true;
+  });
+
+  ipcMain.handle('updater:getVersion', async () => {
+    return app.getVersion() || '0.2.0';
+  });
+
+  ipcMain.handle('updater:getState', async () => {
+    if (services.updateService) {
+      return services.updateService.getState();
+    }
+    return { status: 'idle', currentVersion: app.getVersion() || '0.2.0' };
   });
 }

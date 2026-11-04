@@ -9,13 +9,14 @@
  * - Separate BrowserWindows for overlay/annotation (future milestone)
  */
 
-import { app, BrowserWindow, ipcMain, shell, dialog, Menu, nativeTheme, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, Menu, nativeTheme, screen, nativeImage } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { setupIpcHandlers } from './ipc/ipcHandlers';
 import { DatabaseService } from './services/DatabaseService';
 import { SettingsService } from './services/SettingsService';
 import { FileService } from './services/FileService';
+import { UpdateService } from './services/UpdateService';
 
 // ─── Single Instance Lock ────────────────────────────────────────────────────
 const gotTheLock = app.requestSingleInstanceLock();
@@ -31,6 +32,7 @@ const isDev = !app.isPackaged;
 let mainWindow: BrowserWindow | null = null;
 let db: DatabaseService | null = null;
 let settings: SettingsService | null = null;
+let updateService: UpdateService | null = null;
 
 app.on('second-instance', () => {
   if (mainWindow) {
@@ -84,15 +86,25 @@ app.on('second-instance', () => {
     return candidates[0];
   }
 
-  function getAppIconPath(): string {
+  function getAppIcon(): Electron.NativeImage | string {
     const candidates = [
+      path.join(process.resourcesPath || '', 'assets/icons/icon.ico'),
+      path.join(process.resourcesPath || '', 'assets/icons/icon.png'),
+      path.join(process.resourcesPath || '', 'icon.ico'),
       path.join(__dirname, '../../assets/icons/icon.ico'),
+      path.join(__dirname, '../../assets/icons/icon.png'),
       path.join(__dirname, '../assets/icons/icon.ico'),
+      path.join(__dirname, '../assets/icons/icon.png'),
       path.join(app.getAppPath(), 'assets/icons/icon.ico'),
+      path.join(app.getAppPath(), 'assets/icons/icon.png'),
     ];
     for (const c of candidates) {
       try {
-        if (fs.existsSync(c)) return c;
+        if (fs.existsSync(c)) {
+          const img = nativeImage.createFromPath(c);
+          if (!img.isEmpty()) return img;
+          return c;
+        }
       } catch {
         // ignore
       }
@@ -106,7 +118,7 @@ app.on('second-instance', () => {
     const { width, height } = primaryDisplay.workAreaSize;
 
     const preloadPath = getPreloadPath();
-    const iconPath = getAppIconPath();
+    const appIcon = getAppIcon();
 
     const win = new BrowserWindow({
       title: 'SmartNoteAI',
@@ -118,7 +130,7 @@ app.on('second-instance', () => {
       backgroundColor: '#1b4332',
       disableAutoHideCursor: true, // Keep the default Windows pointer visible at all times
       frame: false, // Custom TitleBar with min/max/close controls rendered by React
-      icon: iconPath,
+      icon: appIcon,
       webPreferences: {
         preload: preloadPath,
         contextIsolation: true,          // SECURITY: context isolation on
@@ -130,6 +142,10 @@ app.on('second-instance', () => {
         experimentalFeatures: false,
       },
     });
+
+    if (typeof appIcon !== 'string' && appIcon) {
+      win.setIcon(appIcon);
+    }
 
     // Performance: use WillNavigate to block unwanted navigation
     win.webContents.on('will-navigate', (e, url) => {
@@ -196,6 +212,9 @@ app.on('second-instance', () => {
 
   // ─── App Lifecycle ──────────────────────────────────────────────────────────
   app.whenReady().then(async () => {
+    // Windows App User Model ID ensures pinned shortcuts and taskbar group to SmartNoteAI
+    app.setAppUserModelId('com.smartnoteai.app');
+
     // Initialize services
     db = new DatabaseService();
     await db.initialize();
@@ -204,8 +223,10 @@ app.on('second-instance', () => {
     const fileService = new FileService(settings);
     await fileService.ensureDirectories();
 
+    updateService = new UpdateService(() => mainWindow);
+
     // Register IPC handlers with direct mainWindow accessor
-    setupIpcHandlers({ db, settings, fileService, getMainWindow: () => mainWindow });
+    setupIpcHandlers({ db, settings, fileService, updateService, getMainWindow: () => mainWindow });
 
     mainWindow = await createMainWindow();
 
@@ -291,9 +312,47 @@ function setupApplicationMenu(): void {
     {
       label: 'Help',
       submenu: [
+        {
+          label: 'Check for Updates...',
+          click: async () => {
+            if (updateService) {
+              const res = await updateService.checkForUpdates();
+              if (res.status === 'available') {
+                const choice = await dialog.showMessageBox({
+                  type: 'info',
+                  title: 'Update Available',
+                  message: `A new version of SmartNoteAI (${res.latestVersion}) is available!`,
+                  detail: res.releaseNotes ? `${res.releaseNotes}\n\nWould you like to download and install it now?` : 'Would you like to download and install it now?',
+                  buttons: ['Download & Install', 'Later'],
+                  defaultId: 0,
+                  cancelId: 1,
+                });
+                if (choice.response === 0) {
+                  await updateService.downloadUpdate();
+                }
+              } else if (res.status === 'not-available') {
+                dialog.showMessageBox({
+                  type: 'info',
+                  title: 'SmartNoteAI Up to Date',
+                  message: `You are running the latest version of SmartNoteAI (v${res.currentVersion}).`,
+                  buttons: ['OK'],
+                });
+              } else if (res.status === 'error') {
+                dialog.showMessageBox({
+                  type: 'warning',
+                  title: 'Update Check Failed',
+                  message: 'Unable to check for updates.',
+                  detail: res.error || 'Please check your internet connection.',
+                  buttons: ['OK'],
+                });
+              }
+            }
+          },
+        },
+        { type: 'separator' },
         { label: 'About SmartNoteAI', click: () => dialog.showMessageBox({
           title: 'SmartNoteAI',
-          message: 'SmartNoteAI v0.1.0',
+          message: `SmartNoteAI v${app.getVersion() || '0.2.1'}`,
           detail: 'Intelligent digital whiteboard and teaching application.\nBuilt with Electron + React + TypeScript.',
           buttons: ['OK'],
         }) },

@@ -261,7 +261,7 @@ export function ShapeFlyout({ onClose }: ShapeFlyoutProps): React.ReactElement {
   };
 
   return (
-    <div className="smartboard-shape-flyout" role="dialog" aria-label="Shape Settings">
+    <div className="smartboard-shape-flyout" role="region" aria-label="Shape Settings">
       {/* Top Black Header Bar */}
       <div className="flyout-header-bar">
         <span className="flyout-title">{activeShape.label}</span>

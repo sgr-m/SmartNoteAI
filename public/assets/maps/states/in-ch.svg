@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1000" width="1200" height="1000">
+  <defs>
+    <style>
+      .state-title { font-family: 'system-ui', -apple-system, sans-serif; font-size: 26px; font-weight: 800; fill: #0f172a; text-anchor: middle; letter-spacing: 1.5px; }
+      .state-sub { font-family: 'system-ui', -apple-system, sans-serif; font-size: 13px; font-weight: 700; fill: #dc2626; text-anchor: middle; letter-spacing: 0.5px; }
+      .state-meta { font-family: 'system-ui', -apple-system, sans-serif; font-size: 12px; fill: #475569; text-anchor: middle; }
+      .dist-name { font-family: 'system-ui', -apple-system, sans-serif; font-size: 11px; font-weight: 600; fill: #0f172a; paint-order: stroke; stroke: #ffffff; stroke-width: 2.5px; stroke-linejoin: round; }
+      .cap-badge { font-family: 'system-ui', -apple-system, sans-serif; font-size: 13px; font-weight: 800; fill: #b91c1c; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; }
+      .scale-text { font-family: monospace; font-size: 11px; fill: #1e293b; font-weight: 600; }
+      .legend-title { font-family: 'system-ui', sans-serif; font-size: 12px; font-weight: 700; fill: #0f172a; }
+      .legend-item { font-family: 'system-ui', sans-serif; font-size: 11px; fill: #334155; }
+    </style>
+    <filter id="cardShadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.1" />
+    </filter>
+  </defs>
+
+  <!-- 100% Transparent Outer Canvas (No black/dark background) -->
+  <rect width="100%" height="100%" fill="none" />
+
+  <!-- Survey of India Official Style Border Frame -->
+  <rect x="25" y="25" width="1150" height="950" rx="8" fill="none" stroke="#0f172a" stroke-width="2.5" />
+  <rect x="31" y="31" width="1138" height="938" rx="5" fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="6,4" />
+
+  <!-- Cartographic Header Block -->
+  <g id="header-block">
+    <text x="600" y="66" class="state-title">CHANDIGARH</text>
+    <text x="600" y="90" class="state-sub">OFFICIAL STATE MAP — SURVEY OF INDIA &amp; CENSUS STANDARD</text>
+    <text x="600" y="112" class="state-meta">Capital: Chandigarh | Region: Northern India | Area: 114 km² | 1 Districts</text>
+  </g>
+
+  <!-- Districts Multi-Polygon Fills & Boundaries -->
+  <g id="district-polygons">
+    <path d="M 850.3,791.7 L 755.3,875.0 L 747.5,873.8 L 665.9,827.2 L 600.0,857.8 L 537.4,764.7 L 413.4,726.8 L 373.2,549.1 L 243.6,436.4 L 269.3,333.5 L 436.9,282.0 L 575.4,135.0 L 630.2,224.4 L 630.2,275.9 L 655.9,266.1 L 782.1,220.8 L 794.4,239.1 L 797.8,242.8 L 741.9,307.7 L 791.1,378.8 L 849.2,317.5 L 905.0,370.2 L 906.2,367.8 L 906.2,367.8 L 873.8,456.0 L 954.2,507.5 L 956.4,527.1 L 953.1,594.4 L 842.5,753.7 L 850.3,791.7 Z" fill="#fef3c7" stroke="#475569" stroke-width="1.2" stroke-linejoin="round" opacity="0.95">
+      <title>Chandigarh (Chandigarh)</title>
+    </path>
+
+  </g>
+
+  <!-- District Labels Layer -->
+  <g id="district-labels">
+    <g transform="translate(709.6, 488.7)">
+      <text text-anchor="middle" dy=".3em" class="dist-name">Chandigarh</text>
+    </g>
+
+  </g>
+
+  <!-- State Capital Star Marker -->
+  <g id="capital-marker" transform="translate(709.6, 488.7)">
+    <circle r="7" fill="#dc2626" stroke="#ffffff" stroke-width="2" />
+    <circle r="3" fill="#ffffff" />
+    <text x="12" y="4" class="cap-badge">★ Chandigarh (Capital)</text>
+  </g>
+
+  <!-- North Arrow Compass Rose -->
+  <g id="compass" transform="translate(1110, 85)">
+    <circle r="22" fill="#ffffff" stroke="#0f172a" stroke-width="1.5" />
+    <polygon points="0,-18 5,-2 0,2 -5,-2" fill="#dc2626" />
+    <polygon points="0,18 5,2 0,-2 -5,2" fill="#0f172a" />
+    <text x="0" y="-22" text-anchor="middle" font-family="system-ui" font-size="11" font-weight="800" fill="#dc2626">N</text>
+  </g>
+
+  <!-- Graphic Scale Bar -->
+  <g id="scale-bar" transform="translate(60, 910)" filter="url(#cardShadow)">
+    <rect x="-10" y="-18" width="2667" height="44" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />
+    <text x="0" y="-4" class="scale-text">SCALE 1 : 1,000,000</text>
+    <rect x="0" y="4" width="2607" height="6" fill="#0f172a" />
+    <rect x="0" y="4" width="1304" height="6" fill="#dc2626" />
+    <text x="0" y="22" class="scale-text">0</text>
+    <text x="1304" y="22" class="scale-text">25</text>
+    <text x="2607" y="22" class="scale-text">50 km</text>
+  </g>
+
+  <!-- Legend & Symbology Card -->
+  <g id="legend" transform="translate(930, 810)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="220" height="140" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />
+    <text x="14" y="22" class="legend-title">MAP LEGEND &amp; SYMBOLS</text>
+    <g transform="translate(14, 40)">
+      <circle cx="6" cy="4" r="5" fill="#dc2626" />
+      <text x="18" y="8" class="legend-item">State Capital (★)</text>
+    </g>
+    <g transform="translate(14, 62)">
+      <circle cx="6" cy="4" r="3.5" fill="#475569" />
+      <text x="18" y="8" class="legend-item">District Headquarters (●)</text>
+    </g>
+    <g transform="translate(14, 84)">
+      <line x1="0" y1="4" x2="14" y2="4" stroke="#0f172a" stroke-width="2.5" />
+      <text x="18" y="8" class="legend-item">State Boundary (Survey of India)</text>
+    </g>
+    <g transform="translate(14, 106)">
+      <line x1="0" y1="4" x2="14" y2="4" stroke="#64748b" stroke-width="1.2" stroke-dasharray="3,2" />
+      <text x="18" y="8" class="legend-item">Internal District Boundary</text>
+    </g>
+    <g transform="translate(14, 126)">
+      <line x1="0" y1="4" x2="14" y2="4" stroke="#0284c7" stroke-width="2" />
+      <text x="18" y="8" class="legend-item">Major Drainage River</text>
+    </g>
+  </g>
+
+  <!-- Official Government Attribution Footer -->
+  <text x="600" y="964" text-anchor="middle" font-family="system-ui" font-size="10" fill="#64748b">
+    © Survey of India / Registrar General &amp; Census Commissioner of India. Official boundary and territorial integrity strictly preserved. Source: https://chandigarh.gov.in
+  </text>
+</svg>

@@ -48,6 +48,23 @@ import { LogicGateModal } from './subjectModals/LogicGateModal';
 import { DigitalCircuitModal } from './subjectModals/DigitalCircuitModal';
 import { TruthTableModal } from './subjectModals/TruthTableModal';
 import { KarnaughMapModal } from './subjectModals/KarnaughMapModal';
+import { HierarchyChartModal } from './subjectModals/HierarchyChartModal';
+import { MindmapModal } from './subjectModals/MindmapModal';
+import { TimelineModal } from './subjectModals/TimelineModal';
+import { ProcessChartModal } from './subjectModals/ProcessChartModal';
+import {
+  HierarchyNode,
+  HierarchyTheme,
+  HierarchyStyle,
+  DEFAULT_HIERARCHY_TREE,
+  MindmapNode,
+  DEFAULT_MINDMAP,
+  TimelineEvent,
+  DEFAULT_TIMELINE_EVENTS,
+  ProcessStep,
+  DEFAULT_PROCESS_STEPS,
+  ProcessChartStyle,
+} from '../services/subjectModules/commonResourcesModule';
 import {
   evaluateMux,
   evaluateAdder,
@@ -56,6 +73,12 @@ import {
 } from '../services/subjectModules/digitalLogicModule';
 import { isLatexSyntax } from '../services/latexService';
 import { isTypingOrInputFocused } from '../utils/keyboardUtils';
+import { isGeoShapeType, GeoAnnotationItem } from '../services/geography/types';
+import { getGeoMapTransform } from '../engine/geographyShapeRenderer';
+import { GeographyResourceCentreModal } from './geography/GeographyResourceCentreModal';
+import { GeographyAtlasModal } from './geography/GeographyAtlasModal';
+import { Globe3DModal } from './geography/Globe3DModal';
+import { GisThematicModal } from './geography/GisThematicModal';
 import { v4 as uuidv4 } from 'uuid';
 import './WhiteboardCanvas.css';
 
@@ -85,6 +108,7 @@ export function WhiteboardCanvas(): React.ReactElement {
     setZoom,
     setPan,
     setActiveTool,
+    setPenStyle,
     reducedMotion,
     closeAllPopups,
     undo,
@@ -137,6 +161,14 @@ export function WhiteboardCanvas(): React.ReactElement {
   const [editingDigitalCircuitShape, setEditingDigitalCircuitShape] = useState<ShapeObject | null>(null);
   const [editingTruthTableShape, setEditingTruthTableShape] = useState<ShapeObject | null>(null);
   const [editingKarnaughMapShape, setEditingKarnaughMapShape] = useState<ShapeObject | null>(null);
+  const [editingHierarchyShape, setEditingHierarchyShape] = useState<ShapeObject | null>(null);
+  const [editingMindmapShape, setEditingMindmapShape] = useState<ShapeObject | null>(null);
+  const [editingTimelineShape, setEditingTimelineShape] = useState<ShapeObject | null>(null);
+  const [editingProcessShape, setEditingProcessShape] = useState<ShapeObject | null>(null);
+  const [showGeoResourceModal, setShowGeoResourceModal] = useState(false);
+  const [showGeoAtlasModal, setShowGeoAtlasModal] = useState(false);
+  const [showGlobeModal, setShowGlobeModal] = useState(false);
+  const [showGisModal, setShowGisModal] = useState(false);
 
   // Vertical Selection Pill Active Flyout Menu
   const [activeFlyout, setActiveFlyout] = useState<'none' | 'palette' | 'layer' | 'more' | 'thickness' | 'imageFit'>('none');
@@ -183,6 +215,68 @@ export function WhiteboardCanvas(): React.ReactElement {
 
   const handleStrokeComplete = useCallback((stroke: StrokeObject) => {
     const pageIndex = currentPageIndexRef.current;
+    const page = currentPageRef.current;
+
+    // Check if stroke was drawn over an active geography map in 'annotate' mode
+    const targetGeoMap = (page?.objects || []).find((o) => {
+      if (o.type !== 'shape' || !isGeoShapeType((o as ShapeObject).shapeType)) return false;
+      const s = o as ShapeObject;
+      if (s.params?.interactionMode !== 'annotate') return false;
+      // Check if stroke bbox intersects map bbox
+      return !(
+        stroke.bbox.x + stroke.bbox.width < s.x ||
+        stroke.bbox.x > s.x + s.width ||
+        stroke.bbox.y + stroke.bbox.height < s.y ||
+        stroke.bbox.y > s.y + s.height
+      );
+    }) as ShapeObject | undefined;
+
+    if (targetGeoMap) {
+      // Anchoring stroke to map coordinate space [0..1000, 0..1000]
+      const transform = getGeoMapTransform(targetGeoMap);
+      const normPoints = stroke.points.map(
+        (pt) => [transform.screenToNormX(pt.x), transform.screenToNormY(pt.y)] as [number, number]
+      );
+
+      // Normalized stroke width so that line thickness scales relatively with zoom in / zoom out
+      const normWidth = (stroke.style.width || 4) / (transform.baseScale || 1);
+
+      const newAnnotation: GeoAnnotationItem = {
+        id: stroke.id,
+        type: stroke.style.penType === 'highlighter' ? 'highlighter' : 'pen',
+        points: normPoints,
+        color: stroke.style.color,
+        width: normWidth,
+        opacity: stroke.style.penType === 'highlighter' ? 0.45 : 1.0,
+      };
+
+      const currentAnnotations = targetGeoMap.params?.annotations || [];
+      const updatedAnnotations = [...currentAnnotations, newAnnotation];
+      const updatedMap: ShapeObject = {
+        ...targetGeoMap,
+        params: {
+          ...targetGeoMap.params,
+          annotations: updatedAnnotations,
+        },
+      };
+
+      commandSystem.execute({
+        id: uuidv4(),
+        description: 'Annotate map',
+        execute() {
+          docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: updatedMap });
+          engineRef.current?.removeCommittedObject(stroke.id);
+        },
+        undo() {
+          docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: targetGeoMap });
+        },
+      });
+
+      // Immediately remove loose canvas stroke from DrawingEngine
+      engineRef.current?.removeCommittedObject(stroke.id);
+      return;
+    }
+
     commandSystem.execute({
       id: uuidv4(),
       description: 'Add stroke',
@@ -620,28 +714,23 @@ export function WhiteboardCanvas(): React.ReactElement {
 
     const handleWindowPointerDown = (e: PointerEvent) => {
       const target = e.target as HTMLElement | null;
-      if (
+      const isTextInput =
         target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
+        (target.tagName === 'TEXTAREA' ||
+          (target.tagName === 'INPUT' &&
+            !['range', 'color', 'checkbox', 'radio', 'button', 'submit'].includes(
+              (target as HTMLInputElement).type?.toLowerCase()
+            )) ||
           target.isContentEditable ||
           target.getAttribute?.('contenteditable') === 'true' ||
           target.closest?.(
-            'input, textarea, [contenteditable="true"], .inline-text-editor-box, .board-typography-sidebar, .smartboard-text-modal, .selected-object-vertical-pill, .selected-text-quick-edit-pill'
-          ))
-      ) {
-        isDragFromInput = true;
-      } else {
-        isDragFromInput = false;
-      }
+            'textarea, [contenteditable="true"], .inline-text-editor-box, .board-typography-sidebar, .smartboard-text-modal'
+          ));
+      isDragFromInput = Boolean(isTextInput);
     };
 
     const handleWindowPointerUp = () => {
-      if (isDragFromInput) {
-        setTimeout(() => {
-          isDragFromInput = false;
-        }, 150);
-      }
+      isDragFromInput = false;
     };
 
     const handleWindowClickCapture = (e: MouseEvent) => {
@@ -651,12 +740,17 @@ export function WhiteboardCanvas(): React.ReactElement {
     };
 
     const handleCanvasPointerDown = (e: PointerEvent) => {
-      if (isDragFromInput || isTypingOrInputFocused()) {
-        e.stopPropagation();
+      if (isDragFromInput) {
         return;
       }
       closeAllPopups();
       setActiveFlyout('none');
+
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (activeEl && activeEl !== canvas && typeof activeEl.blur === 'function') {
+        activeEl.blur();
+      }
+
       if (toolState.activeTool !== 'select' && selectedObjectRef.current) {
         setSelectedObject(null);
       }
@@ -730,6 +824,12 @@ export function WhiteboardCanvas(): React.ReactElement {
           (s.params?.diagramType === 'codeBlock' ||
             s.params?.diagramType === 'pseudocode' ||
             s.params?.diagramType === 'flowchart');
+        const isSupportedCommon =
+          s.shapeType === 'hierarchyChart' ||
+          s.shapeType === 'mindmap' ||
+          s.shapeType === 'timeline' ||
+          s.shapeType === 'processChart';
+        const isSupportedGeo = isGeoShapeType(s.shapeType);
 
         if (
           s.shapeType !== 'angleMeasurement' &&
@@ -740,7 +840,9 @@ export function WhiteboardCanvas(): React.ReactElement {
           !isSupportedCircuitComp &&
           !isSupportedPhysicsDiag &&
           !isSupportedChem &&
-          !isSupportedCsDiag
+          !isSupportedCsDiag &&
+          !isSupportedCommon &&
+          !isSupportedGeo
         ) {
           return false;
         }
@@ -830,15 +932,183 @@ export function WhiteboardCanvas(): React.ReactElement {
           } else if (dt === 'networkTopology') {
             setEditingNetworkTopologyShape(hitShape);
           }
+        } else if (hitShape.shapeType === 'hierarchyChart') {
+          setEditingHierarchyShape(hitShape);
+        } else if (hitShape.shapeType === 'mindmap') {
+          setEditingMindmapShape(hitShape);
+        } else if (hitShape.shapeType === 'timeline') {
+          setEditingTimelineShape(hitShape);
+        } else if (hitShape.shapeType === 'processChart') {
+          setEditingProcessShape(hitShape);
+        } else if (hitShape.shapeType === 'geoGlobe' || (isGeoShapeType(hitShape.shapeType) && hitShape.params?.resourceType === '3d-globe')) {
+          setShowGlobeModal(true);
+        } else if (hitShape.params?.resourceType === 'gis-viewer' || hitShape.params?.gisState) {
+          setShowGisModal(true);
+        } else if (isGeoShapeType(hitShape.shapeType)) {
+          setShowGeoResourceModal(true);
+        }
+      }
+    };
+
+    const handleCanvasClick = (e: MouseEvent) => {
+      if (toolState.activeTool !== 'select') return;
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+      const docX = clientX / toolState.zoom - toolState.panX;
+      const docY = clientY / toolState.zoom - toolState.panY;
+
+      const page = currentPageRef.current;
+      if (!page) return;
+
+      // 1. Mindmap Click: react & respond to node clicks on board
+      const hitMindmap = [...page.objects].reverse().find((obj) => {
+        if (obj.type !== 'shape' || (obj as ShapeObject).shapeType !== 'mindmap') return false;
+        const s = obj as ShapeObject;
+        const sw = s.width || 720;
+        const sh = s.height || 460;
+        return docX >= s.x && docX <= s.x + sw && docY >= s.y && docY <= s.y + sh;
+      }) as ShapeObject | undefined;
+
+      if (hitMindmap) {
+        const root = JSON.parse(JSON.stringify(hitMindmap.params?.root || DEFAULT_MINDMAP));
+        const mx = hitMindmap.x;
+        const my = hitMindmap.y;
+        const mw = hitMindmap.width || 720;
+        const mh = hitMindmap.height || 460;
+        const cx = mx + mw / 2;
+        const cy = my + 50 + (mh - 50) / 2;
+
+        if (Math.abs(docX - cx) <= 80 && Math.abs(docY - cy) <= 26) {
+          handleUpdateShape(hitMindmap, {
+            ...hitMindmap,
+            params: { ...hitMindmap.params, selectedNodeId: root.id },
+          });
+          return;
+        }
+
+        const children = root.children || [];
+        const rightChildren = children.filter((_: any, i: number) => i % 2 === 0);
+        const leftChildren = children.filter((_: any, i: number) => i % 2 === 1);
+        let toggledNode: any = null;
+
+        const checkSide = (nodes: any[], isRight: boolean) => {
+          if (nodes.length === 0 || toggledNode) return;
+          const targetX = isRight ? cx + mw * 0.28 : cx - mw * 0.28;
+          const totalSpanY = Math.min(mh - 110, nodes.length * 75);
+          const startY = cy - totalSpanY / 2;
+          const stepY = nodes.length > 1 ? totalSpanY / (nodes.length - 1) : 0;
+
+          nodes.forEach((node: any, idx: number) => {
+            if (toggledNode) return;
+            const nodeY = nodes.length === 1 ? cy : startY + idx * stepY;
+            const cardW = 120;
+            const cardH = 34;
+            const cardX = isRight ? targetX : targetX - cardW;
+            const cardY = nodeY - cardH / 2;
+
+            if (docX >= cardX - 15 && docX <= cardX + cardW + 25 && docY >= cardY - 8 && docY <= cardY + cardH + 8) {
+              if (node.children && node.children.length > 0) {
+                node.collapsed = !node.collapsed;
+              }
+              toggledNode = node;
+            }
+          });
+        };
+
+        checkSide(rightChildren, true);
+        checkSide(leftChildren, false);
+
+        if (toggledNode) {
+          handleUpdateShape(hitMindmap, {
+            ...hitMindmap,
+            params: { ...hitMindmap.params, root, selectedNodeId: toggledNode.id },
+          });
+          return;
+        }
+      }
+
+      // 2. Timeline Click: jump to clicked milestone card
+      const hitTimeline = [...page.objects].reverse().find((obj) => {
+        if (obj.type !== 'shape' || (obj as ShapeObject).shapeType !== 'timeline') return false;
+        const s = obj as ShapeObject;
+        const sw = s.width || 760;
+        const sh = s.height || 360;
+        return docX >= s.x && docX <= s.x + sw && docY >= s.y && docY <= s.y + sh;
+      }) as ShapeObject | undefined;
+
+      if (hitTimeline) {
+        const events: any[] = hitTimeline.params?.events || [];
+        const orientation = hitTimeline.params?.orientation || 'horizontal';
+        const tx = hitTimeline.x;
+        const ty = hitTimeline.y;
+        const tw = hitTimeline.width || 760;
+        const th = hitTimeline.height || 360;
+
+        if (orientation === 'horizontal') {
+          const startX = tx + 36;
+          const endX = tx + tw - 36;
+          const stepX = events.length > 1 ? (endX - startX) / (events.length - 1) : 0;
+          for (let i = 0; i < events.length; i++) {
+            const evtX = events.length === 1 ? tx + tw / 2 : startX + i * stepX;
+            if (Math.abs(docX - evtX) <= 65) {
+              handleUpdateShape(hitTimeline, {
+                ...hitTimeline,
+                params: { ...hitTimeline.params, activeEventIndex: i },
+              });
+              return;
+            }
+          }
+        } else {
+          const startY = ty + 70;
+          const endY = ty + th - 30;
+          const stepY = events.length > 1 ? (endY - startY) / (events.length - 1) : 0;
+          for (let i = 0; i < events.length; i++) {
+            const evtY = events.length === 1 ? ty + th / 2 : startY + i * stepY;
+            if (Math.abs(docY - evtY) <= 45) {
+              handleUpdateShape(hitTimeline, {
+                ...hitTimeline,
+                params: { ...hitTimeline.params, activeEventIndex: i },
+              });
+              return;
+            }
+          }
+        }
+      }
+
+      // 3. Process Chart Click: jump to clicked process step
+      const hitProcess = [...page.objects].reverse().find((obj) => {
+        if (obj.type !== 'shape' || (obj as ShapeObject).shapeType !== 'processChart') return false;
+        const s = obj as ShapeObject;
+        const sw = s.width || 740;
+        const sh = s.height || 260;
+        return docX >= s.x && docX <= s.x + sw && docY >= s.y && docY <= s.y + sh;
+      }) as ShapeObject | undefined;
+
+      if (hitProcess) {
+        const steps: any[] = hitProcess.params?.steps || [];
+        const px = hitProcess.x;
+        const pw = hitProcess.width || 740;
+        const stepW = (pw - 32) / (steps.length || 1);
+        const relX = docX - (px + 16);
+        if (relX >= 0 && relX <= pw - 32) {
+          const clickedStepIdx = Math.min(steps.length - 1, Math.max(0, Math.floor(relX / stepW)));
+          handleUpdateShape(hitProcess, {
+            ...hitProcess,
+            params: { ...hitProcess.params, activeStepIndex: clickedStepIdx },
+          });
+          return;
         }
       }
     };
 
     canvas.addEventListener('dblclick', handleCanvasDoubleClick);
+    canvas.addEventListener('click', handleCanvasClick);
     return () => {
       canvas.removeEventListener('dblclick', handleCanvasDoubleClick);
+      canvas.removeEventListener('click', handleCanvasClick);
     };
-  }, [toolState.zoom, toolState.panX, toolState.panY, setSelectedObject]);
+  }, [toolState.zoom, toolState.panX, toolState.panY, toolState.activeTool, setSelectedObject, handleUpdateShape]);
 
   // Sync tools & settings to engine
   useEffect(() => {
@@ -1291,7 +1561,6 @@ export function WhiteboardCanvas(): React.ReactElement {
           setSelectedObject(prev);
         },
       });
-      setToastMessage?.('Element locked & moved to bottom layer');
     } else {
       const restoredLayerId =
         prev.type === 'stroke' ? 'drawing' : prev.type === 'image' ? 'imported-media' : 'objects';
@@ -1313,9 +1582,80 @@ export function WhiteboardCanvas(): React.ReactElement {
           setSelectedObject(prev);
         },
       });
-      setToastMessage?.('Element unlocked');
     }
-  }, [selectedObject, commandSystem, docDispatch, setSelectedObject, setToastMessage]);
+  }, [selectedObject, commandSystem, docDispatch, setSelectedObject]);
+
+  const handleUnlockSelectedObject = useCallback(() => {
+    if (!selectedObject) return;
+    const pageIndex = currentPageIndexRef.current;
+    const page = currentPageRef.current;
+    if (!page) return;
+
+    const restoredLayerId =
+      selectedObject.layerId === 'background'
+        ? selectedObject.type === 'stroke'
+          ? 'drawing'
+          : selectedObject.type === 'image'
+          ? 'imported-media'
+          : 'objects'
+        : selectedObject.layerId;
+
+    const prev = selectedObject;
+    const updated = { ...selectedObject, locked: false, layerId: restoredLayerId };
+    commandSystem.execute({
+      id: uuidv4(),
+      description: 'Unlock element',
+      execute() {
+        docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: updated });
+        setSelectedObject(updated);
+      },
+      undo() {
+        docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: prev });
+        setSelectedObject(prev);
+      },
+    });
+  }, [selectedObject, commandSystem, docDispatch, setSelectedObject]);
+
+  const handleUnlockCanvas = useCallback(() => {
+    const pageIndex = currentPageIndexRef.current;
+    const page = currentPageRef.current;
+    if (!page) return;
+
+    // 1. Unlock all locked layers on the current page
+    if (page.layers) {
+      page.layers.forEach((l) => {
+        if (l.locked) {
+          docDispatch({ type: 'SET_LAYER_LOCKED', pageIndex, layerId: l.id, locked: false });
+        }
+      });
+    }
+
+    // 2. Unlock all locked objects and restore layerId if it was pushed to background
+    let modified = false;
+    const updatedObjects = (page.objects || []).map((o) => {
+      if (o.locked) {
+        modified = true;
+        const restoredLayerId =
+          o.layerId === 'background'
+            ? o.type === 'stroke'
+              ? 'drawing'
+              : o.type === 'image'
+              ? 'imported-media'
+              : 'objects'
+            : o.layerId;
+        return { ...o, locked: false, layerId: restoredLayerId };
+      }
+      return o;
+    });
+
+    if (modified) {
+      docDispatch({ type: 'REORDER_OBJECTS', pageIndex, objects: updatedObjects });
+    }
+
+    if (selectedObject?.locked) {
+      setSelectedObject({ ...selectedObject, locked: false });
+    }
+  }, [docDispatch, selectedObject, setSelectedObject]);
 
   // ─── Image Screen Fit & Sizing Actions ─────────────────────────────────────
   const handleImageFitAction = useCallback(
@@ -1752,9 +2092,20 @@ export function WhiteboardCanvas(): React.ReactElement {
       }
     };
 
+    const handleSmartboardRedraw = () => {
+      if (currentPageRef.current && engineRef.current) {
+        engineRef.current.redrawCommitted(
+          currentPageRef.current.objects,
+          selectedObjectRef.current?.id,
+          selectedObjectRef.current
+        );
+      }
+    };
+
     window.addEventListener('resize', handleResize);
     window.addEventListener('focus', handleFocusOrVisibility);
     document.addEventListener('visibilitychange', handleFocusOrVisibility);
+    window.addEventListener('smartboard:redraw', handleSmartboardRedraw);
 
     const observer = new ResizeObserver(() => {
       handleResize();
@@ -1769,6 +2120,7 @@ export function WhiteboardCanvas(): React.ReactElement {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('focus', handleFocusOrVisibility);
       document.removeEventListener('visibilitychange', handleFocusOrVisibility);
+      window.removeEventListener('smartboard:redraw', handleSmartboardRedraw);
       observer.disconnect();
     };
   }, [drawBackground]);
@@ -1848,15 +2200,64 @@ export function WhiteboardCanvas(): React.ReactElement {
     if (selectedScreenBBox) {
       const containerW = containerRef.current?.clientWidth || window.innerWidth;
       const containerH = containerRef.current?.clientHeight || window.innerHeight;
+      const pillW = 48;
+      const pillH = 340;
 
       if (selectedScreenBBox.left + selectedScreenBBox.width + 60 <= containerW) {
         pillLeft = selectedScreenBBox.left + selectedScreenBBox.width + 18;
+      } else if (selectedScreenBBox.left - 64 >= 12) {
+        pillLeft = selectedScreenBBox.left - 64;
       } else {
-        pillLeft = Math.max(12, selectedScreenBBox.left - 64);
+        pillLeft = Math.max(12, Math.min(containerW - pillW - 12, selectedScreenBBox.left + 12));
       }
-      pillTop = Math.max(16, Math.min(containerH - 340, selectedScreenBBox.top));
+      pillLeft = Math.max(12, Math.min(containerW - pillW - 12, pillLeft));
+      // Top margin clearance (min 68px) ensures the top canvas menu bar never overlaps the Delete button
+      pillTop = Math.max(68, Math.min(containerH - pillH - 16, selectedScreenBBox.top));
     }
   }
+
+  // Dynamic flyout positioning helper ensuring 100% on-screen visibility (Requirement 1)
+  const getFlyoutStyle = (menuW: number, menuH: number, triggerOffsetTop: number = 0) => {
+    const containerW = containerRef.current?.clientWidth || window.innerWidth;
+    const containerH = containerRef.current?.clientHeight || window.innerHeight;
+
+    let targetScreenX: number;
+    if (pillLeft + 48 + menuW <= containerW - 8) {
+      targetScreenX = pillLeft + 48;
+    } else if (pillLeft - menuW - 8 >= 8) {
+      targetScreenX = pillLeft - menuW - 8;
+    } else {
+      targetScreenX = Math.max(8, Math.min(containerW - menuW - 8, pillLeft + 48));
+    }
+    const localLeft = targetScreenX - pillLeft;
+
+    const idealScreenY = pillTop + triggerOffsetTop;
+    const targetScreenY = Math.max(8, Math.min(containerH - menuH - 8, idealScreenY));
+    const localTop = targetScreenY - pillTop;
+
+    return {
+      left: localLeft,
+      top: localTop,
+      maxHeight: Math.min(menuH, Math.max(160, containerH - 24)),
+      overflowY: 'auto' as const,
+    };
+  };
+
+  // Check if current page has any locked layers (isolated from single object locks)
+  const hasLockedLayers = (currentPage?.layers || []).some((l) => l.locked);
+  const isCanvasOrLayerLocked = hasLockedLayers;
+  const isSelectedObjectLocked = Boolean(
+    selectedObject?.locked ||
+    (currentPage?.layers || []).find((l) => l.id === selectedObject?.layerId)?.locked
+  );
+
+  // Find if any geography map on the board is in 'annotate' mode (Requirement 4 & 5)
+  const activeAnnotatingMap = (currentPage?.objects || []).find(
+    (o) =>
+      o.type === 'shape' &&
+      isGeoShapeType((o as ShapeObject).shapeType) &&
+      (o as ShapeObject).params?.interactionMode === 'annotate'
+  ) as ShapeObject | undefined;
 
   return (
     <div
@@ -1872,14 +2273,9 @@ export function WhiteboardCanvas(): React.ReactElement {
         aria-label="Drawing surface"
         role="img"
         tabIndex={-1}
-        onFocus={(e) => {
-          if (isTypingOrInputFocused()) {
-            e.preventDefault();
-            const activeEl = document.activeElement as HTMLElement | null;
-            if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
-              activeEl.focus();
-            }
-          }
+        onFocus={() => {
+          closeAllPopups();
+          setActiveFlyout('none');
         }}
         style={{
           touchAction: 'none',
@@ -1898,6 +2294,41 @@ export function WhiteboardCanvas(): React.ReactElement {
               : 'default',
         }}
       />
+
+      {/* Floating Canvas / Layer / Object Lock Indicator & Unlock Button at Top-Right (Requirement 4) */}
+      {toolState.activeTool === 'select' && (isCanvasOrLayerLocked || isSelectedObjectLocked) && (
+        <div
+          className="canvas-lock-indicator-badge"
+          style={{
+            position: 'absolute',
+            top: 14,
+            right: 18,
+            zIndex: 130,
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="canvas-unlock-btn"
+            onClick={isSelectedObjectLocked && !isCanvasOrLayerLocked ? handleUnlockSelectedObject : handleUnlockCanvas}
+            title={isSelectedObjectLocked ? 'Element is locked. Click to unlock' : 'Canvas or layer is locked. Click to unlock'}
+            style={{
+              padding: '6px 9px',
+              borderRadius: '8px',
+              background: 'rgba(239, 68, 68, 0.2)',
+              border: '1px solid rgba(239, 68, 68, 0.45)',
+              color: '#ef4444',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '16px',
+            }}
+          >
+            <span className="lock-icon">🔒</span>
+          </button>
+        </div>
+      )}
 
       {/* Quick "✏️ Edit Text/Formula" floating badge directly above selected text element */}
       {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'text' && selectedScreenBBox && (
@@ -3240,6 +3671,1201 @@ export function WhiteboardCanvas(): React.ReactElement {
         </div>
       )}
 
+      {/* 🏛️ Quick Hierarchy Chart floating toolbar */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'hierarchyChart' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 46),
+            zIndex: 122,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(15, 23, 42, 0.96)',
+            padding: '4px 8px',
+            borderRadius: '10px',
+            border: '1px solid rgba(56, 189, 248, 0.4)',
+            boxShadow: '0 6px 16px rgba(0,0,0,0.5)',
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Edit Hierarchy Chart in Designer (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingHierarchyShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>🏛️</span>
+            <span>{(selectedObject as ShapeObject).label || 'Hierarchy Chart'}</span>
+          </button>
+
+          {/* Quick Theme Switcher */}
+          <button
+            className="cs-action-btn-sm"
+            title="Cycle Color Theme (Ocean, Emerald, Sunset, Purple, Monochrome)"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const themes: HierarchyTheme[] = ['ocean', 'emerald', 'sunset', 'purple', 'monochrome'];
+              const curTheme: HierarchyTheme = s.params?.theme || 'ocean';
+              const nextTheme = themes[(themes.indexOf(curTheme) + 1) % themes.length];
+              handleUpdateShape(s, {
+                ...s,
+                params: { ...s.params, theme: nextTheme },
+              });
+            }}
+            style={{ padding: '3px 8px', fontSize: '11px', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            🎨 Theme: {(selectedObject as ShapeObject).params?.theme || 'ocean'}
+          </button>
+
+          {/* Quick Style Switcher */}
+          <button
+            className="cs-action-btn-sm"
+            title="Cycle Box Style (Rounded, Sharp, Pill, Flat)"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const styles: HierarchyStyle[] = ['rounded', 'sharp', 'pill', 'flat'];
+              const curStyle: HierarchyStyle = s.params?.style || 'rounded';
+              const nextStyle = styles[(styles.indexOf(curStyle) + 1) % styles.length];
+              handleUpdateShape(s, {
+                ...s,
+                params: { ...s.params, style: nextStyle },
+              });
+            }}
+            style={{ padding: '3px 8px', fontSize: '11px', color: '#a7f3d0', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            📐 {(selectedObject as ShapeObject).params?.style || 'rounded'}
+          </button>
+
+          {/* Quick Font Size Adjuster */}
+          <button
+            className="cs-action-btn-sm"
+            title="Decrease Font Size"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const curFont = s.params?.fontSize || 14;
+              const nextFont = Math.max(10, curFont - 1);
+              handleUpdateShape(s, {
+                ...s,
+                params: { ...s.params, fontSize: nextFont },
+              });
+            }}
+            style={{ padding: '2px 6px', fontSize: '11px', cursor: 'pointer' }}
+          >
+            A-
+          </button>
+          <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+            {((selectedObject as ShapeObject).params?.fontSize || 14)}px
+          </span>
+          <button
+            className="cs-action-btn-sm"
+            title="Increase Font Size"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const curFont = s.params?.fontSize || 14;
+              const nextFont = Math.min(24, curFont + 1);
+              handleUpdateShape(s, {
+                ...s,
+                params: { ...s.params, fontSize: nextFont },
+              });
+            }}
+            style={{ padding: '2px 6px', fontSize: '11px', cursor: 'pointer' }}
+          >
+            A+
+          </button>
+
+          {/* Quick Add Child Node on-board */}
+          <button
+            className="cs-action-btn-sm"
+            title="Add New Child Node to Hierarchy"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const tree = JSON.parse(JSON.stringify(s.params?.tree || DEFAULT_HIERARCHY_TREE));
+              const newChild: HierarchyNode = {
+                id: `node-${Date.now()}`,
+                label: 'New Child Node',
+                role: 'Sub-unit',
+              };
+              if (!tree.children) tree.children = [];
+              tree.children.push(newChild);
+              handleUpdateShape(s, {
+                ...s,
+                params: { ...s.params, tree },
+              });
+            }}
+            style={{ padding: '3px 8px', fontSize: '11px', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.2)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+          >
+            ➕ Add Node
+          </button>
+        </div>
+      )}
+
+      {/* 🧠 Quick Interactive Mindmap floating toolbar */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'mindmap' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 46),
+            zIndex: 122,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(15, 23, 42, 0.96)',
+            padding: '4px 8px',
+            borderRadius: '10px',
+            border: '1px solid rgba(129, 140, 248, 0.4)',
+            boxShadow: '0 6px 16px rgba(0,0,0,0.5)',
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Open Mindmap Tree Editor (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingMindmapShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>🧠</span>
+            <span>{(selectedObject as ShapeObject).label || 'Mindmap'}</span>
+          </button>
+
+          {/* Toggle Expand / Collapse of active branch */}
+          <button
+            className="cs-action-btn-sm"
+            title="Expand / Collapse Branches"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const root = JSON.parse(JSON.stringify(s.params?.root || DEFAULT_MINDMAP));
+              const selId = s.params?.selectedNodeId || root.id;
+              if (selId === root.id) {
+                const anyCollapsed = root.children?.some((c: any) => c.collapsed);
+                root.children?.forEach((c: any) => {
+                  c.collapsed = !anyCollapsed;
+                });
+              } else {
+                const toggleInTree = (n: any): boolean => {
+                  if (n.id === selId) {
+                    n.collapsed = !n.collapsed;
+                    return true;
+                  }
+                  if (n.children) {
+                    for (const c of n.children) {
+                      if (toggleInTree(c)) return true;
+                    }
+                  }
+                  return false;
+                };
+                toggleInTree(root);
+              }
+              handleUpdateShape(s, {
+                ...s,
+                params: { ...s.params, root },
+              });
+            }}
+            style={{ padding: '3px 8px', fontSize: '11px', color: '#c084fc', background: 'rgba(192, 132, 252, 0.15)', border: '1px solid rgba(192, 132, 252, 0.3)', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            👁️ Toggle Branch
+          </button>
+
+          {/* Quick Add Idea on-board */}
+          <button
+            className="cs-action-btn-sm"
+            title="Add Idea to Mindmap on board"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const root = JSON.parse(JSON.stringify(s.params?.root || DEFAULT_MINDMAP));
+              const selId = s.params?.selectedNodeId || root.id;
+              const colors = ['#38bdf8', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
+              const rndColor = colors[Math.floor(Math.random() * colors.length)];
+              const newIdea: MindmapNode = {
+                id: `idea-${Date.now()}`,
+                text: `New Idea ${(root.children?.length || 0) + 1}`,
+                color: rndColor,
+                icon: '💡',
+              };
+              if (selId === root.id) {
+                if (!root.children) root.children = [];
+                root.children.push(newIdea);
+              } else {
+                const addInTree = (n: any): boolean => {
+                  if (n.id === selId) {
+                    if (!n.children) n.children = [];
+                    n.children.push(newIdea);
+                    n.collapsed = false;
+                    return true;
+                  }
+                  if (n.children) {
+                    for (const c of n.children) {
+                      if (addInTree(c)) return true;
+                    }
+                  }
+                  return false;
+                };
+                if (!addInTree(root)) {
+                  if (!root.children) root.children = [];
+                  root.children.push(newIdea);
+                }
+              }
+              handleUpdateShape(s, {
+                ...s,
+                params: { ...s.params, root, selectedNodeId: newIdea.id },
+              });
+            }}
+            style={{ padding: '3px 8px', fontSize: '11px', color: '#818cf8', background: 'rgba(129, 140, 248, 0.2)', border: '1px solid rgba(129, 140, 248, 0.4)', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+          >
+            ➕ Add Idea
+          </button>
+
+          {/* Cycle Branch Highlights */}
+          <button
+            className="cs-action-btn-sm"
+            title="Select & Highlight Next Node"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const root = s.params?.root || DEFAULT_MINDMAP;
+              const allIds: string[] = [root.id];
+              const collectIds = (n: any) => {
+                if (n.children) {
+                  for (const c of n.children) {
+                    allIds.push(c.id);
+                    collectIds(c);
+                  }
+                }
+              };
+              collectIds(root);
+              const curId = s.params?.selectedNodeId || root.id;
+              const nextId = allIds[(allIds.indexOf(curId) + 1) % allIds.length];
+              handleUpdateShape(s, {
+                ...s,
+                params: { ...s.params, selectedNodeId: nextId },
+              });
+            }}
+            style={{ padding: '3px 8px', fontSize: '11px', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            ⚡ Next Node ▶
+          </button>
+        </div>
+      )}
+
+      {/* ⏳ Quick Animated Timeline floating toolbar */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'timeline' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 46),
+            zIndex: 122,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(15, 23, 42, 0.96)',
+            padding: '4px 8px',
+            borderRadius: '10px',
+            border: '1px solid rgba(2, 132, 199, 0.5)',
+            boxShadow: '0 6px 16px rgba(0,0,0,0.5)',
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Edit Events, Images & Dates in Timeline Designer (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingTimelineShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>⏳</span>
+            <span>{(selectedObject as ShapeObject).label || 'Timeline'}</span>
+          </button>
+
+          {/* Stepper Navigation: Left / Right Arrow */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <button
+              className="cs-action-btn-sm"
+              title="Previous Event (Animated Transition)"
+              onClick={(e) => {
+                e.stopPropagation();
+                const s = selectedObject as ShapeObject;
+                const events: any[] = s.params?.events || [];
+                const cur = s.params?.activeEventIndex || 0;
+                const prevIdx = (cur - 1 + events.length) % events.length;
+                handleUpdateShape(s, {
+                  ...s,
+                  params: { ...s.params, activeEventIndex: prevIdx },
+                });
+              }}
+              style={{ padding: '3px 8px', fontSize: '11px', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.2)', border: '1px solid rgba(56, 189, 248, 0.4)', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              ◀ Prev
+            </button>
+            <span style={{ fontSize: '11px', color: '#e2e8f0', minWidth: '45px', textAlign: 'center' }}>
+              {((selectedObject as ShapeObject).params?.activeEventIndex || 0) + 1} / {((selectedObject as ShapeObject).params?.events?.length || 1)}
+            </span>
+            <button
+              className="cs-action-btn-sm"
+              title="Next Event (Animated Transition)"
+              onClick={(e) => {
+                e.stopPropagation();
+                const s = selectedObject as ShapeObject;
+                const events: any[] = s.params?.events || [];
+                const cur = s.params?.activeEventIndex || 0;
+                const nextIdx = (cur + 1) % events.length;
+                handleUpdateShape(s, {
+                  ...s,
+                  params: { ...s.params, activeEventIndex: nextIdx },
+                });
+              }}
+              style={{ padding: '3px 8px', fontSize: '11px', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.2)', border: '1px solid rgba(56, 189, 248, 0.4)', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              Next ▶
+            </button>
+          </div>
+
+          {/* Layout Orientation Switcher */}
+          <button
+            className="cs-action-btn-sm"
+            title="Switch Between Horizontal & Vertical Layouts"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const curOri = s.params?.orientation || 'horizontal';
+              const nextOri = curOri === 'horizontal' ? 'vertical' : 'horizontal';
+              handleUpdateShape(s, {
+                ...s,
+                width: nextOri === 'horizontal' ? 760 : 480,
+                height: nextOri === 'horizontal' ? 360 : 540,
+                params: { ...s.params, orientation: nextOri },
+              });
+            }}
+            style={{ padding: '3px 8px', fontSize: '11px', color: '#a7f3d0', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            {((selectedObject as ShapeObject).params?.orientation || 'horizontal') === 'horizontal' ? '↔ Horizontal' : '↕ Vertical'}
+          </button>
+
+          {/* Quick Add Event on-board */}
+          <button
+            className="cs-action-btn-sm"
+            title="Add New Milestone Event"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const events: TimelineEvent[] = JSON.parse(JSON.stringify(s.params?.events || DEFAULT_TIMELINE_EVENTS));
+              const newEvt: TimelineEvent = {
+                id: `evt-${Date.now()}`,
+                dateOrEra: `${2024 + events.length}`,
+                title: `New Event ${events.length + 1}`,
+                description: 'Description of key milestone or historical discovery.',
+                color: '#38bdf8',
+              };
+              events.push(newEvt);
+              handleUpdateShape(s, {
+                ...s,
+                params: { ...s.params, events, activeEventIndex: events.length - 1 },
+              });
+            }}
+            style={{ padding: '3px 8px', fontSize: '11px', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.18)', border: '1px solid rgba(245, 158, 11, 0.4)', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+          >
+            ➕ Add Event
+          </button>
+        </div>
+      )}
+
+      {/* 🔄 Quick Process Flow Chart floating toolbar */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'processChart' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 46),
+            zIndex: 122,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(15, 23, 42, 0.96)',
+            padding: '4px 8px',
+            borderRadius: '10px',
+            border: '1px solid rgba(56, 189, 248, 0.4)',
+            boxShadow: '0 6px 16px rgba(0,0,0,0.5)',
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="quick-edit-btn"
+            title="Edit Steps, Styles & Details in Process Chart Designer (or double-click)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingProcessShape(selectedObject as ShapeObject);
+            }}
+          >
+            <span>🔄</span>
+            <span>{(selectedObject as ShapeObject).label || 'Process Chart'}</span>
+          </button>
+
+          {/* Stepper Navigation */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <button
+              className="cs-action-btn-sm"
+              title="Previous Step"
+              onClick={(e) => {
+                e.stopPropagation();
+                const s = selectedObject as ShapeObject;
+                const steps: any[] = s.params?.steps || [];
+                const cur = s.params?.activeStepIndex || 0;
+                const prevIdx = (cur - 1 + steps.length) % steps.length;
+                handleUpdateShape(s, {
+                  ...s,
+                  params: { ...s.params, activeStepIndex: prevIdx },
+                });
+              }}
+              style={{ padding: '3px 8px', fontSize: '11px', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.2)', border: '1px solid rgba(56, 189, 248, 0.4)', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              ◀ Prev
+            </button>
+            <span style={{ fontSize: '11px', color: '#e2e8f0', minWidth: '45px', textAlign: 'center' }}>
+              {((selectedObject as ShapeObject).params?.activeStepIndex || 0) + 1} / {((selectedObject as ShapeObject).params?.steps?.length || 1)}
+            </span>
+            <button
+              className="cs-action-btn-sm"
+              title="Next Step"
+              onClick={(e) => {
+                e.stopPropagation();
+                const s = selectedObject as ShapeObject;
+                const steps: any[] = s.params?.steps || [];
+                const cur = s.params?.activeStepIndex || 0;
+                const nextIdx = (cur + 1) % steps.length;
+                handleUpdateShape(s, {
+                  ...s,
+                  params: { ...s.params, activeStepIndex: nextIdx },
+                });
+              }}
+              style={{ padding: '3px 8px', fontSize: '11px', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.2)', border: '1px solid rgba(56, 189, 248, 0.4)', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              Next ▶
+            </button>
+          </div>
+
+          {/* Quick Style Switcher */}
+          <button
+            className="cs-action-btn-sm"
+            title="Cycle Process Chart Style (Chevron, Numbered Cards, Circular Cycle, Staged Pipeline)"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const styles: ProcessChartStyle[] = ['chevron', 'cards', 'cycle', 'pipeline'];
+              const curStyle: ProcessChartStyle = s.params?.style || 'chevron';
+              const nextStyle = styles[(styles.indexOf(curStyle) + 1) % styles.length];
+              handleUpdateShape(s, {
+                ...s,
+                height: nextStyle === 'cycle' ? 440 : 260,
+                params: { ...s.params, style: nextStyle },
+              });
+            }}
+            style={{ padding: '3px 8px', fontSize: '11px', color: '#a7f3d0', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            🎨 Style: {(selectedObject as ShapeObject).params?.style || 'chevron'}
+          </button>
+
+          {/* Quick Add Step on-board */}
+          <button
+            className="cs-action-btn-sm"
+            title="Add Next Step to Process"
+            onClick={(e) => {
+              e.stopPropagation();
+              const s = selectedObject as ShapeObject;
+              const steps: ProcessStep[] = JSON.parse(JSON.stringify(s.params?.steps || DEFAULT_PROCESS_STEPS));
+              const colors = ['#38bdf8', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
+              const nextNum = steps.length + 1;
+              const newStep: ProcessStep = {
+                id: `step-${Date.now()}`,
+                stepNumber: nextNum,
+                title: `Step ${nextNum}: Action`,
+                description: 'Procedure details and execution rules.',
+                color: colors[(nextNum - 1) % colors.length],
+              };
+              steps.push(newStep);
+              handleUpdateShape(s, {
+                ...s,
+                params: { ...s.params, steps, activeStepIndex: steps.length - 1 },
+              });
+            }}
+            style={{ padding: '3px 8px', fontSize: '11px', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.18)', border: '1px solid rgba(245, 158, 11, 0.4)', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+          >
+            ➕ Add Step
+          </button>
+        </div>
+      )}
+
+      {/* 📽️ Presentation Mode Exit HUD Overlay (when any Geography resource is in presentation mode) */}
+      {(() => {
+        const presObj = currentPage?.objects.find(
+          (o) =>
+            o.type === 'shape' &&
+            isGeoShapeType((o as ShapeObject).shapeType) &&
+            (o as ShapeObject).params?.interactionMode === 'presentation'
+        ) as ShapeObject | undefined;
+        if (!presObj) return null;
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              top: 18,
+              right: 18,
+              zIndex: 150,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              background: 'rgba(15, 23, 42, 0.95)',
+              padding: '8px 16px',
+              borderRadius: '10px',
+              border: '2px solid #a855f7',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6)',
+              backdropFilter: 'blur(8px)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <span style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 600 }}>
+              📽️ Presentation Mode: {presObj.label || 'Geography Map'}
+            </span>
+            <button
+              onClick={() => {
+                const saved = presObj.params?.savedBoundsBeforePresentation;
+                handleUpdateShape(presObj, {
+                  x: saved?.x ?? 180,
+                  y: saved?.y ?? 140,
+                  width: saved?.width ?? 740,
+                  height: saved?.height ?? 480,
+                  params: {
+                    ...presObj.params,
+                    interactionMode: 'select',
+                    savedBoundsBeforePresentation: undefined,
+                  },
+                });
+                setToastMessage?.('Exited Presentation Mode');
+              }}
+              style={{
+                background: '#ef4444',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              ✕ Exit Presentation Mode
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* 🗺️ Interactive Geography Whiteboard Object Floating Control Toolbar */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && isGeoShapeType((selectedObject as ShapeObject).shapeType) && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill geo-floating-toolbar"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 50),
+            zIndex: 122,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(15, 23, 42, 0.96)',
+            padding: '5px 10px',
+            borderRadius: '10px',
+            border: '1px solid rgba(56, 189, 248, 0.5)',
+            boxShadow: '0 6px 20px rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(8px)',
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {/* If map is locked, show locked badge */}
+          {isSelectedObjectLocked && (
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#f59e0b',
+                background: 'rgba(245, 158, 11, 0.2)',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+              title="Map is locked on canvas"
+            >
+              🔒 Map Locked
+            </span>
+          )}
+
+          {/* If map is NOT locked, allow opening Centre, Atlas, and 3D Globe */}
+          {!isSelectedObjectLocked && (
+            <>
+              <button
+                className="quick-edit-btn"
+                title="Open Geography Resource Centre (or double-click map)"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowGeoResourceModal(true);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#38bdf8',
+                  fontWeight: 600,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                <span>🗺️</span>
+                <span>{(selectedObject as ShapeObject).label || 'Geography Map'}</span>
+              </button>
+
+              <button
+                className="cs-action-btn-sm"
+                title="Open Survey of India Maps & World Atlas Explorer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowGeoAtlasModal(true);
+                }}
+                style={{
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#38bdf8',
+                  background: 'rgba(56, 189, 248, 0.16)',
+                  border: '1px solid rgba(56, 189, 248, 0.4)',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span>🇮🇳🌍 Atlas</span>
+              </button>
+
+              <button
+                className="cs-action-btn-sm"
+                title="Open Interactive 3D Earth & Globe Laboratory"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowGlobeModal(true);
+                }}
+                style={{
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#38bdf8',
+                  background: 'rgba(56, 189, 248, 0.16)',
+                  border: '1px solid rgba(56, 189, 248, 0.4)',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span>🌐 3D Globe</span>
+              </button>
+            </>
+          )}
+
+          <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.15)' }} />
+
+          {/* Four Interaction Modes: Select, Interact, Annotate, Present */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', background: 'rgba(0,0,0,0.3)', padding: '2px', borderRadius: '6px' }}>
+            {/* Mode 1: Select & Move */}
+            <button
+              title="Selection Mode: Move, Resize, Rotate & Duplicate"
+              onClick={(e) => {
+                e.stopPropagation();
+                const s = selectedObject as ShapeObject;
+                handleUpdateShape(s, {
+                  ...s,
+                  params: { ...s.params, interactionMode: 'select' },
+                });
+              }}
+              style={{
+                padding: '3px 8px',
+                fontSize: '11px',
+                fontWeight: (selectedObject as ShapeObject).params?.interactionMode === 'select' || !(selectedObject as ShapeObject).params?.interactionMode ? 700 : 400,
+                color: (selectedObject as ShapeObject).params?.interactionMode === 'select' || !(selectedObject as ShapeObject).params?.interactionMode ? '#ffffff' : '#94a3b8',
+                background: (selectedObject as ShapeObject).params?.interactionMode === 'select' || !(selectedObject as ShapeObject).params?.interactionMode ? '#0284c7' : 'transparent',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              👆 Select
+            </button>
+
+            {/* Mode 2: Interactive Pan / Zoom / Click */}
+            <button
+              title="Interaction Mode: Pan map camera, scroll zoom, and click features"
+              onClick={(e) => {
+                e.stopPropagation();
+                const s = selectedObject as ShapeObject;
+                handleUpdateShape(s, {
+                  ...s,
+                  params: { ...s.params, interactionMode: 'interact' },
+                });
+              }}
+              style={{
+                padding: '3px 8px',
+                fontSize: '11px',
+                fontWeight: (selectedObject as ShapeObject).params?.interactionMode === 'interact' ? 700 : 400,
+                color: (selectedObject as ShapeObject).params?.interactionMode === 'interact' ? '#ffffff' : '#94a3b8',
+                background: (selectedObject as ShapeObject).params?.interactionMode === 'interact' ? '#0284c7' : 'transparent',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              🧭 Interact
+            </button>
+
+            {/* Mode 3: Annotate */}
+            <button
+              title="Annotation Mode: Draw notes and highlights directly above the map"
+              onClick={(e) => {
+                e.stopPropagation();
+                const s = selectedObject as ShapeObject;
+                handleUpdateShape(s, {
+                  ...s,
+                  params: { ...s.params, interactionMode: 'annotate' },
+                });
+                setActiveTool('pen');
+              }}
+              style={{
+                padding: '3px 8px',
+                fontSize: '11px',
+                fontWeight: (selectedObject as ShapeObject).params?.interactionMode === 'annotate' ? 700 : 400,
+                color: (selectedObject as ShapeObject).params?.interactionMode === 'annotate' ? '#ffffff' : '#94a3b8',
+                background: (selectedObject as ShapeObject).params?.interactionMode === 'annotate' ? '#d97706' : 'transparent',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              ✍️ Annotate
+            </button>
+
+            {/* Mode 4: Presentation */}
+            <button
+              title="Presentation Mode: Expand map across classroom display for immersive lecture"
+              onClick={(e) => {
+                e.stopPropagation();
+                const s = selectedObject as ShapeObject;
+                const canvasW = containerRef.current?.clientWidth || 1920;
+                const canvasH = containerRef.current?.clientHeight || 1080;
+                handleUpdateShape(s, {
+                  ...s,
+                  x: 30,
+                  y: 30,
+                  width: Math.max(800, canvasW - 60),
+                  height: Math.max(500, canvasH - 60),
+                  params: {
+                    ...s.params,
+                    interactionMode: 'presentation',
+                    savedBoundsBeforePresentation: {
+                      x: s.x,
+                      y: s.y,
+                      width: s.width,
+                      height: s.height,
+                    },
+                  },
+                });
+              }}
+              style={{
+                padding: '3px 8px',
+                fontSize: '11px',
+                fontWeight: (selectedObject as ShapeObject).params?.interactionMode === 'presentation' ? 700 : 400,
+                color: (selectedObject as ShapeObject).params?.interactionMode === 'presentation' ? '#ffffff' : '#94a3b8',
+                background: (selectedObject as ShapeObject).params?.interactionMode === 'presentation' ? '#7c3aed' : 'transparent',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              📽️ Present
+            </button>
+          </div>
+
+          <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.15)' }} />
+
+          {/* Camera Controls: Zoom In & Zoom Out (switches to interactive mode per Requirement 3) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <button
+              className="cs-action-btn-sm"
+              title="Zoom In (switches to Interactive mode to pan and explore with stylus)"
+              onClick={(e) => {
+                e.stopPropagation();
+                const s = selectedObject as ShapeObject;
+                const cur = s.params?.zoomLevel || 1.0;
+                handleUpdateShape(s, {
+                  ...s,
+                  params: {
+                    ...s.params,
+                    zoomLevel: Math.min(6.0, cur * 1.25),
+                    interactionMode: 'interact',
+                  },
+                });
+                setActiveTool('select');
+              }}
+              style={{ padding: '3px 7px', fontSize: '11px', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.18)', border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              🔍 +
+            </button>
+            <button
+              className="cs-action-btn-sm"
+              title="Zoom Out (switches to Interactive mode to pan and explore with stylus)"
+              onClick={(e) => {
+                e.stopPropagation();
+                const s = selectedObject as ShapeObject;
+                const cur = s.params?.zoomLevel || 1.0;
+                handleUpdateShape(s, {
+                  ...s,
+                  params: {
+                    ...s.params,
+                    zoomLevel: Math.max(0.5, cur * 0.8),
+                    interactionMode: 'interact',
+                  },
+                });
+                setActiveTool('select');
+              }}
+              style={{ padding: '3px 7px', fontSize: '11px', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.18)', border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              🔍 -
+            </button>
+            {!isSelectedObjectLocked && (
+              <button
+                className="cs-action-btn-sm"
+                title="Reset Viewport Pan and Zoom"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const s = selectedObject as ShapeObject;
+                  handleUpdateShape(s, {
+                    ...s,
+                    params: { ...s.params, zoomLevel: 1.0, panOffset: { x: 0, y: 0 } },
+                  });
+                }}
+                style={{ padding: '3px 7px', fontSize: '11px', color: '#94a3b8', background: 'rgba(148, 163, 184, 0.15)', border: '1px solid rgba(148, 163, 184, 0.3)', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                ↺ Reset
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ✍️ Persistent Floating Map Annotate & Interaction Mode Bar (Requirements 1, 2, 4, 5, 8) */}
+      {activeAnnotatingMap && (
+        <div
+          className="map-annotation-mode-bar"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, Math.min((containerRef.current?.clientWidth || window.innerWidth) - 620, (activeAnnotatingMap.x + toolState.panX) * toolState.zoom)),
+            top: Math.max(12, Math.min((containerRef.current?.clientHeight || window.innerHeight) - 70, (activeAnnotatingMap.y + toolState.panY) * toolState.zoom - 52)),
+            zIndex: 126,
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {/* Map Title / Badge */}
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span>🗺️</span>
+            <span>{activeAnnotatingMap.label || 'Map'}: Annotating</span>
+          </span>
+
+          <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.2)' }} />
+
+          {/* Mode Switchers: Select, Interact, Annotate */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <button
+              title="Switch to Select Mode (Move / Resize)"
+              onClick={() => {
+                handleUpdateShape(activeAnnotatingMap, {
+                  ...activeAnnotatingMap,
+                  params: { ...activeAnnotatingMap.params, interactionMode: 'select' },
+                });
+                setActiveTool('select');
+                setSelectedObject(activeAnnotatingMap);
+              }}
+              style={{
+                padding: '4px 9px',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#cbd5e1',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '5px',
+                cursor: 'pointer',
+              }}
+            >
+              👆 Select
+            </button>
+
+            <button
+              title="Switch to Interact Mode (Pan map camera & zoom)"
+              onClick={() => {
+                handleUpdateShape(activeAnnotatingMap, {
+                  ...activeAnnotatingMap,
+                  params: { ...activeAnnotatingMap.params, interactionMode: 'interact' },
+                });
+                setActiveTool('select');
+                setSelectedObject(activeAnnotatingMap);
+              }}
+              style={{
+                padding: '4px 9px',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#38bdf8',
+                background: 'rgba(56, 189, 248, 0.14)',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                borderRadius: '5px',
+                cursor: 'pointer',
+              }}
+            >
+              🧭 Interact
+            </button>
+
+            <button
+              title="Annotate Mode (Drawing over map)"
+              onClick={() => {
+                setActiveTool('pen');
+              }}
+              style={{
+                padding: '4px 9px',
+                fontSize: '11px',
+                fontWeight: 700,
+                color: '#ffffff',
+                background: '#d97706',
+                border: '1px solid #f59e0b',
+                borderRadius: '5px',
+                cursor: 'pointer',
+              }}
+            >
+              ✍️ Annotate
+            </button>
+          </div>
+
+          <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.2)' }} />
+
+          {/* Tools: Pen, Highlighter, Eraser */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <button
+              title="Whiteboard Fine Pen"
+              onClick={() => {
+                setPenStyle({ penType: 'normal' });
+                setActiveTool('pen');
+              }}
+              style={{
+                padding: '3px 8px',
+                fontSize: '11px',
+                fontWeight: toolState.activeTool === 'pen' && toolState.penStyle?.penType !== 'highlighter' ? 700 : 500,
+                color: toolState.activeTool === 'pen' && toolState.penStyle?.penType !== 'highlighter' ? '#ffffff' : '#94a3b8',
+                background: toolState.activeTool === 'pen' && toolState.penStyle?.penType !== 'highlighter' ? '#0284c7' : 'transparent',
+                border: '1px solid ' + (toolState.activeTool === 'pen' && toolState.penStyle?.penType !== 'highlighter' ? '#38bdf8' : 'rgba(255,255,255,0.1)'),
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              🖊️ Pen
+            </button>
+
+            <button
+              title="Translucent Map Highlighter"
+              onClick={() => {
+                setPenStyle({ penType: 'highlighter' });
+                setActiveTool('highlighter');
+              }}
+              style={{
+                padding: '3px 8px',
+                fontSize: '11px',
+                fontWeight: toolState.activeTool === 'highlighter' || toolState.penStyle?.penType === 'highlighter' ? 700 : 500,
+                color: toolState.activeTool === 'highlighter' || toolState.penStyle?.penType === 'highlighter' ? '#ffffff' : '#94a3b8',
+                background: toolState.activeTool === 'highlighter' || toolState.penStyle?.penType === 'highlighter' ? '#0284c7' : 'transparent',
+                border: '1px solid ' + (toolState.activeTool === 'highlighter' || toolState.penStyle?.penType === 'highlighter' ? '#38bdf8' : 'rgba(255,255,255,0.1)'),
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              🖍️ Highlighter
+            </button>
+
+            <button
+              title="Eraser: Erase annotations on map"
+              onClick={() => {
+                setActiveTool('eraser');
+              }}
+              style={{
+                padding: '3px 8px',
+                fontSize: '11px',
+                fontWeight: toolState.activeTool === 'eraser' ? 700 : 500,
+                color: toolState.activeTool === 'eraser' ? '#ffffff' : '#cbd5e1',
+                background: toolState.activeTool === 'eraser' ? '#dc2626' : 'transparent',
+                border: '1px solid ' + (toolState.activeTool === 'eraser' ? '#f87171' : 'rgba(255,255,255,0.1)'),
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              🧹 Eraser
+            </button>
+          </div>
+
+          <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.2)' }} />
+
+          {/* Relative Pen Thickness Options */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+            <span style={{ fontSize: '10px', color: '#94a3b8', marginRight: '2px' }}>Size:</span>
+            {[2, 4, 8, 14].map((sz) => (
+              <button
+                key={sz}
+                title={`${sz}px Thickness (scales relatively with zoom in/out)`}
+                onClick={() => {
+                  setPenStyle({ width: sz });
+                  if (toolState.activeTool !== 'pen' && toolState.activeTool !== 'highlighter') {
+                    setActiveTool('pen');
+                  }
+                }}
+                style={{
+                  padding: '2px 5px',
+                  fontSize: '10px',
+                  fontWeight: toolState.penStyle?.width === sz ? 700 : 500,
+                  color: toolState.penStyle?.width === sz ? '#ffffff' : '#cbd5e1',
+                  background: toolState.penStyle?.width === sz ? '#0284c7' : 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid ' + (toolState.penStyle?.width === sz ? '#38bdf8' : 'rgba(255, 255, 255, 0.15)'),
+                  borderRadius: '3px',
+                  cursor: 'pointer',
+                }}
+              >
+                {sz}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.2)' }} />
+
+          {/* Quick Color Swatches */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+            {['#ffffff', '#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#a855f7'].map((col) => (
+              <button
+                key={col}
+                title={`Pen Color: ${col}`}
+                onClick={() => {
+                  setPenStyle({ color: col });
+                  if (toolState.activeTool !== 'pen' && toolState.activeTool !== 'highlighter') {
+                    setActiveTool('pen');
+                  }
+                }}
+                style={{
+                  width: '15px',
+                  height: '15px',
+                  borderRadius: '50%',
+                  backgroundColor: col,
+                  border: toolState.penStyle?.color === col ? '2px solid #ffffff' : '1px solid rgba(0,0,0,0.5)',
+                  boxShadow: toolState.penStyle?.color === col ? '0 0 5px #ffffff' : 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              />
+            ))}
+          </div>
+
+          <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.2)' }} />
+
+          {/* Zoom In & Zoom Out (Switches to Interactive Mode per Requirement 3) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+            <button
+              title="Zoom In (switches to Interactive mode to pan with stylus)"
+              onClick={() => {
+                const cur = activeAnnotatingMap.params?.zoomLevel || 1.0;
+                handleUpdateShape(activeAnnotatingMap, {
+                  ...activeAnnotatingMap,
+                  params: {
+                    ...activeAnnotatingMap.params,
+                    zoomLevel: Math.min(6.0, cur * 1.25),
+                    interactionMode: 'interact',
+                  },
+                });
+                setActiveTool('select');
+              }}
+              style={{ padding: '2px 6px', fontSize: '11px', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.18)', border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              🔍+
+            </button>
+            <button
+              title="Zoom Out (switches to Interactive mode to pan with stylus)"
+              onClick={() => {
+                const cur = activeAnnotatingMap.params?.zoomLevel || 1.0;
+                handleUpdateShape(activeAnnotatingMap, {
+                  ...activeAnnotatingMap,
+                  params: {
+                    ...activeAnnotatingMap.params,
+                    zoomLevel: Math.max(0.5, cur * 0.8),
+                    interactionMode: 'interact',
+                  },
+                });
+                setActiveTool('select');
+              }}
+              style={{ padding: '2px 6px', fontSize: '11px', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.18)', border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              🔍-
+            </button>
+          </div>
+
+          <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.2)' }} />
+
+          {/* Clear Annotations */}
+          <button
+            title="Clear all annotations drawn on this map"
+            onClick={() => {
+              handleUpdateShape(activeAnnotatingMap, {
+                ...activeAnnotatingMap,
+                params: { ...activeAnnotatingMap.params, annotations: [] },
+              });
+            }}
+            style={{
+              padding: '3px 8px',
+              fontSize: '11px',
+              fontWeight: 500,
+              color: '#f87171',
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '4px',
+              cursor: 'pointer',
+            }}
+          >
+            🧹 Clear
+          </button>
+        </div>
+      )}
+
       {/* Vertical Floating Action Toolbar / Pill (Reference Images 1, 2, 3) */}
       {toolState.activeTool === 'select' && selectedObject && selectedScreenBBox && (
         <div
@@ -3400,7 +5026,7 @@ export function WhiteboardCanvas(): React.ReactElement {
 
           {/* ─── Layer Order Menu (Reference Image 2) ─────────────────────── */}
           {activeFlyout === 'layer' && (
-            <div className="sel-flyout-menu layer-flyout-menu" style={{ left: pillLeft < (selectedScreenBBox?.left || 0) ? -230 : 50 }}>
+            <div className="sel-flyout-menu layer-flyout-menu" style={getFlyoutStyle(230, 220, 80)}>
               <button
                 className="flyout-item"
                 onClick={() => {
@@ -3471,7 +5097,7 @@ export function WhiteboardCanvas(): React.ReactElement {
 
           {/* ─── More Options Menu (Reference Image 3) ────────────────────── */}
           {activeFlyout === 'more' && (
-            <div className="sel-flyout-menu more-flyout-menu" style={{ left: pillLeft < (selectedScreenBBox?.left || 0) ? -230 : 50 }}>
+            <div className="sel-flyout-menu more-flyout-menu" style={getFlyoutStyle(240, 380, 180)}>
               {/* 1. Lock */}
               <button
                 className="flyout-item"
@@ -3601,7 +5227,7 @@ export function WhiteboardCanvas(): React.ReactElement {
 
           {/* ─── Line Thickness Sub-Flyout ────────────────────────────────── */}
           {activeFlyout === 'thickness' && (
-            <div className="sel-flyout-menu thickness-flyout-menu" style={{ left: pillLeft < (selectedScreenBBox?.left || 0) ? -200 : 50 }}>
+            <div className="sel-flyout-menu thickness-flyout-menu" style={getFlyoutStyle(210, 280, 180)}>
               <div className="flyout-header-title">Line Thickness</div>
               {[2, 4, 6, 8, 12, 16, 24].map((w) => (
                 <button
@@ -3621,7 +5247,7 @@ export function WhiteboardCanvas(): React.ReactElement {
 
           {/* ─── Image Fit & Screen Sizing Flyout Menu ─────────────────────── */}
           {activeFlyout === 'imageFit' && selectedObject.type === 'image' && (
-            <div className="sel-flyout-menu image-fit-flyout-menu" style={{ left: pillLeft < (selectedScreenBBox?.left || 0) ? -245 : 50 }}>
+            <div className="sel-flyout-menu image-fit-flyout-menu" style={getFlyoutStyle(255, 290, 120)}>
               <div className="flyout-header-title">Image Screen Sizing</div>
 
               <button
@@ -3691,7 +5317,7 @@ export function WhiteboardCanvas(): React.ReactElement {
 
           {/* ─── Color Palette Flyout ─────────────────────────────────────── */}
           {activeFlyout === 'palette' && (
-            <div className="sel-flyout-menu palette-flyout-menu" style={{ left: pillLeft < (selectedScreenBBox?.left || 0) ? -190 : 50 }}>
+            <div className="sel-flyout-menu palette-flyout-menu" style={getFlyoutStyle(200, 220, 40)}>
               <div className="palette-grid">
                 {[
                   '#ffffff',
@@ -3720,17 +5346,6 @@ export function WhiteboardCanvas(): React.ReactElement {
             </div>
           )}
         </div>
-      )}
-
-      {/* Floating Paste button when cross-page clipboard has content */}
-      {canPaste && (
-        <button
-          className="canvas-floating-paste-btn"
-          onClick={() => pasteObject()}
-          title="Paste copied element to this page (Ctrl+V)"
-        >
-          <span>📋</span> Paste
-        </button>
       )}
 
       {/* ─── Canvas Navigation Floating HUD (Section 9) ─── */}
@@ -4225,6 +5840,94 @@ export function WhiteboardCanvas(): React.ReactElement {
             handleUpdateShape(editingNetworkTopologyShape, updated);
             setEditingNetworkTopologyShape(null);
           }}
+        />
+      )}
+
+      {/* 🏛️ Interactive Custom Hierarchy Chart Modal */}
+      {editingHierarchyShape && (
+        <HierarchyChartModal
+          existingShape={editingHierarchyShape}
+          onClose={() => setEditingHierarchyShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingHierarchyShape, updated);
+            setEditingHierarchyShape(null);
+          }}
+        />
+      )}
+
+      {/* 🧠 Interactive Mindmap Modal */}
+      {editingMindmapShape && (
+        <MindmapModal
+          existingShape={editingMindmapShape}
+          onClose={() => setEditingMindmapShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingMindmapShape, updated);
+            setEditingMindmapShape(null);
+          }}
+        />
+      )}
+
+      {/* ⏳ Interactive Animated Timeline Modal */}
+      {editingTimelineShape && (
+        <TimelineModal
+          existingShape={editingTimelineShape}
+          onClose={() => setEditingTimelineShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingTimelineShape, updated);
+            setEditingTimelineShape(null);
+          }}
+        />
+      )}
+
+      {/* 🔄 Interactive Process Flow Chart Modal */}
+      {editingProcessShape && (
+        <ProcessChartModal
+          existingShape={editingProcessShape}
+          onClose={() => setEditingProcessShape(null)}
+          onUpdateShape={(updated) => {
+            handleUpdateShape(editingProcessShape, updated);
+            setEditingProcessShape(null);
+          }}
+        />
+      )}
+
+      {/* 🌍 Geography Resource Centre Modal */}
+      {showGeoResourceModal && (
+        <GeographyResourceCentreModal
+          onClose={() => setShowGeoResourceModal(false)}
+          onOpenAtlas={() => {
+            setShowGeoResourceModal(false);
+            setShowGeoAtlasModal(true);
+          }}
+          onOpenGlobe={() => {
+            setShowGeoResourceModal(false);
+            setShowGlobeModal(true);
+          }}
+          onOpenGisLab={() => {
+            setShowGeoResourceModal(false);
+            setShowGisModal(true);
+          }}
+        />
+      )}
+
+      {/* 🗺️ Geography Atlas & Thematic Explorer Modal */}
+      {showGeoAtlasModal && (
+        <GeographyAtlasModal
+          onClose={() => setShowGeoAtlasModal(false)}
+        />
+      )}
+
+      {/* 🌐 Interactive 3D Earth and Globe Laboratory Modal (Stage 6) */}
+      {showGlobeModal && (
+        <Globe3DModal
+          onClose={() => setShowGlobeModal(false)}
+        />
+      )}
+
+      {/* 🛰️ GIS, Satellite Imagery & Thematic Map Laboratory Modal (Stage 7) */}
+      {showGisModal && (
+        <GisThematicModal
+          onClose={() => setShowGisModal(false)}
         />
       )}
 

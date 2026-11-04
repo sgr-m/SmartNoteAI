@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2800 2400" width="2800" height="2400">
+  <defs>
+    <style>
+      .title { font-family: 'Arial', sans-serif; font-size: 32px; font-weight: bold; fill: #0f172a; text-anchor: middle; }
+      .sub-title { font-family: 'Arial', sans-serif; font-size: 20px; font-weight: bold; fill: #dc2626; text-anchor: middle; }
+      .meta { font-family: 'Arial', sans-serif; font-size: 15px; fill: #1e293b; text-anchor: middle; }
+      .grid-label { font-family: 'Arial', monospace; font-size: 14px; font-weight: bold; fill: #dc2626; text-anchor: middle; }
+      .contour-label { font-family: 'Arial', monospace; font-size: 11px; font-weight: bold; fill: #78350f; }
+      .place-name { font-family: 'Arial', sans-serif; font-size: 14px; font-weight: bold; fill: #0f172a; }
+      .water-name { font-family: 'Arial', sans-serif; font-size: 13px; font-style: italic; fill: #0284c7; }
+      .legend-title { font-family: 'Arial', sans-serif; font-size: 15px; font-weight: bold; fill: #0f172a; text-anchor: middle; }
+      .legend-text { font-family: 'Arial', sans-serif; font-size: 12px; fill: #1e293b; }
+    </style>
+    <pattern id="stonyWaste" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="4" r="1.2" fill="#d97706" />
+      <circle cx="12" cy="12" r="1.2" fill="#d97706" />
+    </pattern>
+    <pattern id="openScrub" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M 6 18 Q 12 6 18 18 M 12 12 Q 12 6 15 8" stroke="#16a34a" stroke-width="1.2" fill="none" />
+    </pattern>
+  </defs>
+
+  <!-- Sheet Background -->
+  <rect x="0" y="0" width="2800" height="2400" fill="#fefdf7" />
+
+  <!-- Outer Map Borders -->
+  <rect x="140" y="180" width="2300" height="2000" fill="#fefce8" stroke="#0f172a" stroke-width="4" />
+  <rect x="146" y="186" width="2288" height="1988" fill="#fefce8" stroke="#475569" stroke-width="1.5" />
+
+  <!-- Marginal Header Information -->
+  <text x="155" y="85" font-family="Arial" font-size="12px" fill="#475569">INDIA AND ADJACENT COUNTRIES</text>
+  <text x="155" y="112" font-family="Arial" font-size="18px" font-weight="bold" fill="#0f172a">RAJASTHAN AND GUJARAT</text>
+
+  <text x="1290" y="50" class="title">SURVEY OF INDIA</text>
+  <text x="1290" y="95" class="sub-title">OPEN SERIES MAP — 1 : 50,000</text>
+  <text x="1290" y="130" class="meta">SHEET NO. G45D7 (MOUNT ABU & SIROHI REGION (OSM SERIES G45))</text>
+
+  <text x="2425" y="105" font-family="Arial" font-size="18px" font-weight="bold" fill="#0f172a" text-anchor="end">SCALE 1 : 50,000</text>
+  <text x="2425" y="130" font-family="Arial" font-size="13px" fill="#475569" text-anchor="end">2 Centimetres to 1 Kilometre</text>
+
+  <!-- Reserved Forest Polygon (Green tint) -->
+  <polygon points="554,680 1060,540 1750,620 1934,1180 1796,1680 1405,1820 945,1740 600,1380" fill="rgba(187, 247, 208, 0.65)" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="6,3" />
+  <text x="784.0000000000001" y="820" font-family="Arial" font-size="16px" font-weight="bold" fill="#15803d">RESERVED FOREST (R.F.)</text>
+
+  <!-- 1 km National Grid Lines (Eastings & Northings) -->
+  <line x1="140" y1="180" x2="140" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="140" y="162" class="grid-label">80</text>
+  <text x="140" y="2204" class="grid-label">80</text>
+  <line x1="293.33333333333337" y1="180" x2="293.33333333333337" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="293.33333333333337" y="162" class="grid-label">81</text>
+  <text x="293.33333333333337" y="2204" class="grid-label">81</text>
+  <line x1="446.6666666666667" y1="180" x2="446.6666666666667" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="446.6666666666667" y="162" class="grid-label">82</text>
+  <text x="446.6666666666667" y="2204" class="grid-label">82</text>
+  <line x1="600" y1="180" x2="600" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="600" y="162" class="grid-label">83</text>
+  <text x="600" y="2204" class="grid-label">83</text>
+  <line x1="753.3333333333334" y1="180" x2="753.3333333333334" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="753.3333333333334" y="162" class="grid-label">84</text>
+  <text x="753.3333333333334" y="2204" class="grid-label">84</text>
+  <line x1="906.6666666666666" y1="180" x2="906.6666666666666" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="906.6666666666666" y="162" class="grid-label">85</text>
+  <text x="906.6666666666666" y="2204" class="grid-label">85</text>
+  <line x1="1060" y1="180" x2="1060" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="1060" y="162" class="grid-label">86</text>
+  <text x="1060" y="2204" class="grid-label">86</text>
+  <line x1="1213.3333333333333" y1="180" x2="1213.3333333333333" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="1213.3333333333333" y="162" class="grid-label">87</text>
+  <text x="1213.3333333333333" y="2204" class="grid-label">87</text>
+  <line x1="1366.6666666666667" y1="180" x2="1366.6666666666667" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="1366.6666666666667" y="162" class="grid-label">88</text>
+  <text x="1366.6666666666667" y="2204" class="grid-label">88</text>
+  <line x1="1520" y1="180" x2="1520" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="1520" y="162" class="grid-label">89</text>
+  <text x="1520" y="2204" class="grid-label">89</text>
+  <line x1="1673.3333333333333" y1="180" x2="1673.3333333333333" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="1673.3333333333333" y="162" class="grid-label">90</text>
+  <text x="1673.3333333333333" y="2204" class="grid-label">90</text>
+  <line x1="1826.6666666666665" y1="180" x2="1826.6666666666665" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="1826.6666666666665" y="162" class="grid-label">91</text>
+  <text x="1826.6666666666665" y="2204" class="grid-label">91</text>
+  <line x1="1980" y1="180" x2="1980" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="1980" y="162" class="grid-label">92</text>
+  <text x="1980" y="2204" class="grid-label">92</text>
+  <line x1="2133.3333333333335" y1="180" x2="2133.3333333333335" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="2133.3333333333335" y="162" class="grid-label">93</text>
+  <text x="2133.3333333333335" y="2204" class="grid-label">93</text>
+  <line x1="2286.6666666666665" y1="180" x2="2286.6666666666665" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="2286.6666666666665" y="162" class="grid-label">94</text>
+  <text x="2286.6666666666665" y="2204" class="grid-label">94</text>
+  <line x1="2440" y1="180" x2="2440" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="2440" y="162" class="grid-label">95</text>
+  <text x="2440" y="2204" class="grid-label">95</text>
+  <line x1="140" y1="180" x2="2440" y2="180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="185" class="grid-label" text-anchor="end">102</text>
+  <text x="2458" y="185" class="grid-label" text-anchor="start">102</text>
+  <line x1="140" y1="297.6470588235294" x2="2440" y2="297.6470588235294" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="302.6470588235294" class="grid-label" text-anchor="end">101</text>
+  <text x="2458" y="302.6470588235294" class="grid-label" text-anchor="start">101</text>
+  <line x1="140" y1="415.2941176470588" x2="2440" y2="415.2941176470588" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="420.2941176470588" class="grid-label" text-anchor="end">100</text>
+  <text x="2458" y="420.2941176470588" class="grid-label" text-anchor="start">100</text>
+  <line x1="140" y1="532.9411764705883" x2="2440" y2="532.9411764705883" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="537.9411764705883" class="grid-label" text-anchor="end">99</text>
+  <text x="2458" y="537.9411764705883" class="grid-label" text-anchor="start">99</text>
+  <line x1="140" y1="650.5882352941176" x2="2440" y2="650.5882352941176" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="655.5882352941176" class="grid-label" text-anchor="end">98</text>
+  <text x="2458" y="655.5882352941176" class="grid-label" text-anchor="start">98</text>
+  <line x1="140" y1="768.2352941176471" x2="2440" y2="768.2352941176471" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="773.2352941176471" class="grid-label" text-anchor="end">97</text>
+  <text x="2458" y="773.2352941176471" class="grid-label" text-anchor="start">97</text>
+  <line x1="140" y1="885.8823529411765" x2="2440" y2="885.8823529411765" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="890.8823529411765" class="grid-label" text-anchor="end">96</text>
+  <text x="2458" y="890.8823529411765" class="grid-label" text-anchor="start">96</text>
+  <line x1="140" y1="1003.5294117647059" x2="2440" y2="1003.5294117647059" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="1008.5294117647059" class="grid-label" text-anchor="end">95</text>
+  <text x="2458" y="1008.5294117647059" class="grid-label" text-anchor="start">95</text>
+  <line x1="140" y1="1121.1764705882351" x2="2440" y2="1121.1764705882351" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="1126.1764705882351" class="grid-label" text-anchor="end">94</text>
+  <text x="2458" y="1126.1764705882351" class="grid-label" text-anchor="start">94</text>
+  <line x1="140" y1="1238.8235294117646" x2="2440" y2="1238.8235294117646" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="1243.8235294117646" class="grid-label" text-anchor="end">93</text>
+  <text x="2458" y="1243.8235294117646" class="grid-label" text-anchor="start">93</text>
+  <line x1="140" y1="1356.4705882352941" x2="2440" y2="1356.4705882352941" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="1361.4705882352941" class="grid-label" text-anchor="end">92</text>
+  <text x="2458" y="1361.4705882352941" class="grid-label" text-anchor="start">92</text>
+  <line x1="140" y1="1474.1176470588236" x2="2440" y2="1474.1176470588236" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="1479.1176470588236" class="grid-label" text-anchor="end">91</text>
+  <text x="2458" y="1479.1176470588236" class="grid-label" text-anchor="start">91</text>
+  <line x1="140" y1="1591.764705882353" x2="2440" y2="1591.764705882353" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="1596.764705882353" class="grid-label" text-anchor="end">90</text>
+  <text x="2458" y="1596.764705882353" class="grid-label" text-anchor="start">90</text>
+  <line x1="140" y1="1709.4117647058822" x2="2440" y2="1709.4117647058822" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="1714.4117647058822" class="grid-label" text-anchor="end">89</text>
+  <text x="2458" y="1714.4117647058822" class="grid-label" text-anchor="start">89</text>
+  <line x1="140" y1="1827.0588235294117" x2="2440" y2="1827.0588235294117" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="1832.0588235294117" class="grid-label" text-anchor="end">88</text>
+  <text x="2458" y="1832.0588235294117" class="grid-label" text-anchor="start">88</text>
+  <line x1="140" y1="1944.7058823529412" x2="2440" y2="1944.7058823529412" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="1949.7058823529412" class="grid-label" text-anchor="end">87</text>
+  <text x="2458" y="1949.7058823529412" class="grid-label" text-anchor="start">87</text>
+  <line x1="140" y1="2062.3529411764703" x2="2440" y2="2062.3529411764703" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="2067.3529411764703" class="grid-label" text-anchor="end">86</text>
+  <text x="2458" y="2067.3529411764703" class="grid-label" text-anchor="start">86</text>
+  <line x1="140" y1="2180" x2="2440" y2="2180" stroke="#ef4444" stroke-width="1" stroke-opacity="0.8" />
+  <text x="122" y="2185" class="grid-label" text-anchor="end">85</text>
+  <text x="2458" y="2185" class="grid-label" text-anchor="start">85</text>
+  <polygon points="485,580 1175,420 1934,540 2095,1280 1865,1880 1175,1940 554,1580" fill="none" stroke="#b45309" stroke-width="1.4" />
+  <polygon points="600,680 1175,500 1796,620 1980,1220 1750,1780 1106,1820 646,1480" fill="none" stroke="#78350f" stroke-width="2.8" />
+  <text x="604" y="677" class="contour-label">500</text>
+  <polygon points="692,740 1198,580 1704,700 1865,1180 1658,1680 1060,1740 738,1380" fill="none" stroke="#b45309" stroke-width="1.4" />
+  <polygon points="784.0000000000001,820 1244,660 1612,780 1750,1140 1566,1580 1014,1620 830,1280" fill="none" stroke="#b45309" stroke-width="1.4" />
+  <polygon points="876,900 1290,740 1520,860 1635,1100 1474,1480 968,1500 922,1180" fill="none" stroke="#78350f" stroke-width="2.8" />
+  <text x="880" y="897" class="contour-label">1000</text>
+  <polygon points="968,980 1336,820 1474,940 1520,1060 1382,1380 1014,1380 968,1100" fill="none" stroke="#b45309" stroke-width="1.4" />
+  <polygon points="1106,900 1405,780 1520,900 1428.0000000000002,1100 1198,1140" fill="none" stroke="#b45309" stroke-width="1.4" />
+  <polygon points="1290,820 1428.0000000000002,740 1474,860 1382,940" fill="none" stroke="#78350f" stroke-width="2.8" />
+  <text x="1294" y="817" class="contour-label">1600</text>
+  <polygon points="1359,800 1428.0000000000002,760 1451,820 1382,840" fill="none" stroke="#b45309" stroke-width="1.4" />
+  <polyline points="255,580 554,880 830,1280 715,1680 485,2080" fill="none" stroke="#f59e0b" stroke-width="7" stroke-opacity="0.5" stroke-dasharray="10,4" />
+  <polyline points="255,580 554,880 830,1280 715,1680 485,2080" fill="none" stroke="#0284c7" stroke-width="2.5" />
+  <text x="838" y="1270" class="water-name">Sipu Nadi</text>
+  <polyline points="2256,480 2026,980 1934,1480 2095,1880 2210,2080" fill="none" stroke="#f59e0b" stroke-width="7" stroke-opacity="0.5" stroke-dasharray="10,4" />
+  <polyline points="2256,480 2026,980 1934,1480 2095,1880 2210,2080" fill="none" stroke="#0284c7" stroke-width="2.5" />
+  <text x="1942" y="1470" class="water-name">Banas River</text>
+  <ellipse cx="1014" cy="1220" rx="28" ry="16" fill="#38bdf8" stroke="#0284c7" stroke-width="2" />
+  <text x="1050" y="1224" class="water-name" font-weight="bold">Nakki Lake (1195m)</text>
+  <polyline points="324,420 715,880 1014,1180 1520,1540 2164,1940" fill="none" stroke="#dc2626" stroke-width="4" stroke-linecap="round" />
+  <polyline points="324,420 715,880 1014,1180 1520,1540 2164,1940" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" />
+  <polyline points="1014,1180 1290,880 1704,680" fill="none" stroke="#dc2626" stroke-width="2" stroke-dasharray="6,4" />
+  <rect x="1106" y="1260" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="1106" y="1268" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="1115" y="1260" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="1115" y="1268" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="1124" y="1260" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="1124" y="1268" width="6.5" height="5.5" fill="#dc2626" />
+  <text x="1102" y="1286" class="place-name">MOUNT ABU</text>
+  <text x="1138" y="1258" font-family="Arial" font-size="11px" font-weight="bold" fill="#dc2626">PO</text>
+  <rect x="485" y="1080" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="485" y="1088" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="494" y="1080" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="494" y="1088" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="503" y="1080" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="503" y="1088" width="6.5" height="5.5" fill="#dc2626" />
+  <text x="481" y="1106" class="place-name">ANADRA</text>
+  <text x="517" y="1078" font-family="Arial" font-size="11px" font-weight="bold" fill="#dc2626">PO</text>
+  <rect x="2026" y="1860" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="2026" y="1868" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="2035" y="1860" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="2035" y="1868" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="2044" y="1860" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="2044" y="1868" width="6.5" height="5.5" fill="#dc2626" />
+  <text x="2022" y="1886" class="place-name">ABU ROAD</text>
+  <text x="2058" y="1858" font-family="Arial" font-size="11px" font-weight="bold" fill="#dc2626">PO</text>
+  <rect x="715" y="460" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="715" y="468" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="724" y="460" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="724" y="468" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="733" y="460" width="6.5" height="5.5" fill="#dc2626" />
+  <rect x="733" y="468" width="6.5" height="5.5" fill="#dc2626" />
+  <text x="711" y="486" class="place-name">SIROHI</text>
+  <text x="747" y="458" font-family="Arial" font-size="11px" font-weight="bold" fill="#dc2626">PO</text>
+  <polygon points="1405,770 1396,787 1414,787" fill="none" stroke="#0f172a" stroke-width="2" />
+  <text x="1419" y="780" font-family="Arial" font-size="13px" font-weight="bold" fill="#0f172a">▲ 1722</text>
+  <text x="1419" y="796" font-family="Arial" font-size="12px" font-weight="bold" fill="#92400e">Guru Shikhar (1722m)</text>
+  <circle cx="968" cy="1180" r="2" fill="#0f172a" />
+  <text x="973" y="1176" font-family="Arial" font-size="12px" fill="#0f172a">.1195</text>
+  <circle cx="1865" cy="1080" r="2" fill="#0f172a" />
+  <text x="1870" y="1076" font-family="Arial" font-size="12px" fill="#0f172a">.542</text>
+  <circle cx="554" cy="1780" r="2" fill="#0f172a" />
+  <text x="559" y="1776" font-family="Arial" font-size="12px" fill="#0f172a">.348</text>
+
+  <!-- Conventional Signs Box -->
+  <rect x="2470" y="190" width="310" height="1980" fill="#ffffff" stroke="#475569" stroke-width="1.5" rx="4" />
+  <text x="2625" y="218" class="legend-title">CONVENTIONAL SIGNS</text>
+  <line x1="2490" y1="230" x2="2760" y2="230" stroke="#cbd5e1" stroke-width="1" />
+  <line x1="2485" y1="255" x2="2535" y2="255" stroke="#b45309" stroke-width="1.5" />
+  <text x="2550" y="258" class="legend-text">Contour Line (20m)</text>
+  <line x1="2485" y1="285" x2="2535" y2="285" stroke="#78350f" stroke-width="3" />
+  <text x="2550" y="290" class="legend-text">Index Contour (100m)</text>
+  <line x1="2485" y1="315" x2="2535" y2="315" stroke="#dc2626" stroke-width="3.5" />
+  <text x="2550" y="322" class="legend-text">Metalled NH (Red)</text>
+  <line x1="2485" y1="345" x2="2535" y2="345" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="4,3" />
+  <text x="2550" y="354" class="legend-text">Cart Track / Unmetalled</text>
+  <line x1="2485" y1="375" x2="2535" y2="375" stroke="#0284c7" stroke-width="2.5" />
+  <text x="2550" y="386" class="legend-text">Perennial Stream</text>
+  <line x1="2485" y1="405" x2="2535" y2="405" stroke="#f59e0b" stroke-width="5" stroke-dasharray="6,3" />
+  <text x="2550" y="418" class="legend-text">Sandy Dry Riverbed</text>
+  <polygon points="2510,428 2502,442 2518,442" fill="none" stroke="#0f172a" stroke-width="2" />
+  <text x="2550" y="450" class="legend-text">Triangulated Peak (▲)</text>
+  <text x="2495" y="472" font-family="Arial" font-size="12px" font-weight="bold" fill="#0f172a">BM</text>
+  <text x="2550" y="482" class="legend-text">Bench Mark (BM 348.5)</text>
+  <rect x="2498" y="492" width="16" height="12" fill="#dc2626" />
+  <text x="2550" y="514" class="legend-text">Nucleated Settlement</text>
+  <text x="2498" y="528" font-family="Arial" font-size="12px" font-weight="bold" fill="#dc2626">PO</text>
+  <text x="2550" y="546" class="legend-text">Post Office (PO)</text>
+  <rect x="2494" y="548" width="24" height="14" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.2" />
+  <text x="2550" y="578" class="legend-text">Reserved Forest (RF)</text>
+  <rect x="2494" y="580" width="24" height="14" fill="url(#stonyWaste)" stroke="#d97706" stroke-width="1" />
+  <text x="2550" y="610" class="legend-text">Stony Waste</text>
+
+  <!-- Bottom Margin -->
+  <text x="1290" y="2225" font-family="Arial" font-size="16px" font-weight="bold" fill="#78350f" text-anchor="middle">CONTOUR INTERVAL 20 METRES | HEIGHTS ARE IN METRES</text>
+
+  <!-- Scale Bar: 0..5 km -->
+  <g transform="translate(1090, 2245)">
+    <rect x="0" y="0" width="80" height="10" fill="#0f172a" stroke="#0f172a" stroke-width="1" />
+    <text x="0" y="24" font-family="Arial" font-size="12px" fill="#0f172a" text-anchor="middle">0</text>
+    <rect x="80" y="0" width="80" height="10" fill="#ffffff" stroke="#0f172a" stroke-width="1" />
+    <text x="80" y="24" font-family="Arial" font-size="12px" fill="#0f172a" text-anchor="middle">1</text>
+    <rect x="160" y="0" width="80" height="10" fill="#0f172a" stroke="#0f172a" stroke-width="1" />
+    <text x="160" y="24" font-family="Arial" font-size="12px" fill="#0f172a" text-anchor="middle">2</text>
+    <rect x="240" y="0" width="80" height="10" fill="#ffffff" stroke="#0f172a" stroke-width="1" />
+    <text x="240" y="24" font-family="Arial" font-size="12px" fill="#0f172a" text-anchor="middle">3</text>
+    <rect x="320" y="0" width="80" height="10" fill="#0f172a" stroke="#0f172a" stroke-width="1" />
+    <text x="320" y="24" font-family="Arial" font-size="12px" fill="#0f172a" text-anchor="middle">4</text>
+    <text x="400" y="24" font-family="Arial" font-size="12px" fill="#0f172a" text-anchor="middle">5 km</text>
+  </g>
+  <text x="1290" y="2320" font-family="Arial" font-size="13px" fill="#475569" text-anchor="middle">Published under the direction of the Surveyor General of India. Verified Educational Topographical Sheet for CBSE &amp; ICSE Geography.</text>
+</svg>

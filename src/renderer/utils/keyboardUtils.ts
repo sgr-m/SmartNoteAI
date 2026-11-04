@@ -21,7 +21,7 @@ export function isTypingOrInputFocused(e?: KeyboardEvent | React.KeyboardEvent):
 
     if (typeof target.closest === 'function') {
       const isInsideEditableOrDialog = target.closest(
-        'input, textarea, select, [contenteditable="true"], [role="dialog"], .add-res-overlay, .res-lib-overlay, .modal-backdrop, .dialog-backdrop, .modal, .inline-text-editor-container, .text-modal-overlay'
+        'input, textarea, select, [contenteditable="true"], [role="dialog"]:not(.smartboard-pen-flyout):not(.smartboard-eraser-flyout):not(.smartboard-shape-flyout), .add-res-overlay, .res-lib-overlay, .modal-backdrop, .dialog-backdrop, .modal, .inline-text-editor-container, .text-modal-overlay'
       );
       if (isInsideEditableOrDialog) {
         return true;
@@ -47,7 +47,7 @@ export function isTypingOrInputFocused(e?: KeyboardEvent | React.KeyboardEvent):
   // 3. Inspect if any modal overlay or dialog is currently mounted in document
   if (typeof document !== 'undefined' && document.querySelector) {
     const openModal = document.querySelector(
-      '.add-res-overlay, .res-lib-overlay, .modal-backdrop, .modal, [role="dialog"], .inline-text-editor-container, .text-modal-overlay'
+      '.add-res-overlay, .res-lib-overlay, .modal-backdrop, .modal, [role="dialog"]:not(.smartboard-pen-flyout):not(.smartboard-eraser-flyout):not(.smartboard-shape-flyout), .inline-text-editor-container, .text-modal-overlay'
     );
     if (openModal) {
       return true;

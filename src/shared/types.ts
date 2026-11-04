@@ -98,7 +98,16 @@ export type ShapeType =
   | 'logicGate'
   | 'truthTable'
   | 'karnaughMap'
-  | 'teachingTemplate';
+  | 'teachingTemplate'
+  | 'hierarchyChart'
+  | 'mindmap'
+  | 'timeline'
+  | 'processChart'
+  | 'geoMap'
+  | 'geoGlobe'
+  | 'geoTopoProfile'
+  | 'geoCoordinateGrid'
+  | 'geoThematicLayer';
 
 export interface ShapeObject {
   id: string;
