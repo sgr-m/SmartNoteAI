@@ -3,8 +3,8 @@
 /* 1. On-Board Direct Text Box */
 .inline-board-text-wrapper {
   position: absolute;
-  min-width: 180px;
-  max-width: 900px;
+  min-width: 320px;
+  max-width: 1400px;
   pointer-events: auto;
   cursor: default;
   transform: translate(0, 0);
@@ -40,20 +40,21 @@
 
 .inline-board-textarea {
   width: 100%;
-  min-width: 140px;
-  min-height: 40px;
+  min-width: 200px;
+  min-height: 44px;
   background: transparent;
   border: none;
   outline: none;
   resize: none;
   overflow: hidden;
-  line-height: 1.35;
+  line-height: 1.4;
   padding: 0;
   margin: 0;
   caret-color: #38bdf8;
   cursor: text;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .inline-board-textarea::placeholder {
@@ -105,6 +106,70 @@
   font-size: 11px;
   color: #f87171;
   font-style: italic;
+}
+
+/* HTML Live Preview in the On-Board Box */
+.inline-html-live-preview {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(56, 189, 248, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 6px;
+  background: rgba(15, 23, 42, 0.35);
+  transition: all 0.15s ease;
+}
+
+.inline-html-live-preview:hover {
+  background: rgba(56, 189, 248, 0.08);
+  outline: 1px dashed rgba(56, 189, 248, 0.5);
+}
+
+.html-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  align-self: flex-start;
+}
+
+.html-rendered-container {
+  padding: 4px 6px;
+  overflow: auto;
+  max-height: 250px;
+  border-radius: 4px;
+}
+
+/* Markdown Live Preview in the On-Board Box */
+.inline-markdown-live-preview {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(52, 211, 153, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 6px;
+  background: rgba(15, 23, 42, 0.45);
+  transition: all 0.15s ease;
+}
+
+.inline-markdown-live-preview:hover {
+  background: rgba(52, 211, 153, 0.08);
+  outline: 1px dashed rgba(52, 211, 153, 0.5);
+}
+
+.markdown-rendered-container {
+  padding: 4px 6px;
+  overflow: auto;
+  max-height: 300px;
+  border-radius: 4px;
 }
 
 .inline-board-actions {
@@ -237,12 +302,37 @@
   letter-spacing: 0.06em;
 }
 
-/* LaTeX Toggle & Quick Chips */
-.latex-toggle-label {
+/* Mode Toggles Row (LaTeX Mode & HTML Mode) */
+.typo-modes-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.latex-toggle-label,
+.html-toggle-label,
+.md-toggle-label {
   display: flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
+  user-select: none;
+}
+
+.md-toggle-label input[type="checkbox"] {
+  accent-color: #34d399;
+  cursor: pointer;
+}
+
+.md-toggle-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: #34d399;
 }
 
 .latex-toggle-label input[type="checkbox"] {
@@ -254,6 +344,17 @@
   font-size: 11px;
   font-weight: 700;
   color: #facc15;
+}
+
+.html-toggle-label input[type="checkbox"] {
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+
+.html-toggle-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8;
 }
 
 .latex-snippets-grid {
@@ -287,32 +388,46 @@
   transform: translateY(-1px);
 }
 
-/* Quick Presets Grid */
-.typo-presets-grid {
+.html-snippet-chip {
+  background: rgba(56, 189, 248, 0.12);
+  color: #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.html-snippet-chip:hover {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: #38bdf8;
+}
+
+/* Three Streamlined Presets: Math Formula, Code Block, Important Note ONLY */
+.three-presets-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
 
 .typo-preset-btn {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 4px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  padding: 6px 10px;
+  border-radius: 8px;
+  padding: 8px 6px;
   color: #cbd5e1;
-  font-size: 11.5px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   transition: all 0.15s ease;
 }
 
 .typo-preset-btn:hover {
   background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
+  transform: translateY(-1px);
 }
 
 .typo-preset-btn.active {
@@ -320,6 +435,7 @@
   border-color: #38bdf8;
   color: #38bdf8;
   font-weight: 700;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
 }
 
 /* Font Select Dropdown */
@@ -441,6 +557,48 @@
   color: #38bdf8;
 }
 
+/* 1-Click Quick Font Size Pills */
+.typo-quick-sizes-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.quick-sizes-title {
+  font-size: 10.5px;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+.typo-quick-size-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.typo-quick-size-btn:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: #38bdf8;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.typo-quick-size-btn.active {
+  background: #38bdf8;
+  border-color: #38bdf8;
+  color: #0f172a;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+}
+
 /* Paragraph Alignment Row */
 .typo-align-row {
   display: grid;
@@ -505,22 +663,35 @@
   box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
 }
 
-.typo-custom-color-picker {
+.custom-color-picker-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.custom-color-picker-trigger {
   width: 26px;
   height: 26px;
-  padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.4);
   cursor: pointer;
-  background: transparent;
-  overflow: hidden;
-}
-
-.typo-custom-color-picker::-webkit-color-swatch-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition: all 0.15s ease;
   padding: 0;
 }
 
-.typo-custom-color-picker::-webkit-color-swatch {
-  border: none;
-  border-radius: 50%;
+.custom-color-picker-trigger:hover {
+  transform: scale(1.18);
+  border-color: #ffffff;
+}
+
+.hidden-color-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
 }

@@ -15,13 +15,21 @@ export interface AppSettings {
   resourceLibraryPath: string;
   showGridByDefault: boolean;
   highDpiEnabled: boolean;
+  aiDefaultProvider: 'openai' | 'gemini' | 'ollama' | 'custom-openai';
+  aiSelectedModel: string;
+  aiCustomEndpoint: string;
+  aiRequestTimeoutSeconds: number;
+  aiTemperature: number;
 }
 
-const DEFAULT_RESOURCE_PATH = path.join(
-  app.getPath('documents'),
-  'SmartboardStudio',
-  'Resources'
-);
+function getDefaultResourcePath(): string {
+  try {
+    const docPath = app?.getPath ? app.getPath('documents') : process.cwd();
+    return path.join(docPath, 'SmartboardStudio', 'Resources');
+  } catch {
+    return path.join(process.cwd(), 'SmartboardStudio', 'Resources');
+  }
+}
 
 const DEFAULTS: AppSettings = {
   theme: 'dark',
@@ -29,9 +37,14 @@ const DEFAULTS: AppSettings = {
   autosaveIntervalSeconds: 60,
   defaultPageSize: '16x9',
   penSmoothingEnabled: true,
-  resourceLibraryPath: DEFAULT_RESOURCE_PATH,
+  resourceLibraryPath: '',
   showGridByDefault: false,
   highDpiEnabled: true,
+  aiDefaultProvider: 'openai',
+  aiSelectedModel: 'gpt-4o-mini',
+  aiCustomEndpoint: '',
+  aiRequestTimeoutSeconds: 30,
+  aiTemperature: 0.7,
 };
 
 export class SettingsService {
@@ -39,9 +52,18 @@ export class SettingsService {
 
   get<K extends keyof AppSettings>(key: K): AppSettings[K] {
     const raw = this.db.getSetting(key as string);
-    if (raw === null) return DEFAULTS[key];
+    if (raw === null) {
+      if (key === 'resourceLibraryPath') {
+        return getDefaultResourcePath() as AppSettings[K];
+      }
+      return DEFAULTS[key];
+    }
     try {
-      return JSON.parse(raw) as AppSettings[K];
+      const parsed = JSON.parse(raw);
+      if (key === 'resourceLibraryPath' && (!parsed || parsed === 'null')) {
+        return getDefaultResourcePath() as AppSettings[K];
+      }
+      return parsed as AppSettings[K];
     } catch {
       return DEFAULTS[key];
     }
@@ -60,14 +82,16 @@ export class SettingsService {
   }
 
   getResourceLibraryPath(): string {
-    return this.get('resourceLibraryPath') || DEFAULT_RESOURCE_PATH;
+    return this.get('resourceLibraryPath') || getDefaultResourcePath();
   }
 
   getLessonsPath(): string {
-    return path.join(app.getPath('documents'), 'SmartboardStudio', 'Lessons');
+    const docPath = app?.getPath ? app.getPath('documents') : process.cwd();
+    return path.join(docPath, 'SmartboardStudio', 'Lessons');
   }
 
   getAutosavePath(): string {
-    return path.join(app.getPath('userData'), 'autosave');
+    const userPath = app?.getPath ? app.getPath('userData') : process.cwd();
+    return path.join(userPath, 'autosave');
   }
 }

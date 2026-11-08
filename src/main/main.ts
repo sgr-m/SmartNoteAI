@@ -12,11 +12,12 @@
 import { app, BrowserWindow, ipcMain, shell, dialog, Menu, nativeTheme, screen, nativeImage } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { setupIpcHandlers } from './ipc/ipcHandlers';
+import { setupIpcHandlers, getIsDocumentDirty, getIsForceQuitting, setIsForceQuitting } from './ipc/ipcHandlers';
 import { DatabaseService } from './services/DatabaseService';
 import { SettingsService } from './services/SettingsService';
 import { FileService } from './services/FileService';
 import { UpdateService } from './services/UpdateService';
+import { CredentialService } from './services/CredentialService';
 
 // ─── Single Instance Lock ────────────────────────────────────────────────────
 const gotTheLock = app.requestSingleInstanceLock();
@@ -33,6 +34,7 @@ let mainWindow: BrowserWindow | null = null;
 let db: DatabaseService | null = null;
 let settings: SettingsService | null = null;
 let updateService: UpdateService | null = null;
+let credentialService: CredentialService | null = null;
 
 app.on('second-instance', () => {
   if (mainWindow) {
@@ -138,6 +140,7 @@ app.on('second-instance', () => {
         sandbox: false,                   // need preload access to limited node
         webSecurity: true,
         allowRunningInsecureContent: false,
+        webviewTag: true,                 // Enable <webview> for in-app educational browser
         // Enable high-resolution pointer events for stylus
         experimentalFeatures: false,
       },
@@ -146,6 +149,22 @@ app.on('second-instance', () => {
     if (typeof appIcon !== 'string' && appIcon) {
       win.setIcon(appIcon);
     }
+
+    win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+      if (level >= 2) {
+        console.error(`[Renderer Error] line ${line} (${sourceId}): ${message}`);
+      } else {
+        console.log(`[Renderer] ${message}`);
+      }
+    });
+
+    win.webContents.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL) => {
+      console.error(`[Main] did-fail-load: ${errorCode} - ${errorDescription} on ${validatedURL}`);
+    });
+
+    win.webContents.on('render-process-gone', (_e, details) => {
+      console.error('[Main] render-process-gone:', details);
+    });
 
     // Performance: use WillNavigate to block unwanted navigation
     win.webContents.on('will-navigate', (e, url) => {
@@ -161,11 +180,42 @@ app.on('second-instance', () => {
     });
 
     win.on('enter-full-screen', () => {
+      win.setAlwaysOnTop(true, 'screen-saver');
       win.webContents.send('window:setPresentationMode', true);
     });
 
     win.on('leave-full-screen', () => {
+      win.setAlwaysOnTop(false);
       win.webContents.send('window:setPresentationMode', false);
+    });
+
+    win.on('close', async (e) => {
+      if (getIsForceQuitting()) return; // Allow window to close
+
+      if (getIsDocumentDirty()) {
+        e.preventDefault();
+        const choice = await dialog.showMessageBox(win, {
+          type: 'question',
+          buttons: ['Yes', 'No', 'Cancel'],
+          defaultId: 0,
+          cancelId: 2,
+          title: 'SmartNoteAI',
+          message: 'Do you want to save changes before exiting?',
+          detail: 'If you close without saving, your unsaved changes will be lost.',
+          noLink: true,
+        });
+
+        if (choice.response === 0) {
+          // Yes: save and close
+          win.webContents.send('app:request-save-and-close');
+        } else if (choice.response === 1) {
+          // No: don't save and close
+          setIsForceQuitting(true);
+          win.destroy();
+        } else {
+          // Cancel: do not close
+        }
+      }
     });
 
     // Safety fallback: ensure window is displayed even if ready-to-show takes time
@@ -224,9 +274,10 @@ app.on('second-instance', () => {
     await fileService.ensureDirectories();
 
     updateService = new UpdateService(() => mainWindow);
+    credentialService = new CredentialService();
 
     // Register IPC handlers with direct mainWindow accessor
-    setupIpcHandlers({ db, settings, fileService, updateService, getMainWindow: () => mainWindow });
+    setupIpcHandlers({ db, settings, fileService, updateService, credentialService, getMainWindow: () => mainWindow });
 
     mainWindow = await createMainWindow();
 
@@ -239,6 +290,62 @@ app.on('second-instance', () => {
     app.on('activate', async () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         mainWindow = await createMainWindow();
+      }
+    });
+
+    // Enable right-click context menu inside <webview> for image copying and navigation
+    app.on('web-contents-created', (_event, contents) => {
+      if (contents.getType() === 'webview') {
+        contents.on('context-menu', (_e, params) => {
+          const menuItems: Electron.MenuItemConstructorOptions[] = [];
+
+          if (params.hasImageContents) {
+            menuItems.push(
+              {
+                label: 'Copy Image',
+                click: () => contents.copyImageAt(params.x, params.y),
+              },
+              {
+                label: 'Copy Image Address',
+                click: () => {
+                  if (params.srcURL) {
+                    require('electron').clipboard.writeText(params.srcURL);
+                  }
+                },
+              },
+              { type: 'separator' }
+            );
+          }
+
+          if (params.selectionText) {
+            menuItems.push(
+              { role: 'copy', label: 'Copy Text' },
+              { type: 'separator' }
+            );
+          }
+
+          menuItems.push(
+            { role: 'selectAll', label: 'Select All' },
+            { type: 'separator' },
+            {
+              label: 'Back',
+              enabled: contents.navigationHistory?.canGoBack?.() ?? false,
+              click: () => contents.navigationHistory?.goBack?.(),
+            },
+            {
+              label: 'Forward',
+              enabled: contents.navigationHistory?.canGoForward?.() ?? false,
+              click: () => contents.navigationHistory?.goForward?.(),
+            },
+            {
+              label: 'Reload',
+              click: () => contents.reload(),
+            }
+          );
+
+          const menu = Menu.buildFromTemplate(menuItems);
+          menu.popup();
+        });
       }
     });
 
@@ -310,6 +417,21 @@ function setupApplicationMenu(): void {
       ],
     },
     {
+      label: 'Browser & AI Tools',
+      submenu: [
+        {
+          label: 'Web Browser (Google, Images & Wikipedia)...',
+          accelerator: 'CmdOrCtrl+Shift+B',
+          click: () => mainWindow?.webContents.send('menu:tool:browser'),
+        },
+        {
+          label: 'AI Teaching Assistant Chat...',
+          accelerator: 'CmdOrCtrl+Shift+C',
+          click: () => mainWindow?.webContents.send('menu:tool:aichat'),
+        },
+      ],
+    },
+    {
       label: 'Help',
       submenu: [
         {
@@ -352,7 +474,7 @@ function setupApplicationMenu(): void {
         { type: 'separator' },
         { label: 'About SmartNoteAI', click: () => dialog.showMessageBox({
           title: 'SmartNoteAI',
-          message: `SmartNoteAI v${app.getVersion() || '0.2.1'}`,
+          message: `SmartNoteAI v${app.getVersion() || '2.0.0'}`,
           detail: 'Intelligent digital whiteboard and teaching application.\nBuilt with Electron + React + TypeScript.',
           buttons: ['OK'],
         }) },

@@ -1,0 +1,605 @@
+/**
+ * InteractiveActivityModal.css — Classroom Interactive Activity Presentation
+ * Milestone 5: Stage 12 (TASK-112)
+ */
+
+.iam-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 18, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: iamFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes iamFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.iam-dialog {
+  background: #0d1222;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 40px rgba(56, 189, 248, 0.12);
+  border-radius: 18px;
+  width: 100%;
+  max-width: 960px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ─── Header ─────────────────────────────────────────────────────────────────── */
+
+.iam-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  background: #11182c;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.iam-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.iam-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: rgba(56, 189, 248, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  text-transform: uppercase;
+}
+
+.iam-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0;
+}
+
+.iam-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.iam-score-badge {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 8px;
+}
+
+.iam-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.iam-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+}
+
+/* ─── Body & Content ─────────────────────────────────────────────────────────── */
+
+.iam-body {
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+}
+
+.iam-question-card {
+  background: #151d36;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 20px 24px;
+  position: relative;
+}
+
+.iam-question-text {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #ffffff;
+  margin: 0 0 8px 0;
+}
+
+.iam-instructions-text {
+  font-size: 14px;
+  color: #94a3b8;
+  margin: 0;
+  font-style: italic;
+}
+
+/* ─── Interactive Playground Options ─────────────────────────────────────────── */
+
+.iam-options-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.iam-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: #18223d;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #e2e8f0;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+}
+
+.iam-option-btn:hover:not(:disabled) {
+  background: #1f2c4e;
+  border-color: rgba(56, 189, 248, 0.45);
+  transform: translateX(3px);
+}
+
+.iam-option-btn.selected {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.iam-option-btn.correct {
+  background: rgba(16, 185, 129, 0.22) !important;
+  border-color: #10b981 !important;
+  color: #ecfdf5 !important;
+}
+
+.iam-option-btn.incorrect {
+  background: rgba(239, 68, 68, 0.2) !important;
+  border-color: #ef4444 !important;
+  color: #fef2f2 !important;
+}
+
+.iam-opt-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  font-weight: 700;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.iam-option-btn.selected .iam-opt-badge {
+  background: #38bdf8;
+  color: #0d1222;
+}
+
+.iam-option-btn.correct .iam-opt-badge {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.iam-option-btn.incorrect .iam-opt-badge {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+/* ─── Matching Pairs UI ──────────────────────────────────────────────────────── */
+
+.iam-matching-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.iam-matching-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #18223d;
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.iam-matching-left {
+  flex: 1;
+  font-weight: 600;
+  color: #38bdf8;
+  font-size: 15px;
+}
+
+.iam-matching-arrow {
+  color: #64748b;
+  font-size: 16px;
+}
+
+.iam-matching-select {
+  flex: 1.2;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f8fafc;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+}
+
+.iam-matching-select:focus {
+  border-color: #38bdf8;
+}
+
+/* ─── Ordering UI ────────────────────────────────────────────────────────────── */
+
+.iam-ordering-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.iam-ordering-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #18223d;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 16px;
+  border-radius: 10px;
+}
+
+.iam-ordering-item-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  color: #f1f5f9;
+}
+
+.iam-ordering-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.iam-order-btn {
+  background: #243054;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.iam-order-btn:hover:not(:disabled) {
+  background: #38bdf8;
+  color: #0d1222;
+}
+
+/* ─── Step Reveal UI ─────────────────────────────────────────────────────────── */
+
+.iam-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.iam-step-card {
+  background: #18223d;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 14px 18px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.iam-step-card.revealed {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.iam-step-header {
+  font-weight: 700;
+  font-size: 14px;
+  color: #38bdf8;
+  margin-bottom: 4px;
+}
+
+.iam-step-content {
+  font-size: 15px;
+  color: #e2e8f0;
+}
+
+/* ─── Formula Reveal UI ──────────────────────────────────────────────────────── */
+
+.iam-formula-banner {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1.5px solid #38bdf8;
+  border-radius: 14px;
+  padding: 24px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.iam-formula-code {
+  font-size: 26px;
+  font-weight: 700;
+  color: #f8fafc;
+  font-family: 'Fira Code', monospace;
+}
+
+.iam-variable-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.iam-var-card {
+  background: #18223d;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+/* ─── Flashcard UI ───────────────────────────────────────────────────────────── */
+
+.iam-flashcard-stage {
+  perspective: 1000px;
+  display: flex;
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.iam-flashcard {
+  width: 100%;
+  max-width: 540px;
+  min-height: 200px;
+  background: #18223d;
+  border: 2px solid rgba(56, 189, 248, 0.35);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.3s ease, border-color 0.2s ease;
+}
+
+.iam-flashcard:hover {
+  border-color: #38bdf8;
+  transform: translateY(-2px);
+}
+
+.iam-flashcard-badge {
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #38bdf8;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.iam-flashcard-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.5;
+}
+
+/* ─── Poll UI ────────────────────────────────────────────────────────────────── */
+
+.iam-poll-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.iam-poll-item {
+  position: relative;
+  background: #18223d;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.iam-poll-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: rgba(56, 189, 248, 0.2);
+  transition: width 0.4s ease;
+  z-index: 1;
+}
+
+.iam-poll-inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+}
+
+.iam-vote-btn {
+  background: #243054;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.iam-vote-btn:hover {
+  background: #38bdf8;
+  color: #0d1222;
+}
+
+/* ─── Feedback & Hints ───────────────────────────────────────────────────────── */
+
+.iam-feedback-banner {
+  padding: 14px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.iam-feedback-banner.correct {
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #ecfdf5;
+}
+
+.iam-feedback-banner.incorrect {
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fef2f2;
+}
+
+.iam-feedback-banner.revealed {
+  background: rgba(56, 189, 248, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #f0f9ff;
+}
+
+.iam-hints-box {
+  background: #11182c;
+  border: 1px dashed rgba(234, 179, 8, 0.4);
+  border-radius: 10px;
+  padding: 12px 16px;
+  color: #fef08a;
+  font-size: 13px;
+}
+
+/* ─── Footer Controls ────────────────────────────────────────────────────────── */
+
+.iam-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: #11182c;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 12px;
+}
+
+.iam-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.iam-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.iam-btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+  border: none;
+}
+
+.iam-btn-secondary {
+  background: #1f2c4e;
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.iam-btn-secondary:hover:not(:disabled) {
+  background: #2b3d68;
+  color: #ffffff;
+}
+
+.iam-btn-primary {
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+}
+
+.iam-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.iam-btn-success {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+}
+
+.iam-btn-success:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.iam-btn-insert {
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.45);
+  color: #c084fc;
+}
+
+.iam-btn-insert:hover:not(:disabled) {
+  background: rgba(168, 85, 247, 0.3);
+  color: #f3e8ff;
+}
+
+.iam-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+}
+

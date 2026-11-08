@@ -54,11 +54,22 @@ const ALLOWED_INVOKE = new Set([
   'desktop:updateToolbarBounds',
   'desktop:setToolMode',
   'app:quit',
+  'app:setDirty',
+  'app:confirm-close',
   'updater:check',
   'updater:download',
   'updater:install',
   'updater:getVersion',
   'updater:getState',
+  'ai:saveApiKey',
+  'ai:hasApiKey',
+  'ai:getApiKey',
+  'ai:deleteApiKey',
+  'ai:listConfiguredProviders',
+  'ai:testConnection',
+  'ai:listModels',
+  'ai:generateText',
+  'ai:generateStructuredJson',
 ]);
 
 // Whitelist of allowed channels the renderer may listen on (from main)
@@ -82,6 +93,15 @@ const ALLOWED_LISTEN = new Set([
   'menu:tool:shape',
   'menu:tool:desktopannotation',
   'menu:tool:spotlight',
+  'menu:tool:browser',
+  'menu:tool:aichat',
+  'menu:tool:gridview',
+  'menu:tool:screenshot',
+  'menu:tool:timer',
+  'menu:ai:presentation',
+  'menu:ai:slideedit',
+  'menu:ai:activities',
+  'menu:ai:settings',
   'app:update-available',
   'updater:status',
   'annotation:closed',
@@ -89,6 +109,7 @@ const ALLOWED_LISTEN = new Set([
   'desktop:doInsertImage',
   'desktop:resetMode',
   'window:setPresentationMode',
+  'app:request-save-and-close',
 ]);
 
 // The API surface exposed to the renderer via window.electronAPI
@@ -102,7 +123,8 @@ const electronAPI = {
 
   on: (channel: string, listener: (...args: unknown[]) => void): (() => void) => {
     if (!ALLOWED_LISTEN.has(channel)) {
-      throw new Error(`Listen channel '${channel}' is not whitelisted`);
+      console.warn(`[Preload] Listen channel '${channel}' is not whitelisted`);
+      return () => {};
     }
     const wrapped = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => listener(...args);
     ipcRenderer.on(channel, wrapped);
@@ -112,7 +134,8 @@ const electronAPI = {
 
   once: (channel: string, listener: (...args: unknown[]) => void): void => {
     if (!ALLOWED_LISTEN.has(channel)) {
-      throw new Error(`Listen channel '${channel}' is not whitelisted`);
+      console.warn(`[Preload] Listen channel '${channel}' is not whitelisted`);
+      return;
     }
     ipcRenderer.once(channel, (_event, ...args) => listener(...args));
   },
@@ -122,6 +145,17 @@ const electronAPI = {
     electron: process.versions.electron,
     node: process.versions.node,
     chrome: process.versions.chrome,
+  },
+  ai: {
+    saveApiKey: (provider: string, apiKey: string) => ipcRenderer.invoke('ai:saveApiKey', provider, apiKey),
+    hasApiKey: (provider: string) => ipcRenderer.invoke('ai:hasApiKey', provider),
+    getApiKey: (provider: string) => ipcRenderer.invoke('ai:getApiKey', provider),
+    deleteApiKey: (provider: string) => ipcRenderer.invoke('ai:deleteApiKey', provider),
+    listConfiguredProviders: () => ipcRenderer.invoke('ai:listConfiguredProviders'),
+    testConnection: (provider: string, options?: unknown) => ipcRenderer.invoke('ai:testConnection', provider, options),
+    listModels: (provider: string, options?: unknown) => ipcRenderer.invoke('ai:listModels', provider, options),
+    generateText: (request: unknown) => ipcRenderer.invoke('ai:generateText', request),
+    generateStructuredJson: (request: unknown) => ipcRenderer.invoke('ai:generateStructuredJson', request),
   },
 };
 

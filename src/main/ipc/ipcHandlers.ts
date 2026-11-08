@@ -10,11 +10,31 @@ import { DatabaseService } from '../services/DatabaseService';
 import { SettingsService } from '../services/SettingsService';
 import { FileService } from '../services/FileService';
 import { UpdateService } from '../services/UpdateService';
+import { CredentialService } from '../services/CredentialService';
 
 // ─── Desktop Annotation Overlay Window ──────────────────────────────────────
 let annotationWindow: BrowserWindow | null = null;
 let wasFullScreenBeforeDesktop = false;
 let wasMaximizedBeforeDesktop = false;
+
+let isDocumentDirty = false;
+let isForceQuitting = false;
+
+export function getIsDocumentDirty(): boolean {
+  return isDocumentDirty;
+}
+
+export function setIsDocumentDirty(dirty: boolean): void {
+  isDocumentDirty = dirty;
+}
+
+export function getIsForceQuitting(): boolean {
+  return isForceQuitting;
+}
+
+export function setIsForceQuitting(force: boolean): void {
+  isForceQuitting = force;
+}
 
 function getPreloadPath(): string {
   const candidates = [
@@ -81,6 +101,7 @@ interface Services {
   settings: SettingsService;
   fileService: FileService;
   updateService?: UpdateService;
+  credentialService?: CredentialService;
   getMainWindow?: () => BrowserWindow | null;
 }
 
@@ -246,7 +267,13 @@ export function setupIpcHandlers(services: Services): void {
     const win = BrowserWindow.fromWebContents(e.sender);
     if (!win) return false;
     const next = flag !== undefined ? flag : !win.isFullScreen();
-    win.setFullScreen(next);
+    if (next) {
+      win.setAlwaysOnTop(true, 'screen-saver');
+      win.setFullScreen(true);
+    } else {
+      win.setAlwaysOnTop(false);
+      win.setFullScreen(false);
+    }
     return win.isFullScreen();
   });
 
@@ -258,39 +285,36 @@ export function setupIpcHandlers(services: Services): void {
   const restoreMainWindowState = (win: BrowserWindow) => {
     if (!win || win.isDestroyed()) return;
 
-    // Prevent duplicate restore event loops
-    win.removeAllListeners('restore');
-
-    if (win.isMinimized()) {
-      win.restore();
-    }
-    win.show();
-    win.focus();
-
     if (wasFullScreenBeforeDesktop) {
-      // Force exit and re-entry so Electron doesn't skip setFullScreen when its internal flag was already true
-      win.setFullScreen(false);
-      win.setFullScreen(true);
+      // Elevate above Windows taskbar and set fullscreen BEFORE showing
+      win.setAlwaysOnTop(true, 'screen-saver');
+      if (!win.isFullScreen()) {
+        win.setFullScreen(true);
+      }
+      if (win.isMinimized()) {
+        win.restore();
+      }
+      win.show();
+      win.focus();
       win.webContents.send('window:setPresentationMode', true);
-
-      // Verify after DWM unminimize animation completes
-      setTimeout(() => {
-        if (!win.isDestroyed() && wasFullScreenBeforeDesktop) {
-          const display = screen.getDisplayMatching(win.getBounds());
-          const b = win.getBounds();
-          if (!win.isFullScreen() || b.width !== display.bounds.width || b.height !== display.bounds.height) {
-            win.setFullScreen(false);
-            win.setFullScreen(true);
-          }
-          win.webContents.send('window:setPresentationMode', true);
-        }
-      }, 100);
     } else if (wasMaximizedBeforeDesktop) {
+      win.setAlwaysOnTop(false);
+      if (win.isMinimized()) {
+        win.restore();
+      }
       if (!win.isMaximized()) {
         win.maximize();
       }
+      win.show();
+      win.focus();
       win.webContents.send('window:setPresentationMode', false);
     } else {
+      win.setAlwaysOnTop(false);
+      if (win.isMinimized()) {
+        win.restore();
+      }
+      win.show();
+      win.focus();
       win.webContents.send('window:setPresentationMode', false);
     }
   };
@@ -380,15 +404,22 @@ export function setupIpcHandlers(services: Services): void {
 
     await openDesktopOverlayWindow(callerWin, callerBounds);
     if (callerWin && !callerWin.isDestroyed()) {
-      callerWin.removeAllListeners('restore');
-      callerWin.once('restore', () => {
-        if (annotationWindow && !annotationWindow.isDestroyed()) {
-          annotationWindow.destroy();
-          annotationWindow = null;
-        }
-        restoreMainWindowState(callerWin);
-      });
-      callerWin.minimize();
+      callerWin.setAlwaysOnTop(false);
+      callerWin.hide();
+    }
+    return true;
+  });
+
+  ipcMain.handle('app:setDirty', (_e, dirty: boolean) => {
+    isDocumentDirty = Boolean(dirty);
+    return true;
+  });
+
+  ipcMain.handle('app:confirm-close', (e) => {
+    isForceQuitting = true;
+    const win = BrowserWindow.fromWebContents(e.sender) || services.getMainWindow?.();
+    if (win && !win.isDestroyed()) {
+      win.close();
     }
     return true;
   });
@@ -413,12 +444,12 @@ export function setupIpcHandlers(services: Services): void {
   ipcMain.handle('window:restore', async () => {
     try {
       const mainWin = services.getMainWindow?.() || BrowserWindow.getAllWindows().find((w) => w !== annotationWindow && !w.isDestroyed());
+      if (mainWin && !mainWin.isDestroyed()) {
+        restoreMainWindowState(mainWin);
+      }
       if (annotationWindow && !annotationWindow.isDestroyed()) {
         annotationWindow.destroy();
         annotationWindow = null;
-      }
-      if (mainWin && !mainWin.isDestroyed()) {
-        restoreMainWindowState(mainWin);
       }
     } catch (err) {
       console.error('Failed to restore main window:', err);
@@ -563,4 +594,825 @@ export function setupIpcHandlers(services: Services): void {
     }
     return { status: 'idle', currentVersion: app.getVersion() || '0.2.0' };
   });
+
+  // ─── AI Teaching Presentation Generator & Credentials (TASK-105) ───────────
+  ipcMain.handle('ai:saveApiKey', async (_e, provider: unknown, apiKey: unknown) => {
+    if (!services.credentialService) {
+      return { success: false, error: 'CredentialService is unavailable in main process.' };
+    }
+    if (typeof provider !== 'string' || !provider.trim()) {
+      return { success: false, error: 'Valid provider identifier is required.' };
+    }
+    if (typeof apiKey !== 'string' || !apiKey.trim()) {
+      return { success: false, error: 'API key cannot be empty.' };
+    }
+    const cleanProvider = provider.trim().toLowerCase();
+    const validProviders = ['openai', 'gemini', 'ollama', 'custom-openai'];
+    if (!validProviders.includes(cleanProvider)) {
+      return { success: false, error: `Unsupported AI provider: ${cleanProvider}` };
+    }
+    return services.credentialService.saveApiKey(cleanProvider, apiKey.trim());
+  });
+
+  ipcMain.handle('ai:hasApiKey', async (_e, provider: unknown) => {
+    if (!services.credentialService || typeof provider !== 'string') return false;
+    return services.credentialService.hasApiKey(provider.trim().toLowerCase());
+  });
+
+  ipcMain.handle('ai:deleteApiKey', async (_e, provider: unknown) => {
+    if (!services.credentialService || typeof provider !== 'string') return false;
+    return services.credentialService.deleteApiKey(provider.trim().toLowerCase());
+  });
+
+  ipcMain.handle('ai:listConfiguredProviders', async () => {
+    if (!services.credentialService) return [];
+    return services.credentialService.listConfiguredProviders();
+  });
+
+  ipcMain.handle('ai:getApiKey', async (_e, provider: unknown) => {
+    if (!services.credentialService || typeof provider !== 'string') return null;
+    return services.credentialService.getApiKey(provider.trim().toLowerCase());
+  });
+
+  ipcMain.handle('ai:testConnection', async (_e, provider: unknown, options?: unknown) => {
+    if (!services.credentialService) {
+      return { success: false, provider: String(provider), error: 'CredentialService is unavailable.' };
+    }
+    if (typeof provider !== 'string' || !provider.trim()) {
+      return { success: false, provider: '', error: 'Provider identifier is required.' };
+    }
+
+    const normProvider = provider.trim().toLowerCase();
+    const key = await services.credentialService.getApiKey(normProvider);
+    if (!key && normProvider !== 'ollama') {
+      return {
+        success: false,
+        provider: normProvider,
+        error: `No API key configured for ${normProvider}. Please enter your key in Settings.`,
+      };
+    }
+
+    const opts = (options && typeof options === 'object' ? options : {}) as {
+      model?: string;
+      customEndpoint?: string;
+      timeoutMs?: number;
+    };
+
+    return executeProviderConnectionTest(normProvider, key || '', opts);
+  });
+
+  ipcMain.handle('ai:listModels', async (_e, provider: unknown, options?: unknown) => {
+    if (typeof provider !== 'string' || !provider.trim()) return [];
+    const normProvider = provider.trim().toLowerCase();
+    const key = services.credentialService ? await services.credentialService.getApiKey(normProvider) : null;
+    const opts = (options && typeof options === 'object' ? options : {}) as {
+      customEndpoint?: string;
+      timeoutMs?: number;
+    };
+    return executeProviderListModels(normProvider, key || '', opts);
+  });
+
+  ipcMain.handle('ai:generateText', async (_e, request: unknown) => {
+    if (!request || typeof request !== 'object') {
+      return { success: false, text: '', error: 'Invalid generation request' };
+    }
+    const req = request as {
+      provider?: string;
+      model?: string;
+      prompt?: string;
+      systemPrompt?: string;
+      temperature?: number;
+      maxTokens?: number;
+      customEndpoint?: string;
+      timeoutMs?: number;
+    };
+    const normProvider = (req.provider || 'gemini').trim().toLowerCase();
+    const key = services.credentialService ? await services.credentialService.getApiKey(normProvider) : null;
+    if (!key && normProvider !== 'ollama') {
+      return {
+        success: false,
+        text: '',
+        provider: normProvider,
+        error: `No API key configured for ${normProvider}. Please enter your key in Settings.`,
+      };
+    }
+    return executeProviderGenerateText(normProvider, key || '', req);
+  });
+
+  ipcMain.handle('ai:generateStructuredJson', async (_e, request: unknown) => {
+    if (!request || typeof request !== 'object') {
+      return { success: false, data: null, error: 'Invalid generation request' };
+    }
+    const req = request as {
+      provider?: string;
+      model?: string;
+      prompt?: string;
+      systemPrompt?: string;
+      temperature?: number;
+      maxTokens?: number;
+      customEndpoint?: string;
+      timeoutMs?: number;
+    };
+    const normProvider = (req.provider || 'gemini').trim().toLowerCase();
+    const key = services.credentialService ? await services.credentialService.getApiKey(normProvider) : null;
+    if (!key && normProvider !== 'ollama') {
+      return {
+        success: false,
+        data: null,
+        provider: normProvider,
+        error: `No API key configured for ${normProvider}. Please enter your key in Settings.`,
+      };
+    }
+    return executeProviderGenerateStructuredJson(normProvider, key || '', req);
+  });
+}
+
+// ─── Main-Process AI Provider Helpers ─────────────────────────────────────────
+function isOpenAICompatibleProvider(provider: string): boolean {
+  const norm = provider.trim().toLowerCase();
+  return (
+    norm === 'openai' ||
+    norm === 'custom-openai' ||
+    norm === 'kimi' ||
+    norm === 'moonshot' ||
+    norm === 'deepseek' ||
+    norm === 'groq' ||
+    norm === 'openrouter' ||
+    norm === 'custom'
+  );
+}
+
+function resolveAIEndpoint(provider: string, customEndpoint?: string): string {
+  if (customEndpoint && customEndpoint.trim().length > 0) {
+    return customEndpoint.trim().replace(/\/+$/, '');
+  }
+  const norm = provider.trim().toLowerCase();
+  if (norm === 'gemini') return 'https://generativelanguage.googleapis.com/v1beta';
+  if (norm === 'ollama') return 'http://127.0.0.1:11434';
+  if (norm === 'kimi' || norm === 'moonshot') return 'https://api.moonshot.cn/v1';
+  if (norm === 'deepseek') return 'https://api.deepseek.com';
+  if (norm === 'groq') return 'https://api.groq.com/openai/v1';
+  if (norm === 'openrouter') return 'https://openrouter.ai/api/v1';
+  return 'https://api.openai.com/v1';
+}
+
+// ─── Main-Process AI Connection Tester ───────────────────────────────────────
+async function executeProviderConnectionTest(
+  provider: string,
+  apiKey: string,
+  options?: { model?: string; customEndpoint?: string; timeoutMs?: number }
+): Promise<{ success: boolean; latencyMs?: number; models?: string[]; error?: string; warning?: string; provider: string }> {
+  const timeoutMs = options?.timeoutMs || 15000;
+  const startTime = Date.now();
+  const normProvider = provider.trim().toLowerCase();
+
+  try {
+    if (isOpenAICompatibleProvider(normProvider)) {
+      const endpoint = resolveAIEndpoint(normProvider, options?.customEndpoint);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)), timeoutMs);
+
+      try {
+        const res = await fetch(`${endpoint}/models`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        });
+
+        const latencyMs = Date.now() - startTime;
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          throw new Error(`${normProvider.toUpperCase()} returned status ${res.status}: ${body || res.statusText}`);
+        }
+
+        const json = (await res.json()) as any;
+        const models = Array.isArray(json?.data)
+          ? json.data
+              .map((m: { id: string }) => m.id)
+              .filter((id: string) => typeof id === 'string')
+              .slice(0, 20)
+          : [];
+
+        return { success: true, latencyMs, models, provider: normProvider };
+      } finally {
+        clearTimeout(timer);
+      }
+    } else if (normProvider === 'gemini') {
+      const endpoint = resolveAIEndpoint('gemini', options?.customEndpoint);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)), timeoutMs);
+
+      try {
+        const res = await fetch(`${endpoint}/models?key=${apiKey}`, {
+          method: 'GET',
+          headers: {
+            'x-goog-api-key': apiKey,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        });
+
+        const latencyMs = Date.now() - startTime;
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          throw new Error(`Google Gemini API returned status ${res.status}: ${body || res.statusText}`);
+        }
+
+        const json = (await res.json()) as any;
+        const models = Array.isArray(json?.models)
+          ? json.models
+              .map((m: { name?: string }) => m.name?.replace(/^models\//, '') || '')
+              .filter((name: string) => {
+                const lower = name.toLowerCase();
+                return (
+                  lower.includes('gemini') &&
+                  !lower.endsWith('-tts') &&
+                  !lower.includes('-image') &&
+                  !lower.includes('-transcribe') &&
+                  !lower.includes('embedding') &&
+                  !lower.includes('banana') &&
+                  !lower.includes('aqa')
+                );
+              })
+              .slice(0, 30)
+          : ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-pro-latest'];
+
+        return { success: true, latencyMs, models, provider: normProvider };
+      } finally {
+        clearTimeout(timer);
+      }
+    } else if (normProvider === 'ollama') {
+      const endpoint = resolveAIEndpoint('ollama', options?.customEndpoint);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)), timeoutMs);
+
+      try {
+        const res = await fetch(`${endpoint}/api/tags`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+        });
+
+        const latencyMs = Date.now() - startTime;
+        if (!res.ok) {
+          throw new Error(`Ollama returned status ${res.status}`);
+        }
+
+        const json = (await res.json()) as any;
+        const rawModels = Array.isArray(json?.models) ? json.models : [];
+        const models = rawModels.map((m: any) => m.name || m.model || '').filter(Boolean);
+
+        if (models.length === 0) {
+          return {
+            success: true,
+            latencyMs,
+            models: [],
+            provider: 'ollama',
+            warning: 'Ollama is running, but no models installed yet. Run "ollama run llama3.2" to install one.',
+          };
+        }
+
+        return { success: true, latencyMs, models, provider: 'ollama' };
+      } finally {
+        clearTimeout(timer);
+      }
+    } else {
+      return { success: false, error: `Unsupported AI provider: ${normProvider}`, provider: normProvider };
+    }
+  } catch (err) {
+    const rawMsg = err instanceof Error ? err.message : String(err);
+    const sanitized = apiKey ? rawMsg.split(apiKey).join('[REDACTED]') : rawMsg;
+    let friendly = sanitized;
+    if (sanitized.includes('401') || sanitized.toLowerCase().includes('unauthorized') || sanitized.toLowerCase().includes('invalid api key')) {
+      friendly = 'Invalid API key or unauthorized. Please verify your credentials.';
+    } else if (sanitized.includes('429') || sanitized.toLowerCase().includes('rate limit') || sanitized.toLowerCase().includes('quota')) {
+      friendly = 'API rate limit or quota exceeded for this model.';
+    } else if (sanitized.includes('AbortError') || sanitized.toLowerCase().includes('timeout') || sanitized.toLowerCase().includes('timed out')) {
+      friendly = 'Connection timed out. Please verify your network/model.';
+    } else if (sanitized.includes('ECONNREFUSED') || sanitized.includes('Failed to fetch') || sanitized.includes('ENOTFOUND')) {
+      if (normProvider === 'ollama') {
+        friendly = 'Ollama is not running. Please start the Ollama desktop app or run "ollama serve".';
+      } else {
+        friendly = `Network connection failed when reaching ${normProvider} server.`;
+      }
+    }
+    return { success: false, error: friendly, provider: normProvider };
+  }
+}
+
+// ─── Main-Process AI Model Discovery ─────────────────────────────────────────
+async function executeProviderListModels(
+  provider: string,
+  apiKey: string,
+  options?: { customEndpoint?: string; timeoutMs?: number }
+): Promise<Array<{ id: string; name: string; sizeFormatted?: string; parameterSize?: string; isLocal?: boolean; provider: string }>> {
+  const timeoutMs = options?.timeoutMs || 8000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const normProvider = provider.trim().toLowerCase();
+
+  try {
+    if (normProvider === 'ollama') {
+      const endpoint = resolveAIEndpoint('ollama', options?.customEndpoint);
+      const res = await fetch(`${endpoint}/api/tags`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+      });
+      if (!res.ok) return [];
+      const json = (await res.json()) as any;
+      const raw = Array.isArray(json?.models) ? json.models : [];
+      return raw.map((item: any) => {
+        const id = item.name || item.model || '';
+        const paramSize = item.details?.parameter_size;
+        let sizeFormatted = '';
+        if (typeof item.size === 'number' && item.size > 0) {
+          const gb = item.size / (1024 * 1024 * 1024);
+          sizeFormatted = gb >= 1 ? `${gb.toFixed(1)} GB` : `${(item.size / (1024 * 1024)).toFixed(0)} MB`;
+        }
+        let name = id;
+        const meta: string[] = [];
+        if (paramSize) meta.push(paramSize);
+        if (sizeFormatted) meta.push(sizeFormatted);
+        if (meta.length > 0) name = `${id} (${meta.join(' • ')})`;
+
+        return {
+          id,
+          name,
+          sizeFormatted,
+          parameterSize: paramSize,
+          isLocal: true,
+          provider: 'ollama',
+        };
+      });
+    } else if (normProvider === 'gemini') {
+      if (!apiKey) return [];
+      const endpoint = resolveAIEndpoint('gemini', options?.customEndpoint);
+      const res = await fetch(`${endpoint}/models?key=${apiKey}`, {
+        method: 'GET',
+        headers: {
+          'x-goog-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+      });
+      if (!res.ok) return [];
+      const json = (await res.json()) as any;
+      const raw = Array.isArray(json?.models) ? json.models : [];
+      return raw
+        .filter((item: any) => {
+          const rawId = (item.name || '').toLowerCase().replace(/^models\//, '');
+          if (
+            rawId.endsWith('-tts') ||
+            rawId.includes('-image') ||
+            rawId.includes('-transcribe') ||
+            rawId.includes('embedding') ||
+            rawId.includes('banana') ||
+            rawId.includes('aqa')
+          ) {
+            return false;
+          }
+          const methods = item.supportedGenerationMethods || [];
+          return rawId.includes('gemini') && (methods.length === 0 || methods.includes('generateContent'));
+        })
+        .map((item: any) => {
+          const id = (item.name || '').replace(/^models\//, '');
+          return {
+            id,
+            name: item.displayName ? `${item.displayName} (${id})` : id,
+            provider: 'gemini',
+            isLocal: false,
+          };
+        });
+    } else if (isOpenAICompatibleProvider(normProvider)) {
+      if (!apiKey) return [];
+      const endpoint = resolveAIEndpoint(normProvider, options?.customEndpoint);
+      const res = await fetch(`${endpoint}/models`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+      });
+      if (!res.ok) return [];
+      const json = (await res.json()) as any;
+      const raw = Array.isArray(json?.data) ? json.data : [];
+      return raw
+        .filter((item: any) => item && typeof item.id === 'string')
+        .map((item: any) => ({
+          id: item.id,
+          name: item.id,
+          provider: normProvider,
+          isLocal: false,
+        }));
+    }
+    return [];
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ─── Main-Process AI Text Generation ─────────────────────────────────────────
+async function executeProviderGenerateText(
+  provider: string,
+  apiKey: string,
+  req: {
+    model?: string;
+    prompt?: string;
+    systemPrompt?: string;
+    temperature?: number;
+    maxTokens?: number;
+    customEndpoint?: string;
+    timeoutMs?: number;
+  }
+): Promise<{ success: boolean; text: string; model?: string; provider: string; error?: string }> {
+  const normProvider = provider.trim().toLowerCase();
+  const timeoutMs = req.timeoutMs || (normProvider === 'ollama' ? 180000 : 60000);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error(`AI generation timed out after ${timeoutMs}ms`)), timeoutMs);
+
+  try {
+    if (normProvider === 'gemini') {
+      const endpoint = resolveAIEndpoint('gemini', req.customEndpoint);
+      let rawModel = req.model?.trim() || 'gemini-3.5-flash-lite';
+      // Strip display parenthetical if present e.g. "Gemini 3.5 Flash-Lite (gemini-3.5-flash-lite)"
+      const parenMatch = rawModel.match(/\(([^)]+)\)$/);
+      if (parenMatch && parenMatch[1]) {
+        rawModel = parenMatch[1].trim();
+      }
+      if (
+        rawModel.endsWith('-tts') ||
+        rawModel.includes('-image') ||
+        rawModel.includes('-transcribe') ||
+        rawModel === 'gemini-1.5-flash' ||
+        rawModel === 'gemini-2.0-flash' ||
+        rawModel === 'gemini-2.5-flash' ||
+        rawModel === 'gemini-3.5-flash' ||
+        !rawModel
+      ) {
+        rawModel = 'gemini-3.5-flash-lite';
+      }
+      let cleanModel = rawModel.replace(/^models\//, '').trim();
+
+      const bodyPayload: Record<string, unknown> = {
+        contents: [{ role: 'user', parts: [{ text: req.prompt || '' }] }],
+        generationConfig: {
+          temperature: typeof req.temperature === 'number' ? req.temperature : 0.7,
+          maxOutputTokens: req.maxTokens || 4096,
+        },
+      };
+      if (req.systemPrompt && req.systemPrompt.trim()) {
+        bodyPayload.systemInstruction = {
+          parts: [{ text: req.systemPrompt.trim() }],
+        };
+      }
+
+      // Helper for per-model fetch with sub-timeout to prevent hanging on preview models
+      const attemptGenerate = async (targetModel: string): Promise<{ ok: boolean; text?: string; status?: number; error?: string }> => {
+        const subController = new AbortController();
+        const subTimer = setTimeout(() => subController.abort(new Error(`Model ${targetModel} timed out after 18000ms`)), 18000);
+        try {
+          const attemptRes = await fetch(`${endpoint}/models/${targetModel}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: {
+              'x-goog-api-key': apiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(bodyPayload),
+            signal: subController.signal,
+          });
+          if (attemptRes.ok) {
+            const fbJson = (await attemptRes.json()) as any;
+            const fbText = fbJson?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            return { ok: true, text: fbText };
+          }
+          const errBody = await attemptRes.text().catch(() => '');
+          return { ok: false, status: attemptRes.status, error: errBody || attemptRes.statusText };
+        } catch (err: any) {
+          return { ok: false, error: err?.message || String(err) };
+        } finally {
+          clearTimeout(subTimer);
+        }
+      };
+
+      // 1. Try requested model first
+      const firstAttempt = await attemptGenerate(cleanModel);
+      if (firstAttempt.ok && firstAttempt.text) {
+        return { success: true, text: firstAttempt.text, model: cleanModel, provider: 'gemini' };
+      }
+
+      // 2. If first attempt was unavailable (503), timeout, deprecated (404), or rate-limited (429), try stable fallbacks!
+      const fallbacks = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-3.8-flash'];
+      for (const fbModel of fallbacks) {
+        if (cleanModel === fbModel) continue;
+        const fbAttempt = await attemptGenerate(fbModel);
+        if (fbAttempt.ok && fbAttempt.text) {
+          return { success: true, text: fbAttempt.text, model: fbModel, provider: 'gemini' };
+        }
+      }
+
+      throw new Error(`Google Gemini failed: ${firstAttempt.error || 'All fallback models unavailable'}`);
+    } else if (isOpenAICompatibleProvider(normProvider)) {
+      const endpoint = resolveAIEndpoint(normProvider, req.customEndpoint);
+      const model = req.model?.trim() || (normProvider === 'kimi' ? 'moonshot-v1-8k' : normProvider === 'deepseek' ? 'deepseek-chat' : 'gpt-4o-mini');
+
+      const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
+      if (req.systemPrompt && req.systemPrompt.trim()) {
+        messages.push({ role: 'system', content: req.systemPrompt.trim() });
+      }
+      messages.push({ role: 'user', content: req.prompt || '' });
+
+      const res = await fetch(`${endpoint}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: typeof req.temperature === 'number' ? req.temperature : 0.7,
+          max_tokens: req.maxTokens || 4096,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`${normProvider.toUpperCase()} returned status ${res.status}: ${errText || res.statusText}`);
+      }
+
+      const json = (await res.json()) as any;
+      const text = json?.choices?.[0]?.message?.content || '';
+      return { success: true, text, model, provider: normProvider };
+    } else if (normProvider === 'ollama') {
+      const endpoint = resolveAIEndpoint('ollama', req.customEndpoint);
+      let model = req.model?.trim() || 'qwen2.5-coder:3b';
+      // Clean model name
+      const parenMatch = model.match(/\(([^)]+)\)$/);
+      if (parenMatch && parenMatch[1]) {
+        model = parenMatch[1].trim();
+      }
+      model = model.replace(/\s+•.*$/, '').trim();
+
+      // First try /api/generate
+      const res = await fetch(`${endpoint}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          prompt: req.prompt || '',
+          system: req.systemPrompt || '',
+          stream: false,
+          options: {
+            temperature: typeof req.temperature === 'number' ? req.temperature : 0.7,
+          },
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        // Fallback to /api/chat if /api/generate failed
+        const chatRes = await fetch(`${endpoint}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            messages: [
+              ...(req.systemPrompt ? [{ role: 'system', content: req.systemPrompt }] : []),
+              { role: 'user', content: req.prompt || '' },
+            ],
+            stream: false,
+          }),
+          signal: controller.signal,
+        });
+
+        if (!chatRes.ok) {
+          throw new Error(`Ollama returned status ${chatRes.status}`);
+        }
+
+        const chatJson = (await chatRes.json()) as any;
+        const text = chatJson?.message?.content || '';
+        return { success: true, text, model, provider: 'ollama' };
+      }
+
+      const json = (await res.json()) as any;
+      const text = json?.response || '';
+      return { success: true, text, model, provider: 'ollama' };
+    } else {
+      return { success: false, text: '', provider: normProvider, error: `Unsupported AI provider: ${normProvider}` };
+    }
+  } catch (err) {
+    const rawMsg = err instanceof Error ? err.message : String(err);
+    const sanitized = apiKey ? rawMsg.split(apiKey).join('[REDACTED]') : rawMsg;
+    return { success: false, text: '', provider: normProvider, error: sanitized };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ─── Main-Process AI Structured JSON Generation ──────────────────────────────
+async function executeProviderGenerateStructuredJson(
+  provider: string,
+  apiKey: string,
+  req: {
+    model?: string;
+    prompt?: string;
+    systemPrompt?: string;
+    temperature?: number;
+    maxTokens?: number;
+    customEndpoint?: string;
+    timeoutMs?: number;
+  }
+): Promise<{ success: boolean; data: any; rawText?: string; model?: string; provider: string; error?: string }> {
+  const timeoutMs = req.timeoutMs || 45000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error(`AI generation timed out after ${timeoutMs}ms`)), timeoutMs);
+
+  try {
+    let rawText = '';
+    let usedModel = req.model || '';
+
+    if (provider === 'gemini') {
+      const endpoint = (req.customEndpoint?.trim() || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
+      let rawModel = req.model?.trim() || 'gemini-3.5-flash-lite';
+      const parenMatch = rawModel.match(/\(([^)]+)\)$/);
+      if (parenMatch && parenMatch[1]) {
+        rawModel = parenMatch[1].trim();
+      }
+      if (
+        rawModel.endsWith('-tts') ||
+        rawModel.includes('-image') ||
+        rawModel.includes('-transcribe') ||
+        rawModel === 'gemini-1.5-flash' ||
+        rawModel === 'gemini-2.0-flash' ||
+        rawModel === 'gemini-2.5-flash' ||
+        rawModel === 'gemini-3.5-flash' ||
+        !rawModel
+      ) {
+        rawModel = 'gemini-3.5-flash-lite';
+      }
+      usedModel = rawModel.replace(/^models\//, '').trim();
+
+      const baseSystemPrompt = req.systemPrompt ? `${req.systemPrompt}\n\n` : '';
+      const strictJsonPrompt = `${baseSystemPrompt}IMPORTANT: You must output ONLY a valid JSON object. Do not include markdown code blocks or explanations outside the JSON payload.`;
+
+      const bodyPayload: Record<string, unknown> = {
+        systemInstruction: {
+          parts: [{ text: strictJsonPrompt }],
+        },
+        contents: [{ role: 'user', parts: [{ text: req.prompt || '' }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: typeof req.temperature === 'number' ? req.temperature : 0.4,
+          maxOutputTokens: req.maxTokens || 4096,
+        },
+      };
+
+      const attemptGenerate = async (targetModel: string): Promise<string | null> => {
+        const subController = new AbortController();
+        const subTimer = setTimeout(() => subController.abort(new Error(`Timeout on ${targetModel}`)), 18000);
+        try {
+          const attemptRes = await fetch(`${endpoint}/models/${targetModel}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: {
+              'x-goog-api-key': apiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(bodyPayload),
+            signal: subController.signal,
+          });
+          if (attemptRes.ok) {
+            const json = (await attemptRes.json()) as any;
+            return json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          }
+          return null;
+        } catch {
+          return null;
+        } finally {
+          clearTimeout(subTimer);
+        }
+      };
+
+      const firstText = await attemptGenerate(usedModel);
+      if (firstText) {
+        rawText = firstText;
+      } else {
+        const fallbacks = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-3.8-flash'];
+        let gotText = false;
+        for (const fbModel of fallbacks) {
+          if (usedModel === fbModel) continue;
+          const fbText = await attemptGenerate(fbModel);
+          if (fbText) {
+            rawText = fbText;
+            usedModel = fbModel;
+            gotText = true;
+            break;
+          }
+        }
+        if (!gotText) {
+          throw new Error(`Google Gemini generation failed for ${usedModel} and fallbacks.`);
+        }
+      }
+    } else if (provider === 'openai' || provider === 'custom-openai') {
+      const endpoint = (req.customEndpoint?.trim() || 'https://api.openai.com/v1').replace(/\/+$/, '');
+      usedModel = req.model?.trim() || 'gpt-4o-mini';
+
+      const baseSystem = req.systemPrompt ? `${req.systemPrompt}\n\n` : '';
+      const sys = `${baseSystem}IMPORTANT: You must return ONLY a single, valid JSON object matching the requested schema. No markdown wrapping.`;
+
+      const messages: Array<{ role: 'system' | 'user'; content: string }> = [
+        { role: 'system', content: sys },
+        { role: 'user', content: req.prompt || '' },
+      ];
+
+      const res = await fetch(`${endpoint}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: usedModel,
+          messages,
+          temperature: typeof req.temperature === 'number' ? req.temperature : 0.4,
+          response_format: { type: 'json_object' },
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`OpenAI returned status ${res.status}: ${errText || res.statusText}`);
+      }
+
+      const json = (await res.json()) as any;
+      rawText = json?.choices?.[0]?.message?.content || '';
+    } else if (provider === 'ollama') {
+      const endpoint = (req.customEndpoint?.trim() || 'http://127.0.0.1:11434').replace(/\/+$/, '');
+      let rawModel = req.model?.trim() || 'qwen2.5-coder:3b';
+      const parenMatch = rawModel.match(/\(([^)]+)\)$/);
+      if (parenMatch && parenMatch[1]) {
+        rawModel = parenMatch[1].trim();
+      }
+      usedModel = rawModel.replace(/\s+•.*$/, '').trim();
+
+      const baseSystem = req.systemPrompt ? `${req.systemPrompt}\n\n` : '';
+      const sys = `${baseSystem}IMPORTANT: Respond with ONLY a valid JSON object. No explanations outside JSON.`;
+
+      const res = await fetch(`${endpoint}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: usedModel,
+          prompt: req.prompt || '',
+          system: sys,
+          stream: false,
+          format: 'json',
+          options: {
+            temperature: typeof req.temperature === 'number' ? req.temperature : 0.4,
+          },
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        throw new Error(`Ollama returned status ${res.status}`);
+      }
+
+      const json = (await res.json()) as any;
+      rawText = json?.response || '';
+    } else {
+      return { success: false, data: null, provider, error: `Unsupported provider: ${provider}` };
+    }
+
+    // Extract JSON from raw response
+    let clean = rawText.trim();
+    if (clean.startsWith('```json')) {
+      clean = clean.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (clean.startsWith('```')) {
+      clean = clean.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      clean = clean.substring(firstBrace, lastBrace + 1);
+    }
+
+    const data = JSON.parse(clean);
+    return { success: true, data, rawText, model: usedModel, provider };
+  } catch (err) {
+    const rawMsg = err instanceof Error ? err.message : String(err);
+    const sanitized = apiKey ? rawMsg.split(apiKey).join('[REDACTED]') : rawMsg;
+    return { success: false, data: null, provider, error: sanitized };
+  } finally {
+    clearTimeout(timer);
+  }
 }

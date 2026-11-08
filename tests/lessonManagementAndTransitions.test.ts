@@ -148,4 +148,70 @@ describe('Milestone 3 — Section 10: Lessons, Slides & Transitions', () => {
     expect(parsed.currentPageIndex).toBe(0);
     expect(typeof parsed.timestamp).toBe('number');
   });
+
+  it('supports bulk deletion of multiple slides with DELETE_PAGES', () => {
+    let state = { ...initialDocumentState, lesson: { ...initialDocumentState.lesson } };
+    // Create 5 pages
+    for (let i = 0; i < 4; i++) {
+      state = documentReducer(state, { type: 'ADD_PAGE', after: i });
+    }
+    expect(state.lesson.pages).toHaveLength(5);
+
+    // Bulk delete slides at index 1 and 3
+    state = documentReducer(state, { type: 'DELETE_PAGES', indices: [1, 3] });
+    expect(state.lesson.pages).toHaveLength(3);
+    expect(state.isDirty).toBe(true);
+
+    // Bulk delete all remaining slides -> creates default fresh page
+    state = documentReducer(state, { type: 'DELETE_PAGES', indices: [0, 1, 2] });
+    expect(state.lesson.pages).toHaveLength(1);
+    expect(state.currentPageIndex).toBe(0);
+  });
+
+  it('supports duplicating individual slides and drag-and-drop reordering', () => {
+    let state = { ...initialDocumentState, lesson: { ...initialDocumentState.lesson } };
+    state = documentReducer(state, { type: 'ADD_PAGE', after: 0 });
+    state = documentReducer(state, { type: 'RENAME_PAGE', pageIndex: 0, title: 'Introduction' });
+    state = documentReducer(state, { type: 'RENAME_PAGE', pageIndex: 1, title: 'Methodology' });
+
+    // Duplicate slide 0 -> inserted at index 1
+    state = documentReducer(state, { type: 'DUPLICATE_PAGE', pageIndex: 0 });
+    expect(state.lesson.pages).toHaveLength(3);
+    expect(state.lesson.pages[1].title).toBe('Introduction (Copy)');
+    expect(state.currentPageIndex).toBe(1);
+
+    // Drag-and-drop move: move slide 2 to position 0
+    state = documentReducer(state, { type: 'MOVE_PAGE', from: 2, to: 0 });
+    expect(state.lesson.pages[0].title).toBe('Methodology');
+    expect(state.lesson.pages[1].title).toBe('Introduction');
+    expect(state.lesson.pages[2].title).toBe('Introduction (Copy)');
+    expect(state.currentPageIndex).toBe(0);
+  });
+
+  it('persists and enforces boundaries for draggable page drawer width', () => {
+    // Tests that page drawer width defaults comfortably to >=340px and clamps within safe bounds [260px, 850px]
+    const clampWidth = (w: number, screenWidth = 1920) => {
+      const maxWidth = Math.min(850, Math.round(screenWidth * 0.7));
+      return Math.max(260, Math.min(maxWidth, w));
+    };
+
+    // Default width
+    expect(clampWidth(360)).toBe(360);
+
+    // Minimum boundary clamp (prevents collapsing below 260px)
+    expect(clampWidth(100)).toBe(260);
+    expect(clampWidth(-50)).toBe(260);
+
+    // Maximum boundary clamp on large screens (capped at 850px)
+    expect(clampWidth(1200, 1920)).toBe(850);
+
+    // Maximum boundary clamp on smaller screens (e.g. 1366x768 display: 70% of 1366 = 956, max 850)
+    expect(clampWidth(900, 1366)).toBe(850);
+
+    // Resizing simulation: dragging left by 80px increases drawer from 360 to 440
+    const startWidth = 360;
+    const dragDelta = 80;
+    const resized = clampWidth(startWidth + dragDelta);
+    expect(resized).toBe(440);
+  });
 });

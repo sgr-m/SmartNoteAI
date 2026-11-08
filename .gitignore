@@ -7,3 +7,6 @@ release/
 *.sbl
 backup_v0.1.0_windows_setup/
 assets/MapsData/
+AI_CHANGELOG.md
+AI_DEVELOPMENT_LOG.md
+AI_TASK_TRACKER.md

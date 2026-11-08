@@ -79,6 +79,7 @@ export type ShapeType =
   | 'recognition'
   | 'freeform'
   | 'cartesianAxes'
+  | 'cartesian3DPlane'
   | 'ruler'
   | 'protractor'
   | 'compass'
@@ -159,6 +160,9 @@ export interface TextObject {
   visible?: boolean;
   layerId: string;
   isLatex?: boolean;
+  isHtml?: boolean;
+  isMarkdown?: boolean;
+  lineHeight?: number;
 }
 
 // ─── Image ────────────────────────────────────────────────────────────────────
@@ -177,6 +181,10 @@ export interface ImageObject {
   locked: boolean;
   visible?: boolean;
   layerId: string;
+  isDiagram?: boolean;
+  diagramCode?: string;
+  diagramType?: string;
+  diagramColor?: string;
 }
 
 // ─── Group (Multi-Object Selection) ──────────────────────────────────────────
@@ -213,7 +221,7 @@ export interface Layer {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export type BackgroundType = 'blank' | 'ruled' | 'grid' | 'dotted' | 'image' | 'pdf';
+export type BackgroundType = 'blank' | 'ruled' | 'grid' | 'dotted' | 'image' | 'pdf' | 'color';
 
 export interface PageBackground {
   type: BackgroundType;

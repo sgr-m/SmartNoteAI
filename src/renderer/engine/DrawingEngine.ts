@@ -28,7 +28,9 @@ import {
   Layer,
 } from '../../shared/types';
 import { v4 as uuidv4 } from 'uuid';
-import { isLatexSyntax, getCachedLatexImage, measureLatexSize } from '../services/latexService';
+import { isLatexSyntax, isPureLatexFormula, getCachedLatexImage, measureLatexSize } from '../services/latexService';
+import { getCachedHtmlImage } from '../services/htmlRenderService';
+import { isMarkdownSyntax, getCachedMarkdownImage, measureMarkdownSize } from '../services/markdownRenderService';
 import { renderSubjectShape, isSubjectShape } from './subjectShapeRenderer';
 import { isGeoShapeType } from '../services/geography/types';
 import { hitTestGeoFeature, getGeoMapTransform } from './geographyShapeRenderer';
@@ -973,7 +975,7 @@ export class DrawingEngine {
 
   // ─── Active Render Loop ───────────────────────────────────────────────────
 
-  private requestActiveRender(): void {
+  public requestActiveRender(): void {
     if (this.rafHandle !== null) return;
     this.rafHandle = requestAnimationFrame(() => {
       this.rafHandle = null;
@@ -981,7 +983,7 @@ export class DrawingEngine {
     });
   }
 
-  private requestCommittedRender(): void {
+  public requestCommittedRender(): void {
     if (this.committedRafHandle !== null) return;
     this.committedRafHandle = requestAnimationFrame(() => {
       this.committedRafHandle = null;
@@ -2109,14 +2111,19 @@ export class DrawingEngine {
     }
     if (obj.type === 'text') {
       const t = obj as TextObject;
-      const isLatex = t.isLatex || isLatexSyntax(t.content);
+      const isMarkdown = t.isMarkdown || (!t.isHtml && !t.isLatex && isMarkdownSyntax(t.content));
+      const isLatex = !isMarkdown && (t.isLatex || isPureLatexFormula(t.content));
 
       let tw = t.width;
       let th = t.height;
 
       if (!tw || !th) {
         if (isLatex) {
-          const m = measureLatexSize(t.content, t.fontSize || 24);
+          const m = measureLatexSize(t.content, t.fontSize || 36);
+          tw = tw || m.width;
+          th = th || m.height;
+        } else if (isMarkdown) {
+          const m = measureMarkdownSize(t.content, t.fontSize || 36, t.fontFamily, 900);
           tw = tw || m.width;
           th = th || m.height;
         } else {
@@ -2614,10 +2621,11 @@ export class DrawingEngine {
 
     if (obj.type === 'text') {
       const t = obj as TextObject;
-      const isLatex = t.isLatex || isLatexSyntax(t.content);
+      const isMarkdown = t.isMarkdown || (!t.isHtml && !t.isLatex && isMarkdownSyntax(t.content));
+      const isLatex = !isMarkdown && (t.isLatex || isPureLatexFormula(t.content));
       const initW = t.width || (isLatex ? 200 : 200);
       const initH = t.height || (isLatex ? 50 : 40);
-      const initFontSize = t.fontSize || (isLatex ? 32 : 20);
+      const initFontSize = t.fontSize || (isLatex ? 36 : 24);
 
       if (isLatex) {
         const aspect = initW / Math.max(1, initH);
@@ -4220,10 +4228,72 @@ export class DrawingEngine {
       ctx.fill();
     }
 
-    // Render LaTeX Mathematical Formulas with high-fidelity vector rendering
-    const isLatex = text.isLatex || isLatexSyntax(text.content);
+    // Render Custom HTML/CSS with crisp SVG ForeignObject rendering
+    if (text.isHtml) {
+      const fontSize = text.fontSize || 24;
+      const fontFamily = text.fontFamily || 'Segoe UI, sans-serif';
+      const targetW = text.width || 400;
+      const targetH = text.height || 120;
+
+      const img = getCachedHtmlImage(
+        text.id,
+        text.content,
+        text.color || '#ffffff',
+        fontSize,
+        fontFamily,
+        targetW,
+        targetH,
+        () => {
+          this.requestActiveRender();
+          this.requestCommittedRender();
+        },
+        text.textAlign || 'left',
+        text.lineHeight || 1.4
+      );
+      if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        ctx.drawImage(img, x, y, tw, th);
+      }
+      ctx.restore();
+      return;
+    }
+
+    // 2. Render Markdown + mixed KaTeX formulas with high-fidelity vector rendering
+    const isMarkdown = text.isMarkdown || (!text.isHtml && !text.isLatex && isMarkdownSyntax(text.content));
+    if (isMarkdown) {
+      const fontSize = text.fontSize || 36;
+      const fontFamily = text.fontFamily || 'Inter, -apple-system, sans-serif';
+      const measured = measureMarkdownSize(text.content, fontSize, fontFamily, 900, text.lineHeight || 1.45, text.textAlign || 'left');
+      const targetW = text.width || measured.width;
+      const targetH = text.height || measured.height;
+
+      const img = getCachedMarkdownImage(
+        text.id,
+        text.content,
+        text.color || '#ffffff',
+        fontSize,
+        fontFamily,
+        targetW,
+        targetH,
+        () => {
+          this.requestActiveRender();
+          this.requestCommittedRender();
+        },
+        text.textAlign || 'left',
+        text.lineHeight || 1.45
+      );
+      if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        ctx.drawImage(img, x, y, tw, th);
+        ctx.restore();
+        return;
+      }
+      // If SVG data URL image is still loading or unavailable, fall through directly to line-by-line canvas drawing!
+      // This guarantees 0ms latency: text is NEVER BLANK and NEVER disappears!
+    }
+
+    // 3. Render Pure LaTeX Mathematical Formulas (standalone formulas without English prose)
+    const isLatex = !isMarkdown && (text.isLatex || isPureLatexFormula(text.content));
     if (isLatex) {
-      const fontSize = text.fontSize || 32;
+      const fontSize = text.fontSize || 36;
       const measured = measureLatexSize(text.content, fontSize);
       const targetW = text.width || measured.width;
       const targetH = text.height || measured.height;
@@ -4255,24 +4325,261 @@ export class DrawingEngine {
         const drawY = y + (th - drawH) / 2;
 
         ctx.drawImage(img, drawX, drawY, drawW, drawH);
+        ctx.restore();
+        return;
       }
-      ctx.restore();
+      // If LaTeX SVG is still loading, fall through to direct canvas text rendering below!
+    }
+
+    ctx.textBaseline = 'top';
+
+    const maxLineWidth = Math.max(120, tw);
+    const baseFontSize = text.fontSize * this.zoom * this.devicePixelRatio;
+    const baseLineHeight = text.fontSize * (text.lineHeight || 1.35) * this.zoom * this.devicePixelRatio;
+    const baseFontFamily = text.fontFamily || 'Inter, sans-serif';
+    const baseFontStyle = text.fontStyle || 'normal';
+    const baseFontWeight = text.fontWeight || 400;
+    const baseColor = text.color || '#ffffff';
+    const textAlign = text.textAlign || 'left';
+
+    const rawLines = text.content.split('\n');
+    let currentY = y;
+
+    for (let i = 0; i < rawLines.length; i++) {
+      const line = rawLines[i];
+
+      // Empty line -> blank spacing
+      if (!line.trim()) {
+        currentY += baseLineHeight * 0.6;
+        continue;
+      }
+
+      // 1. Markdown Horizontal Rule Detection: ---, ***, ___ (draws horizontal line just like Jupyter markdown cell)
+      if (/^(\s*[-*_]\s*){3,}$/.test(line)) {
+        currentY += baseLineHeight * 0.35;
+        ctx.save();
+        ctx.strokeStyle = baseColor;
+        ctx.globalAlpha = 0.45;
+        ctx.lineWidth = Math.max(1, 1.5 * this.zoom * this.devicePixelRatio);
+        ctx.beginPath();
+        ctx.moveTo(x, currentY);
+        ctx.lineTo(x + maxLineWidth, currentY);
+        ctx.stroke();
+        ctx.restore();
+        currentY += baseLineHeight * 0.45;
+        continue;
+      }
+
+      // 2. Markdown Heading Detection: #, ##, ###, ####
+      const headingMatch = line.match(/^(#{1,4})\s+(.+)$/);
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const headingText = headingMatch[2];
+        const scale = level === 1 ? 1.4 : level === 2 ? 1.25 : 1.15;
+        const headingFontSize = baseFontSize * scale;
+        const headingLineHeight = baseLineHeight * scale * 1.1;
+
+        ctx.font = `${baseFontStyle} bold ${headingFontSize}px ${baseFontFamily}`;
+        ctx.fillStyle = baseColor;
+
+        const wrappedHeadings = this.wrapTextLine(ctx, headingText, maxLineWidth);
+        for (const sub of wrappedHeadings) {
+          let lineX = x;
+          const subW = ctx.measureText(sub).width;
+          if (textAlign === 'center') {
+            lineX = x + Math.max(0, (maxLineWidth - subW) / 2);
+          } else if (textAlign === 'right') {
+            lineX = x + Math.max(0, maxLineWidth - subW);
+          }
+          ctx.fillText(sub, lineX, currentY);
+          currentY += headingLineHeight;
+        }
+        currentY += baseLineHeight * 0.2;
+        continue;
+      }
+
+      // 3. Markdown Numbered List Detection: 1. , 2. etc.
+      const numListMatch = line.match(/^(\d+\.)\s+(.+)$/);
+      if (numListMatch) {
+        const numMarker = numListMatch[1];
+        const itemText = numListMatch[2];
+        ctx.font = `${baseFontStyle} ${baseFontWeight} ${baseFontSize}px ${baseFontFamily}`;
+        ctx.fillStyle = baseColor;
+
+        const numIndent = (numMarker.length * 10 + 16) * this.zoom * this.devicePixelRatio;
+        const numAvailW = maxLineWidth - numIndent;
+        const wrappedNums = this.wrapTextLine(ctx, itemText, numAvailW);
+
+        for (let nIdx = 0; nIdx < wrappedNums.length; nIdx++) {
+          if (nIdx === 0) {
+            ctx.fillText(numMarker, x, currentY);
+          }
+          this.renderFormattedLine(ctx, wrappedNums[nIdx], x + numIndent, currentY, baseFontStyle, baseFontWeight, baseFontSize, baseFontFamily, baseColor);
+          currentY += baseLineHeight;
+        }
+        continue;
+      }
+
+      // 4. Markdown Bullet List Detection: * , - , • 
+      const bulletMatch = line.match(/^(\*|-|•)\s+(.+)$/);
+      if (bulletMatch) {
+        const bulletText = bulletMatch[2];
+        ctx.font = `${baseFontStyle} ${baseFontWeight} ${baseFontSize}px ${baseFontFamily}`;
+        ctx.fillStyle = baseColor;
+
+        const bulletIndent = 24 * this.zoom * this.devicePixelRatio;
+        const bulletAvailW = maxLineWidth - bulletIndent;
+        const wrappedBullets = this.wrapTextLine(ctx, bulletText, bulletAvailW);
+
+        for (let bIdx = 0; bIdx < wrappedBullets.length; bIdx++) {
+          if (bIdx === 0) {
+            ctx.fillText('•', x + 4 * this.zoom * this.devicePixelRatio, currentY);
+          }
+          this.renderFormattedLine(ctx, wrappedBullets[bIdx], x + bulletIndent, currentY, baseFontStyle, baseFontWeight, baseFontSize, baseFontFamily, baseColor);
+          currentY += baseLineHeight;
+        }
+        continue;
+      }
+
+      // 5. Regular Paragraph with bold/math/code formatting & auto-wrap
+      ctx.font = `${baseFontStyle} ${baseFontWeight} ${baseFontSize}px ${baseFontFamily}`;
+      ctx.fillStyle = baseColor;
+
+      const wrappedLines = this.wrapTextLine(ctx, line, maxLineWidth);
+      for (const subLine of wrappedLines) {
+        let lineX = x;
+        if (textAlign === 'center' || textAlign === 'right') {
+          const lineW = this.measureFormattedLineWidth(ctx, subLine, baseFontStyle, baseFontWeight, baseFontSize, baseFontFamily);
+          if (textAlign === 'center') {
+            lineX = x + Math.max(0, (maxLineWidth - lineW) / 2);
+          } else if (textAlign === 'right') {
+            lineX = x + Math.max(0, maxLineWidth - lineW);
+          }
+        }
+        this.renderFormattedLine(ctx, subLine, lineX, currentY, baseFontStyle, baseFontWeight, baseFontSize, baseFontFamily, baseColor);
+        currentY += baseLineHeight;
+      }
+    }
+    ctx.restore();
+  }
+
+  private measureFormattedLineWidth(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    style: string,
+    weight: number | string,
+    size: number,
+    family: string
+  ): number {
+    if (!text.includes('**') && !text.includes('$') && !text.includes('`')) {
+      ctx.font = `${style} ${weight} ${size}px ${family}`;
+      return ctx.measureText(text).width;
+    }
+    const tokenRegex = /(\$\$[\s\S]*?\$\$|\*\*.*?\*\*|\$.*?\$|`.*?`)/g;
+    const parts = text.split(tokenRegex);
+    let totalW = 0;
+    for (const part of parts) {
+      if (!part) continue;
+      if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+        ctx.font = `${style} bold ${size}px ${family}`;
+        totalW += ctx.measureText(part.slice(2, -2)).width;
+      } else if ((part.startsWith('$$') && part.endsWith('$$')) || (part.startsWith('$') && part.endsWith('$'))) {
+        ctx.font = `italic ${size}px 'Cambria Math', 'Times New Roman', serif`;
+        const inner = part.replace(/^\$\$|\$\$$|^\$|\$$/g, '');
+        totalW += ctx.measureText(inner).width;
+      } else if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
+        ctx.font = `${size * 0.95}px 'Cascadia Code', Consolas, monospace`;
+        totalW += ctx.measureText(part.slice(1, -1)).width;
+      } else {
+        ctx.font = `${style} ${weight} ${size}px ${family}`;
+        totalW += ctx.measureText(part).width;
+      }
+    }
+    return totalW;
+  }
+
+  private wrapTextLine(ctx: CanvasRenderingContext2D, text: string, maxW: number): string[] {
+    if (ctx.measureText(text).width <= maxW) {
+      return [text];
+    }
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let currentLine = '';
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      if (ctx.measureText(testLine).width > maxW && currentLine) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+    return lines.length > 0 ? lines : [text];
+  }
+
+  private renderFormattedLine(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    style: string,
+    weight: number | string,
+    size: number,
+    family: string,
+    color: string
+  ): void {
+    // Fast path: pure text without any markdown or math delimiters
+    if (!text.includes('**') && !text.includes('$') && !text.includes('`')) {
+      ctx.font = `${style} ${weight} ${size}px ${family}`;
+      ctx.fillStyle = color;
+      ctx.fillText(text, x, y);
       return;
     }
 
-    ctx.font = `${text.fontStyle || 'normal'} ${text.fontWeight || 400} ${
-      text.fontSize * this.zoom * this.devicePixelRatio
-    }px ${text.fontFamily || 'Inter, sans-serif'}`;
-    ctx.fillStyle = text.color || '#ffffff';
-    ctx.textBaseline = 'top';
+    // Tokenize into display math $$...$$, inline math $...$, bold **...**, or code `...`
+    const tokenRegex = /(\$\$[\s\S]*?\$\$|\*\*.*?\*\*|\$.*?\$|`.*?`)/g;
+    const parts = text.split(tokenRegex);
+    let curX = x;
 
-    const lines = text.content.split('\n');
-    const lineHeight = text.fontSize * 1.35 * this.zoom * this.devicePixelRatio;
+    for (const part of parts) {
+      if (!part) continue;
 
-    for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(lines[i], x, y + i * lineHeight);
+      if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+        const boldText = part.slice(2, -2);
+        ctx.font = `${style} bold ${size}px ${family}`;
+        ctx.fillStyle = color;
+        ctx.fillText(boldText, curX, y);
+        curX += ctx.measureText(boldText).width;
+      } else if (part.startsWith('$$') && part.endsWith('$$') && part.length >= 4) {
+        const mathText = part.slice(2, -2).trim();
+        ctx.font = `italic ${size}px 'Cambria Math', 'Times New Roman', serif`;
+        ctx.fillStyle = color;
+        ctx.fillText(mathText, curX, y);
+        curX += ctx.measureText(mathText).width;
+      } else if (part.startsWith('$') && part.endsWith('$') && part.length >= 2) {
+        const mathText = part.slice(1, -1);
+        ctx.font = `italic ${size}px 'Cambria Math', 'Times New Roman', serif`;
+        ctx.fillStyle = color;
+        ctx.fillText(mathText, curX, y);
+        curX += ctx.measureText(mathText).width;
+      } else if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
+        const codeText = part.slice(1, -1);
+        ctx.font = `${size * 0.95}px 'Cascadia Code', Consolas, monospace`;
+        ctx.fillStyle = '#34d399';
+        ctx.fillText(codeText, curX, y);
+        curX += ctx.measureText(codeText).width;
+      } else {
+        ctx.font = `${style} ${weight} ${size}px ${family}`;
+        ctx.fillStyle = color;
+        ctx.fillText(part, curX, y);
+        curX += ctx.measureText(part).width;
+      }
     }
-    ctx.restore();
   }
 
   private renderImage(ctx: CanvasRenderingContext2D, imgObj: ImageObject): void {

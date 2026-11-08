@@ -27,27 +27,30 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1;
+  margin-right: 8px;
 }
 
 .panel-title {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #ffffff;
 }
 
 .panel-lesson-name {
-  font-size: 10.5px;
+  font-size: 11px;
   color: #94a3b8;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 90px;
+  max-width: 200px;
 }
 
 .panel-header-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  flex-shrink: 0;
 }
 
 .panel-tool-btn {
@@ -55,12 +58,12 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   color: #cbd5e1;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -80,6 +83,112 @@
 
 .panel-tool-btn.add-btn-highlight:hover {
   background: #6c63ff;
+}
+
+.panel-tool-btn.active-select-mode {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+/* ─── Bulk Action Banner (Requirement 2) ─── */
+.page-panel-bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.3);
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+
+.bulk-bar-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  color: #cbd5e1;
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.bulk-bar-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.bulk-bar-count {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.bulk-bar-delete-btn {
+  background: rgba(239, 68, 68, 0.25);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 5px;
+  color: #fca5a5;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.bulk-bar-delete-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.bulk-bar-delete-btn:not(:disabled):hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.bulk-bar-done-btn {
+  background: rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 5px;
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.bulk-bar-done-btn:hover {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
+.page-card-checkbox {
+  width: 14px;
+  height: 14px;
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+
+.page-thumb-card.selected {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.page-thumb-card.dragging {
+  opacity: 0.4;
+  border-style: dashed;
+  border-color: #38bdf8;
+}
+
+.page-thumb-card.drag-over {
+  border-color: #38bdf8;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.5);
+  transform: translateY(-2px);
 }
 
 .page-panel-list {

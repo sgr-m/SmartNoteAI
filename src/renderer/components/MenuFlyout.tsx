@@ -30,6 +30,7 @@ interface MenuFlyoutProps {
   onOpenSettings?: () => void;
   onOpenRecentLessons?: () => void;
   onOpenSubjectTools?: () => void;
+  onOpenVectorDiagram?: () => void;
   onTogglePresentationMode?: () => void;
   onOpenAIAssistant?: () => void;
   onOpenRecordingStudio?: () => void;
@@ -42,6 +43,7 @@ interface MenuFlyoutProps {
   onScreenshot?: () => void;
   onDesktop?: () => void;
   alignRight?: boolean;
+  onOpenBrowser?: () => void;
 }
 
 export function MenuFlyout({
@@ -49,6 +51,7 @@ export function MenuFlyout({
   onOpenSettings,
   onOpenRecentLessons,
   onOpenSubjectTools,
+  onOpenVectorDiagram,
   onTogglePresentationMode,
   onOpenAIAssistant,
   onOpenRecordingStudio,
@@ -61,6 +64,7 @@ export function MenuFlyout({
   onScreenshot,
   onDesktop,
   alignRight = false,
+  onOpenBrowser,
 }: MenuFlyoutProps): React.ReactElement {
   const { newLesson, openLesson, saveLesson, saveLessonAs, pasteObject, canPaste } = useAppContext();
   const [activeTab, setActiveTab] = useState<'file' | 'mode' | 'import' | 'export' | 'settings' | 'help' | 'update'>('file');
@@ -334,11 +338,27 @@ export function MenuFlyout({
             <div className="submenu-grid">
               <button
                 className="submenu-tile-btn"
+                onClick={() => handleAction(() => onOpenBrowser?.())}
+                title="Educational Web Browser (Google, Images & Wikipedia) — Ctrl+Shift+B"
+              >
+                <div className="submenu-icon-box">🌐</div>
+                <span className="submenu-label">Web Browser</span>
+              </button>
+              <button
+                className="submenu-tile-btn"
                 onClick={() => handleAction(() => onOpenSubjectTools?.())}
                 title="Subject Teaching Platform (Math, Physics, Chemistry, CS, Digital Logic)"
               >
                 <div className="submenu-icon-box">🎓</div>
                 <span className="submenu-label">Teaching Platform</span>
+              </button>
+              <button
+                className="submenu-tile-btn"
+                onClick={() => handleAction(() => onOpenVectorDiagram?.())}
+                title="Code-to-Vector Diagram Studio (Mermaid, Function Graphs, Geometry, Circuits, Timing, TikZ)"
+              >
+                <div className="submenu-icon-box">📐</div>
+                <span className="submenu-label">Vector Diagrams</span>
               </button>
               <button
                 className="submenu-tile-btn"
@@ -453,29 +473,28 @@ export function MenuFlyout({
           )}
 
           {activeTab === 'settings' && (
-            <div style={{ padding: 10, fontSize: 12, color: '#333' }}>
-              <div style={{ fontWeight: 600, marginBottom: 8 }}>Preferences</div>
-              <p style={{ color: '#666', lineHeight: 1.5, marginBottom: 12 }}>
+            <div className="preferences-panel">
+              <div className="preferences-heading">Preferences</div>
+              <p className="preferences-desc">
                 SmartNoteAI v{updateState.currentVersion}<br />
                 Bottom docked classroom interface.<br />
                 Hardware acceleration: 120 FPS capable.<br />
                 Latency optimized.
               </p>
               <button
-                className="btn btn-primary"
-                style={{ width: '100%', fontSize: 12, padding: '6px 12px', marginBottom: 8 }}
+                className="preferences-btn primary"
                 onClick={() => handleAction(() => onOpenSettings?.())}
               >
-                ⚙️ Open Full Settings & Plugins
+                <span>⚙️</span> Open Full Settings & Plugins
               </button>
               <button
-                className="updater-btn secondary"
+                className="preferences-btn secondary"
                 onClick={() => {
                   setActiveTab('update');
                   handleCheckForUpdates();
                 }}
               >
-                🔄 Check for Updates...
+                <span>🔄</span> Check for Updates...
               </button>
             </div>
           )}

@@ -194,3 +194,119 @@
   justify-content: flex-end;
   gap: 10px;
 }
+
+/* AI Presentation Generator Tab Styles (TASK-105) */
+.ai-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ai-status-badge.configured {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.ai-status-badge.missing {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.ai-key-input-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.ai-text-input {
+  flex: 1;
+  background: #0f172a;
+  color: #f1f5f9;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+}
+
+.ai-text-input:focus {
+  border-color: #0091ff;
+  box-shadow: 0 0 0 2px rgba(0, 145, 255, 0.2);
+}
+
+.ai-btn-sm {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f1f5f9;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.ai-btn-sm:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.ai-btn-sm.primary {
+  background: #0091ff;
+  border-color: #0091ff;
+  color: #fff;
+}
+
+.ai-btn-sm.primary:hover:not(:disabled) {
+  background: #0077d9;
+}
+
+.ai-btn-sm.danger {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.ai-btn-sm.danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.ai-btn-sm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-feedback-banner {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ai-feedback-banner.success {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+
+.ai-feedback-banner.error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.ai-feedback-banner.info {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+}

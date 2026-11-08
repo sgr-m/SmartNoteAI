@@ -203,6 +203,41 @@ const mathTools: SubjectTool[] = [
     },
   },
 
+  // 8b. 3D Cartesian Coordinate Plane (X-Y-Z)
+  {
+    id: 'math-cartesian-3d-plane',
+    subjectId: 'mathematics',
+    name: '3D Coordinate Plane (X-Y-Z)',
+    category: 'Graphing',
+    icon: '🧊',
+    description: 'Interactive 3D Cartesian coordinate system with X, Y, Z axes, grids, ticks, and rotatable projection',
+    badge: 'Interactive 3D',
+    tags: ['cartesian', '3d', 'xyz', 'axes', 'plane', 'coordinates', 'origin', 'spatial', 'graphing'],
+    interactiveModal: 'cartesian3DPlane',
+    execute: (context, options) => {
+      const plane3D = createShape('cartesian3DPlane', 220, 100, 560, 560, {
+        fillColor: 'rgba(15, 23, 42, 0.94)',
+        strokeColor: '#38bdf8',
+        strokeWidth: 2,
+        params: {
+          xMin: options?.xMin ?? -5,
+          xMax: options?.xMax ?? 5,
+          yMin: options?.yMin ?? -5,
+          yMax: options?.yMax ?? 5,
+          zMin: options?.zMin ?? -5,
+          zMax: options?.zMax ?? 5,
+          step: options?.step ?? 1,
+          showGrid: options?.showGrid ?? true,
+          showDots: options?.showDots ?? false,
+          showPlanes: options?.showPlanes ?? true,
+          rotX: options?.rotX ?? 25,
+          rotY: options?.rotY ?? -35,
+        },
+      });
+      executeAddObject(context, plane3D, 'Insert 3D Coordinate Plane (X-Y-Z)');
+    },
+  },
+
   // 9. Function Plotter
   {
     id: 'math-function-plotter',

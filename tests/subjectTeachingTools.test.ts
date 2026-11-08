@@ -274,6 +274,85 @@ describe('Subject Teaching Tools - Instruments & Formulas', () => {
       expect(customPlane.params?.yMax).toBe(30);
       expect(customPlane.params?.step).toBe(5);
     });
+
+    it('creates and renders interactive 3D Cartesian plane with X, Y, Z axes, ground plane, and rotation angles', async () => {
+      const { isSubjectShape, renderCartesian3DPlane } = await import('../src/renderer/engine/subjectShapeRenderer');
+      const { isGeometryInstrument } = await import('../src/renderer/engine/geometryInstrumentRenderer');
+
+      expect(isSubjectShape('cartesian3DPlane')).toBe(true);
+      expect(isGeometryInstrument('cartesian3DPlane')).toBe(true);
+
+      const plane3D: ShapeObject = {
+        id: 'test-3d-plane',
+        type: 'shape',
+        shapeType: 'cartesian3DPlane' as ShapeType,
+        x: 100,
+        y: 100,
+        width: 560,
+        height: 560,
+        strokeColor: '#38bdf8',
+        strokeWidth: 2,
+        fillColor: 'rgba(15, 23, 42, 0.94)',
+        fillOpacity: 1,
+        strokeOpacity: 1,
+        strokeStyle: 'solid',
+        rotation: 0,
+        locked: false,
+        layerId: 'default',
+        params: {
+          xMin: -5,
+          xMax: 5,
+          yMin: -5,
+          yMax: 5,
+          zMin: -5,
+          zMax: 5,
+          step: 1,
+          rotX: 30,
+          rotY: -45,
+          showGrid: true,
+          showPlanes: true,
+          showDots: true,
+        },
+      };
+
+      expect(plane3D.params?.xMin).toBe(-5);
+      expect(plane3D.params?.zMax).toBe(5);
+      expect(plane3D.params?.rotX).toBe(30);
+      expect(plane3D.params?.rotY).toBe(-45);
+
+      // Verify canvas rendering works without throwing errors
+      const mockCtx = {
+        beginPath: vi.fn(),
+        roundRect: vi.fn(),
+        fill: vi.fn(),
+        stroke: vi.fn(),
+        fillText: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        closePath: vi.fn(),
+        arc: vi.fn(),
+        setLineDash: vi.fn(),
+        font: '',
+        fillStyle: '',
+        strokeStyle: '',
+        lineWidth: 1,
+        textAlign: '',
+        textBaseline: '',
+      } as unknown as CanvasRenderingContext2D;
+
+      expect(() => {
+        renderCartesian3DPlane(mockCtx, plane3D, 100, 100, 560, 560, 1);
+      }).not.toThrow();
+    });
+
+    it('verifies 3D Cartesian plane tool exists in Mathematics module registry', async () => {
+      const { MathematicsModule } = await import('../src/renderer/services/subjectModules/mathModule');
+      const tool3D = MathematicsModule.tools.find((t) => t.id === 'math-cartesian-3d-plane');
+      expect(tool3D).toBeDefined();
+      expect(tool3D?.name).toContain('3D Coordinate Plane');
+      expect(tool3D?.category).toBe('Graphing');
+      expect(tool3D?.interactiveModal).toBe('cartesian3DPlane');
+    });
   });
 
   describe('Math Function Compiler & Evaluator (mathFunctionParser)', () => {

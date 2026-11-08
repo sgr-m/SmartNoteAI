@@ -44,6 +44,8 @@ interface GeographyResourceCentreModalProps {
   onOpenAtlas?: () => void;
   onOpenGlobe?: () => void;
   onOpenGisLab?: () => void;
+  onlyOutlineMaps?: boolean;
+  initialCategory?: GeoCategory | 'all';
 }
 
 export function GeographyResourceCentreModal({
@@ -52,6 +54,8 @@ export function GeographyResourceCentreModal({
   onOpenAtlas,
   onOpenGlobe,
   onOpenGisLab,
+  onlyOutlineMaps = false,
+  initialCategory,
 }: GeographyResourceCentreModalProps): React.ReactElement {
   const { docState, docDispatch, commandSystem, setToastMessage } = useAppContext();
   const currentPageIndex = docState.currentPageIndex;
@@ -64,7 +68,9 @@ export function GeographyResourceCentreModal({
 
   // Multi-faceted Filter States for Resources
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<GeoCategory | 'all'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<GeoCategory | 'all'>(
+    onlyOutlineMaps ? 'outline-maps' : (initialCategory || 'all')
+  );
   const [selectedScope, setSelectedScope] = useState<GeoScope | 'all'>('all');
   const [selectedClassLevel, setSelectedClassLevel] = useState<GeoClassLevel | 'all'>('all');
   const [selectedType, setSelectedType] = useState<GeoResourceType | 'all'>('all');
@@ -106,15 +112,19 @@ export function GeographyResourceCentreModal({
 
   // Filtered resources
   const filteredResources = useMemo(() => {
-    return searchGeographyResources({
+    const results = searchGeographyResources({
       searchQuery,
-      selectedCategory,
+      selectedCategory: onlyOutlineMaps ? 'outline-maps' : selectedCategory,
       selectedScope,
       selectedClassLevel,
       selectedType,
       favoritesOnly,
       recentlyUsedOnly,
     });
+    if (onlyOutlineMaps) {
+      return results.filter((r) => r.category === 'outline-maps');
+    }
+    return results;
   }, [
     searchQuery,
     selectedCategory,
@@ -123,6 +133,7 @@ export function GeographyResourceCentreModal({
     selectedType,
     favoritesOnly,
     recentlyUsedOnly,
+    onlyOutlineMaps,
     favoriteIds,
   ]);
 
@@ -296,18 +307,24 @@ export function GeographyResourceCentreModal({
         {/* ─── Header ──────────────────────────────────────────────────────── */}
         <header className="geo-header">
           <div className="geo-header-title-group">
-            <span className="geo-header-icon">🌍</span>
+            <span className="geo-header-icon">{onlyOutlineMaps ? '✏️' : '🌍'}</span>
             <div>
               <h2>
-                Geography Resource Centre
-                <span className="geo-header-badge">Survey of India Standard</span>
+                {onlyOutlineMaps ? 'India Outline Maps' : 'Geography Resource Centre'}
+                <span className="geo-header-badge">
+                  {onlyOutlineMaps ? 'Classroom Drawing & Worksheets' : 'Survey of India Standard'}
+                </span>
               </h2>
-              <p>Curriculum maps, 3D Earth, topography, satellite remote sensing & activities</p>
+              <p>
+                {onlyOutlineMaps
+                  ? 'Official Survey of India blank and annotated outline maps for classroom practice, map pointing, and exams'
+                  : 'Curriculum maps, 3D Earth, topography, satellite remote sensing & activities'}
+              </p>
             </div>
           </div>
 
           <div className="geo-header-controls">
-            {onOpenAtlas && (
+            {!onlyOutlineMaps && onOpenAtlas && (
               <button
                 className="geo-btn-secondary"
                 title="Launch Survey of India & World Atlas Thematic Explorer"
@@ -330,7 +347,7 @@ export function GeographyResourceCentreModal({
                 <span>Open Atlas Explorer</span>
               </button>
             )}
-            {onOpenGisLab && (
+            {!onlyOutlineMaps && onOpenGisLab && (
               <button
                 className="geo-btn-secondary"
                 title="Launch GIS, Satellite Imagery & Thematic Map Laboratory (ISRO Bhuvan, LULC, Drainage, Soil & Floods)"
@@ -353,56 +370,60 @@ export function GeographyResourceCentreModal({
                 <span>GIS Thematic Lab</span>
               </button>
             )}
-            <button
-              className="geo-btn-secondary"
-              title="One-click update and refresh all maps from official Survey of India & Bhuvan sources"
-              onClick={handleUpdateFromGovtPortal}
-              disabled={isUpdatingFromGovt}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '8px',
-                background: 'rgba(56, 189, 248, 0.15)',
-                border: '1px solid rgba(56, 189, 248, 0.4)',
-                color: '#38bdf8',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <span>{isUpdatingFromGovt ? '⏳' : '🔄'}</span>
-              <span>{isUpdatingFromGovt ? 'Updating All Maps...' : 'Update All Maps (One-Click)'}</span>
-            </button>
-            <button
-              className="geo-btn-secondary"
-              title={offlineStorage.summaryText}
-              onClick={handleDownloadAllEssential}
-              disabled={isDownloading}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '8px',
-                background: offlineStorage.isFullyCached ? 'rgba(34, 197, 94, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                border: offlineStorage.isFullyCached ? '1px solid rgba(34, 197, 94, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
-                color: offlineStorage.isFullyCached ? '#4ade80' : '#fbbf24',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <span>{isDownloading ? '⏳' : offlineStorage.isFullyCached ? '✓' : '📥'}</span>
-              <span>
-                {isDownloading
-                  ? 'Downloading...'
-                  : offlineStorage.isFullyCached
-                  ? 'Offline Maps Ready'
-                  : 'Download Offline Maps'}
-              </span>
-            </button>
+            {!onlyOutlineMaps && (
+              <button
+                className="geo-btn-secondary"
+                title="One-click update and refresh all maps from official Survey of India & Bhuvan sources"
+                onClick={handleUpdateFromGovtPortal}
+                disabled={isUpdatingFromGovt}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  background: 'rgba(56, 189, 248, 0.15)',
+                  border: '1px solid rgba(56, 189, 248, 0.4)',
+                  color: '#38bdf8',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>{isUpdatingFromGovt ? '⏳' : '🔄'}</span>
+                <span>{isUpdatingFromGovt ? 'Updating All Maps...' : 'Update All Maps (One-Click)'}</span>
+              </button>
+            )}
+            {!onlyOutlineMaps && (
+              <button
+                className="geo-btn-secondary"
+                title={offlineStorage.summaryText}
+                onClick={handleDownloadAllEssential}
+                disabled={isDownloading}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  background: offlineStorage.isFullyCached ? 'rgba(34, 197, 94, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                  border: offlineStorage.isFullyCached ? '1px solid rgba(34, 197, 94, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
+                  color: offlineStorage.isFullyCached ? '#4ade80' : '#fbbf24',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>{isDownloading ? '⏳' : offlineStorage.isFullyCached ? '✓' : '📥'}</span>
+                <span>
+                  {isDownloading
+                    ? 'Downloading...'
+                    : offlineStorage.isFullyCached
+                    ? 'Offline Maps Ready'
+                    : 'Download Offline Maps'}
+                </span>
+              </button>
+            )}
             <button
               className="geo-btn-theme"
               title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Theme`}
@@ -413,7 +434,7 @@ export function GeographyResourceCentreModal({
             </button>
             <button
               className="geo-btn-close"
-              title="Close Geography Resource Centre"
+              title={onlyOutlineMaps ? 'Close India Outline Maps' : 'Close Geography Resource Centre'}
               onClick={onClose}
               aria-label="Close"
             >
@@ -423,160 +444,166 @@ export function GeographyResourceCentreModal({
         </header>
 
         {/* ─── Navigation Tabs: Resources & State Maps ─── */}
-        <div className="geo-main-nav-tabs">
-          <button
-            className={`geo-main-nav-tab ${mainView === 'resources' ? 'active' : ''}`}
-            onClick={() => setMainView('resources')}
-          >
-            <span>📚 Curriculum Resources</span>
-          </button>
-          <button
-            className={`geo-main-nav-tab ${mainView === 'states' ? 'active' : ''}`}
-            onClick={() => setMainView('states')}
-          >
-            <span>🗺️ State Maps of India (28 States & 8 UTs)</span>
-          </button>
-        </div>
+        {!onlyOutlineMaps && (
+          <div className="geo-main-nav-tabs">
+            <button
+              className={`geo-main-nav-tab ${mainView === 'resources' ? 'active' : ''}`}
+              onClick={() => setMainView('resources')}
+            >
+              <span>📚 Curriculum Resources</span>
+            </button>
+            <button
+              className={`geo-main-nav-tab ${mainView === 'states' ? 'active' : ''}`}
+              onClick={() => setMainView('states')}
+            >
+              <span>🗺️ State Maps of India (28 States & 8 UTs)</span>
+            </button>
+          </div>
+        )}
 
         {/* ─── Body Layout ─────────────────────────────────────────────────── */}
         {mainView === 'resources' && (
-          <div className="geo-body">
+          <div className={`geo-body ${onlyOutlineMaps ? 'geo-outline-only' : ''}`}>
           {/* Sidebar: Core Categories */}
-          <aside className="geo-sidebar">
-            <div className="geo-sidebar-title">Categories</div>
-            <nav className="geo-sidebar-nav">
-              <button
-                className={`geo-nav-item ${selectedCategory === 'all' ? 'active' : ''}`}
-                onClick={() => setSelectedCategory('all')}
-              >
-                <div className="geo-nav-item-left">
-                  <span className="geo-nav-icon">🌟</span>
-                  <span>All Categories</span>
-                </div>
-              </button>
-
-              {GEOGRAPHY_CATEGORIES.map((cat) => (
+          {!onlyOutlineMaps && (
+            <aside className="geo-sidebar">
+              <div className="geo-sidebar-title">Categories</div>
+              <nav className="geo-sidebar-nav">
                 <button
-                  key={cat.id}
-                  className={`geo-nav-item ${selectedCategory === cat.id ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  title={cat.description}
+                  className={`geo-nav-item ${selectedCategory === 'all' ? 'active' : ''}`}
+                  onClick={() => setSelectedCategory('all')}
                 >
                   <div className="geo-nav-item-left">
-                    <span className="geo-nav-icon">{cat.icon}</span>
-                    <span>{cat.name}</span>
+                    <span className="geo-nav-icon">🌟</span>
+                    <span>All Categories</span>
                   </div>
                 </button>
-              ))}
-            </nav>
-          </aside>
+
+                {GEOGRAPHY_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.id}
+                    className={`geo-nav-item ${selectedCategory === cat.id ? 'active' : ''}`}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    title={cat.description}
+                  >
+                    <div className="geo-nav-item-left">
+                      <span className="geo-nav-icon">{cat.icon}</span>
+                      <span>{cat.name}</span>
+                    </div>
+                  </button>
+                ))}
+              </nav>
+            </aside>
+          )}
 
           {/* Main Area: Toolbar + Grid + Inspector */}
           <main className="geo-content">
             {/* Toolbar: Search & Multi-Filters */}
-            <div className="geo-toolbar">
-              <div className="geo-search-row">
-                <div className="geo-search-box">
-                  <span className="geo-search-icon">🔍</span>
-                  <input
-                    type="text"
-                    className="geo-search-input"
-                    placeholder="Search resources by topic, place, author, or curriculum keyword (e.g. Himalayas, SoI Toposheet, Rivers)..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                  {searchQuery && (
+            {!onlyOutlineMaps && (
+              <div className="geo-toolbar">
+                <div className="geo-search-row">
+                  <div className="geo-search-box">
+                    <span className="geo-search-icon">🔍</span>
+                    <input
+                      type="text"
+                      className="geo-search-input"
+                      placeholder="Search resources by topic, place, author, or curriculum keyword (e.g. Himalayas, SoI Toposheet, Rivers)..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
+                      <button
+                        className="geo-search-clear"
+                        onClick={() => setSearchQuery('')}
+                        aria-label="Clear Search"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="geo-quick-filters">
                     <button
-                      className="geo-search-clear"
-                      onClick={() => setSearchQuery('')}
-                      aria-label="Clear Search"
+                      className={`geo-toggle-pill ${favoritesOnly ? 'active' : ''}`}
+                      onClick={() => {
+                        setFavoritesOnly((f) => !f);
+                        setRecentlyUsedOnly(false);
+                      }}
                     >
-                      ✕
+                      ⭐ Favorites ({favoriteIds.length})
+                    </button>
+                    <button
+                      className={`geo-toggle-pill ${recentlyUsedOnly ? 'active' : ''}`}
+                      onClick={() => {
+                        setRecentlyUsedOnly((r) => !r);
+                        setFavoritesOnly(false);
+                      }}
+                    >
+                      🕒 Recently Used
+                    </button>
+                  </div>
+                </div>
+
+                {/* Secondary Dropdown Selectors */}
+                <div className="geo-filter-row">
+                  {/* Scope */}
+                  <div className="geo-select-wrap">
+                    <span className="geo-select-label">Scope:</span>
+                    <select
+                      className="geo-select"
+                      value={selectedScope}
+                      onChange={(e) => setSelectedScope(e.target.value as any)}
+                    >
+                      <option value="all">All Scopes</option>
+                      <option value="india">🇮🇳 India</option>
+                      <option value="world">🌍 World</option>
+                      <option value="regional">🏔️ Regional</option>
+                    </select>
+                  </div>
+
+                  {/* Class Level */}
+                  <div className="geo-select-wrap">
+                    <span className="geo-select-label">Classes:</span>
+                    <select
+                      className="geo-select"
+                      value={selectedClassLevel}
+                      onChange={(e) => setSelectedClassLevel(e.target.value as any)}
+                    >
+                      <option value="all">All Class Levels</option>
+                      <option value="primary">Primary (Classes 1–5)</option>
+                      <option value="middle">Middle (Classes 6–8)</option>
+                      <option value="secondary">Secondary (Classes 9–10)</option>
+                      <option value="senior-secondary">Senior Secondary (Classes 11–12)</option>
+                      <option value="higher-ed">Higher Education</option>
+                    </select>
+                  </div>
+
+                  {/* Resource Type */}
+                  <div className="geo-select-wrap">
+                    <span className="geo-select-label">Type:</span>
+                    <select
+                      className="geo-select"
+                      value={selectedType}
+                      onChange={(e) => setSelectedType(e.target.value as any)}
+                    >
+                      <option value="all">All Resource Types</option>
+                      <option value="interactive-map">Interactive Map</option>
+                      <option value="thematic-layer">Thematic Layer</option>
+                      <option value="3d-globe">3D Globe</option>
+                      <option value="topographic-sheet">Topographic Sheet</option>
+                      <option value="satellite-mosaic">Satellite Imagery</option>
+                      <option value="activity-worksheet">Classroom Activity</option>
+                    </select>
+                  </div>
+
+                  {hasActiveFilters && (
+                    <button className="geo-btn-reset-filters" onClick={handleResetFilters}>
+                      ↺ Reset Filters
                     </button>
                   )}
                 </div>
-
-                <div className="geo-quick-filters">
-                  <button
-                    className={`geo-toggle-pill ${favoritesOnly ? 'active' : ''}`}
-                    onClick={() => {
-                      setFavoritesOnly((f) => !f);
-                      setRecentlyUsedOnly(false);
-                    }}
-                  >
-                    ⭐ Favorites ({favoriteIds.length})
-                  </button>
-                  <button
-                    className={`geo-toggle-pill ${recentlyUsedOnly ? 'active' : ''}`}
-                    onClick={() => {
-                      setRecentlyUsedOnly((r) => !r);
-                      setFavoritesOnly(false);
-                    }}
-                  >
-                    🕒 Recently Used
-                  </button>
-                </div>
               </div>
-
-              {/* Secondary Dropdown Selectors */}
-              <div className="geo-filter-row">
-                {/* Scope */}
-                <div className="geo-select-wrap">
-                  <span className="geo-select-label">Scope:</span>
-                  <select
-                    className="geo-select"
-                    value={selectedScope}
-                    onChange={(e) => setSelectedScope(e.target.value as any)}
-                  >
-                    <option value="all">All Scopes</option>
-                    <option value="india">🇮🇳 India</option>
-                    <option value="world">🌍 World</option>
-                    <option value="regional">🏔️ Regional</option>
-                  </select>
-                </div>
-
-                {/* Class Level */}
-                <div className="geo-select-wrap">
-                  <span className="geo-select-label">Classes:</span>
-                  <select
-                    className="geo-select"
-                    value={selectedClassLevel}
-                    onChange={(e) => setSelectedClassLevel(e.target.value as any)}
-                  >
-                    <option value="all">All Class Levels</option>
-                    <option value="primary">Primary (Classes 1–5)</option>
-                    <option value="middle">Middle (Classes 6–8)</option>
-                    <option value="secondary">Secondary (Classes 9–10)</option>
-                    <option value="senior-secondary">Senior Secondary (Classes 11–12)</option>
-                    <option value="higher-ed">Higher Education</option>
-                  </select>
-                </div>
-
-                {/* Resource Type */}
-                <div className="geo-select-wrap">
-                  <span className="geo-select-label">Type:</span>
-                  <select
-                    className="geo-select"
-                    value={selectedType}
-                    onChange={(e) => setSelectedType(e.target.value as any)}
-                  >
-                    <option value="all">All Resource Types</option>
-                    <option value="interactive-map">Interactive Map</option>
-                    <option value="thematic-layer">Thematic Layer</option>
-                    <option value="3d-globe">3D Globe</option>
-                    <option value="topographic-sheet">Topographic Sheet</option>
-                    <option value="satellite-mosaic">Satellite Imagery</option>
-                    <option value="activity-worksheet">Classroom Activity</option>
-                  </select>
-                </div>
-
-                {hasActiveFilters && (
-                  <button className="geo-btn-reset-filters" onClick={handleResetFilters}>
-                    ↺ Reset Filters
-                  </button>
-                )}
-              </div>
-            </div>
+            )}
 
             {/* Split View: Cards Grid + Inspector Drawer */}
             <div className="geo-main-view">

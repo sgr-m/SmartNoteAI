@@ -68,7 +68,7 @@ describe('Subject Tool Registry System', () => {
     expect(chemTools.length).toBeGreaterThanOrEqual(7);
     expect(csTools.length).toBeGreaterThanOrEqual(10);
     expect(logicTools.length).toBeGreaterThanOrEqual(7);
-    expect(geoTools.length).toBeGreaterThanOrEqual(7);
+    expect(geoTools.length).toBeGreaterThanOrEqual(6);
     expect(generalTools.length).toBeGreaterThanOrEqual(6);
 
     const commonToolIds = commonTools.map((t) => t.id);

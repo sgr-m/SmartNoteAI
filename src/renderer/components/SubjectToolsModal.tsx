@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { SubjectRegistry } from '../services/subjectModules';
-import { SubjectId, SubjectTool, SubjectTemplate } from '../services/subjectRegistry/types';
+import { SubjectId, SubjectTool } from '../services/subjectRegistry/types';
 import { ScientificCalculatorModal } from './subjectModals/ScientificCalculatorModal';
 import { PeriodicTableModal } from './subjectModals/PeriodicTableModal';
 import { FunctionPlotterModal } from './subjectModals/FunctionPlotterModal';
@@ -16,6 +16,7 @@ import { TruthTableModal } from './subjectModals/TruthTableModal';
 import { LogicGateModal } from './subjectModals/LogicGateModal';
 import { AngleConstructionModal } from './subjectModals/AngleConstructionModal';
 import { CartesianPlaneModal } from './subjectModals/CartesianPlaneModal';
+import { Cartesian3DPlaneModal } from './subjectModals/Cartesian3DPlaneModal';
 import { NumberLineModal } from './subjectModals/NumberLineModal';
 import { Geometry3DModal } from './subjectModals/Geometry3DModal';
 import { ResistorModal } from './subjectModals/ResistorModal';
@@ -61,7 +62,6 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
   const { docState, docDispatch, commandSystem } = useAppContext();
   const [activeSubject, setActiveSubject] = useState<SubjectId | 'all'>('commonResources');
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'tools' | 'templates'>('tools');
 
   // Submodal States
   const [activeSubmodal, setActiveSubmodal] = useState<
@@ -78,6 +78,7 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
     | 'digitalCircuit'
     | 'angleConstruction'
     | 'cartesianPlane'
+    | 'cartesian3DPlane'
     | 'numberLine'
     | 'geometry3D'
     | 'resistor'
@@ -104,6 +105,7 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
     | 'timeline'
     | 'processChart'
     | 'geographyResourceCentre'
+    | 'geographyOutlineMaps'
     | 'geographyAtlas'
     | 'topographicalViewer'
     | 'globe3DModal'
@@ -138,19 +140,6 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
       t.description.toLowerCase().includes(q) ||
       t.category.toLowerCase().includes(q) ||
       t.tags?.some((tag) => tag.toLowerCase().includes(q))
-    );
-  });
-
-  // Filter templates
-  const allTemplates = SubjectRegistry.getAllTemplates();
-  const displayedTemplates = allTemplates.filter((tmpl) => {
-    if (activeSubject !== 'all' && tmpl.subjectId !== activeSubject) return false;
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      tmpl.name.toLowerCase().includes(q) ||
-      tmpl.description.toLowerCase().includes(q) ||
-      tmpl.category.toLowerCase().includes(q)
     );
   });
 
@@ -207,6 +196,9 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
           return;
         case 'cartesianPlane':
           setActiveSubmodal('cartesianPlane');
+          return;
+        case 'cartesian3DPlane':
+          setActiveSubmodal('cartesian3DPlane');
           return;
         case 'numberLine':
           setActiveSubmodal('numberLine');
@@ -298,6 +290,9 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
         case 'geographyResourceCentre':
           setActiveSubmodal('geographyResourceCentre');
           return;
+        case 'geographyOutlineMaps':
+          setActiveSubmodal('geographyOutlineMaps');
+          return;
         case 'geographyAtlas':
           setActiveSubmodal('geographyAtlas');
           return;
@@ -320,20 +315,6 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
       commandSystem,
       viewportCenter: { x: 300, y: 240 },
     });
-    onClose();
-  };
-
-  const handleTemplateClick = (tmpl: SubjectTemplate) => {
-    const objects = tmpl.createObjects({ x: 200, y: 160 });
-    executeAddMultipleObjects(
-      {
-        pageIndex: currentPageIndex,
-        dispatch: docDispatch,
-        commandSystem,
-      },
-      objects,
-      `Insert Template: ${tmpl.name}`
-    );
     onClose();
   };
 
@@ -366,7 +347,7 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
             </button>
           </div>
 
-          {/* Search & Mode Switcher */}
+          {/* Search Bar */}
           <div className="subject-tools-filter-bar">
             <input
               type="text"
@@ -375,20 +356,6 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <div className="view-mode-toggle">
-              <button
-                className={`mode-btn ${viewMode === 'tools' ? 'active' : ''}`}
-                onClick={() => setViewMode('tools')}
-              >
-                🎓 Subject Tools ({displayedTools.length})
-              </button>
-              <button
-                className={`mode-btn ${viewMode === 'templates' ? 'active' : ''}`}
-                onClick={() => setViewMode('templates')}
-              >
-                📋 Templates ({displayedTemplates.length})
-              </button>
-            </div>
           </div>
 
           {/* Subject Category Tabs */}
@@ -430,10 +397,10 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
                   <span style={{ fontSize: '28px' }}>🌍</span>
                   <div>
                     <strong style={{ fontSize: '14.5px', display: 'block', color: '#38bdf8' }}>
-                      Geography Resource Centre (15 Categories)
+                      Geography Resource Centre
                     </strong>
                     <span style={{ fontSize: '12px', color: '#cbd5e1' }}>
-                      Atlas, Survey of India official maps, Topography, Climatology, Remote Sensing, GIS & Activities
+                      Official Survey of India maps, Topography, River Basins, 3D Globe & Outline Maps
                     </span>
                   </div>
                 </div>
@@ -446,49 +413,27 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
                 </button>
               </div>
             )}
-            {viewMode === 'tools' ? (
-              <div className="tools-grid">
-                {displayedTools.map((tool) => (
-                  <div key={tool.id} className="tool-card" onClick={() => handleToolClick(tool)}>
-                    <div className="tool-card-top">
-                      <span className="tool-card-icon">{tool.icon}</span>
-                      {tool.badge && <span className="tool-card-badge">{tool.badge}</span>}
-                    </div>
-                    <h4>{tool.name}</h4>
-                    <p>{tool.description}</p>
-                    <button className="insert-btn">
-                      {tool.interactiveModal ? 'Open Interactive Tool ↗' : 'Insert on Board'}
-                    </button>
+            <div className="tools-grid">
+              {displayedTools.map((tool) => (
+                <div key={tool.id} className="tool-card" onClick={() => handleToolClick(tool)}>
+                  <div className="tool-card-top">
+                    <span className="tool-card-icon">{tool.icon}</span>
+                    {tool.badge && <span className="tool-card-badge">{tool.badge}</span>}
                   </div>
-                ))}
-                {displayedTools.length === 0 && (
-                  <div className="no-tools-message">
-                    <span>🔍</span>
-                    <p>No subject tools found matching "{searchQuery}".</p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="tools-grid">
-                {displayedTemplates.map((tmpl) => (
-                  <div key={tmpl.id} className="tool-card" onClick={() => handleTemplateClick(tmpl)}>
-                    <div className="tool-card-top">
-                      <span className="tool-card-icon">{tmpl.icon}</span>
-                      <span className="tool-card-badge">Template</span>
-                    </div>
-                    <h4>{tmpl.name}</h4>
-                    <p>{tmpl.description}</p>
-                    <button className="insert-btn">Place Template on Board</button>
-                  </div>
-                ))}
-                {displayedTemplates.length === 0 && (
-                  <div className="no-tools-message">
-                    <span>📋</span>
-                    <p>No lesson templates found matching "{searchQuery}".</p>
-                  </div>
-                )}
-              </div>
-            )}
+                  <h4>{tool.name}</h4>
+                  <p>{tool.description}</p>
+                  <button className="insert-btn">
+                    {tool.interactiveModal ? 'Open Interactive Tool ↗' : 'Insert on Board'}
+                  </button>
+                </div>
+              ))}
+              {displayedTools.length === 0 && (
+                <div className="no-tools-message">
+                  <span>🔍</span>
+                  <p>No subject tools found matching "{searchQuery}".</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -544,6 +489,12 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
       )}
       {activeSubmodal === 'cartesianPlane' && (
         <CartesianPlaneModal
+          onClose={() => setActiveSubmodal(null)}
+          onInsertSuccess={handleSubmodalInsertSuccess}
+        />
+      )}
+      {activeSubmodal === 'cartesian3DPlane' && (
+        <Cartesian3DPlaneModal
           onClose={() => setActiveSubmodal(null)}
           onInsertSuccess={handleSubmodalInsertSuccess}
         />
@@ -742,6 +693,12 @@ export function SubjectToolsModal({ onClose }: SubjectToolsModalProps): React.Re
           onOpenAtlas={() => setActiveSubmodal('geographyAtlas')}
           onOpenGlobe={() => setActiveSubmodal('globe3DModal')}
           onOpenGisLab={() => setActiveSubmodal('gisThematicLab')}
+        />
+      )}
+      {activeSubmodal === 'geographyOutlineMaps' && (
+        <GeographyResourceCentreModal
+          onlyOutlineMaps={true}
+          onClose={() => setActiveSubmodal(null)}
         />
       )}
       {activeSubmodal === 'geographyAtlas' && (

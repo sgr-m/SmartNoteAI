@@ -25,6 +25,7 @@ export function isSubjectShape(shapeType: string): boolean {
     'setSquare30',
     'angleMeasurement',
     'cartesianAxes',
+    'cartesian3DPlane',
     'numberLine',
     'functionPlot',
     'geometry3D',
@@ -88,6 +89,9 @@ export function renderSubjectShape(
       break;
     case 'cartesianAxes':
       renderCartesianAxes(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
+      break;
+    case 'cartesian3DPlane':
+      renderCartesian3DPlane(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
       break;
     case 'numberLine':
       renderNumberLine(ctx, shape, renderX, renderY, renderW, renderH, renderDpr);
@@ -770,6 +774,334 @@ export function renderCartesianAxes(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   ctx.fillText('y', axisX, plotY - 18 * dpr);
+}
+
+export function renderCartesian3DPlane(
+  ctx: CanvasRenderingContext2D,
+  shape: ShapeObject,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  dpr = 1
+): void {
+  const strokeColor = shape.strokeColor || '#38bdf8';
+  const xMin = shape.params?.xMin ?? -5;
+  const xMax = shape.params?.xMax ?? 5;
+  const yMin = shape.params?.yMin ?? -5;
+  const yMax = shape.params?.yMax ?? 5;
+  const zMin = shape.params?.zMin ?? -5;
+  const zMax = shape.params?.zMax ?? 5;
+  const step = Math.max(0.5, shape.params?.step ?? 1);
+  const showGrid = shape.params?.showGrid !== false;
+  const showDots = shape.params?.showDots !== false;
+  const showPlanes = shape.params?.showPlanes !== false;
+  const rotX = shape.params?.rotX ?? 25; // pitch / tilt angle (degrees)
+  const rotY = shape.params?.rotY ?? -35; // yaw / azimuth angle (degrees)
+
+  // 1. Frosted Slate Panel Background
+  const boardRadius = 14 * dpr;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, boardRadius);
+  ctx.fillStyle =
+    shape.fillColor && shape.fillColor !== 'transparent'
+      ? shape.fillColor
+      : 'rgba(15, 23, 42, 0.94)';
+  ctx.fill();
+
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 2 * dpr;
+  ctx.stroke();
+
+  // 2. Header Title Badge
+  const tagFont = Math.max(10, Math.round(12 * dpr));
+  ctx.font = `600 ${tagFont}px Inter, sans-serif`;
+  ctx.fillStyle = '#38bdf8';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(
+    `🧊 3D Coordinate Plane (X: [${xMin}, ${xMax}], Y: [${yMin}, ${yMax}], Z: [${zMin}, ${zMax}]) • Tilt: ${Math.round(rotX)}°, Yaw: ${Math.round(rotY)}°`,
+    x + 16 * dpr,
+    y + 14 * dpr
+  );
+
+  // 3. 3D Projection Setup
+  const padT = 44 * dpr;
+  const padB = 40 * dpr;
+  const cx = x + w / 2;
+  const cy = y + padT + (h - padT - padB) / 2 + 10 * dpr;
+
+  const maxRange = Math.max(1, xMax - xMin, yMax - yMin, zMax - zMin);
+  const availableH = h - padT - padB - 40 * dpr;
+  const availableW = w - 80 * dpr;
+  const unitScale = Math.min(availableW, availableH) / (maxRange * 1.6);
+
+  const radX = (rotX * Math.PI) / 180;
+  const radY = (rotY * Math.PI) / 180;
+  const cosY = Math.cos(radY);
+  const sinY = Math.sin(radY);
+  const cosX = Math.cos(radX);
+  const sinX = Math.sin(radX);
+
+  // Project 3D (px, py, pz) to 2D screen coordinates
+  const project3D = (px: number, py: number, pz: number): { x: number; y: number } => {
+    // 1. Yaw around Z axis / Y rotation
+    const x1 = px * cosY + py * sinY;
+    const y1 = -px * sinY + py * cosY;
+    const z1 = pz;
+
+    // 2. Pitch / tilt elevation
+    const x2 = x1;
+    const y2 = y1 * cosX - z1 * sinX;
+    const z2 = y1 * sinX + z1 * cosX;
+
+    return {
+      x: cx + x2 * unitScale,
+      y: cy - z2 * unitScale,
+    };
+  };
+
+  const origin = project3D(0, 0, 0);
+
+  // 4. XY Ground Plane Wash (Translucent floor)
+  if (showPlanes) {
+    const p1 = project3D(xMin, yMin, 0);
+    const p2 = project3D(xMax, yMin, 0);
+    const p3 = project3D(xMax, yMax, 0);
+    const p4 = project3D(xMin, yMax, 0);
+
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.lineTo(p3.x, p3.y);
+    ctx.lineTo(p4.x, p4.y);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.06)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+    ctx.lineWidth = 1 * dpr;
+    ctx.stroke();
+  }
+
+  // 5. Grid Mesh Lines on XY Ground Plane (Z = 0)
+  if (showGrid) {
+    ctx.lineWidth = 1 * dpr;
+    ctx.setLineDash([3 * dpr, 3 * dpr]);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
+
+    // Lines parallel to Y axis (running through each X value)
+    for (let vx = Math.ceil(xMin / step) * step; vx <= xMax; vx += step) {
+      if (Math.abs(vx) < 1e-6) continue;
+      const start = project3D(vx, yMin, 0);
+      const end = project3D(vx, yMax, 0);
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+    }
+
+    // Lines parallel to X axis (running through each Y value)
+    for (let vy = Math.ceil(yMin / step) * step; vy <= yMax; vy += step) {
+      if (Math.abs(vy) < 1e-6) continue;
+      const start = project3D(xMin, vy, 0);
+      const end = project3D(xMax, vy, 0);
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+    }
+
+    // Optional vertical guide lines for Z
+    for (let vz = Math.ceil(zMin / step) * step; vz <= zMax; vz += step) {
+      if (Math.abs(vz) < 1e-6) continue;
+      const start = project3D(0, yMin, vz);
+      const end = project3D(0, yMax, vz);
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+    }
+
+    ctx.setLineDash([]);
+  }
+
+  // 6. Coordinate Point Dots
+  if (showDots) {
+    ctx.fillStyle = '#38bdf8';
+    for (let vx = Math.ceil(xMin / step) * step; vx <= xMax; vx += step) {
+      for (let vy = Math.ceil(yMin / step) * step; vy <= yMax; vy += step) {
+        if (Math.abs(vx) < 1e-6 && Math.abs(vy) < 1e-6) continue;
+        const pt = project3D(vx, vy, 0);
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 2 * dpr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Helper to draw an arrowhead in 2D along vector direction
+  const drawArrowhead = (tipX: number, tipY: number, fromX: number, fromY: number, color: string) => {
+    const angle = Math.atan2(tipY - fromY, tipX - fromX);
+    const arrowLen = 10 * dpr;
+    const arrowWidth = 5 * dpr;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(
+      tipX - arrowLen * Math.cos(angle) + arrowWidth * Math.sin(angle),
+      tipY - arrowLen * Math.sin(angle) - arrowWidth * Math.cos(angle)
+    );
+    ctx.lineTo(
+      tipX - arrowLen * Math.cos(angle) - arrowWidth * Math.sin(angle),
+      tipY - arrowLen * Math.sin(angle) + arrowWidth * Math.cos(angle)
+    );
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // Helper to draw a tick mark perpendicular to axis direction
+  const tickSize = 4 * dpr;
+  const drawTick = (ptX: number, ptY: number, normalX: number, normalY: number, color: string) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.6 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(ptX - normalX * tickSize, ptY - normalY * tickSize);
+    ctx.lineTo(ptX + normalX * tickSize, ptY + normalY * tickSize);
+    ctx.stroke();
+  };
+
+  const fontSize = Math.max(9, Math.round(10.5 * dpr));
+  ctx.font = `600 ${fontSize}px Inter, sans-serif`;
+
+  // 7. Render X Axis (Red / Coral)
+  const xColor = '#f43f5e'; // Vibrant Red
+  const xPosEnd = project3D(xMax, 0, 0);
+  const xNegEnd = project3D(xMin, 0, 0);
+
+  ctx.strokeStyle = xColor;
+  ctx.lineWidth = 2.4 * dpr;
+  ctx.beginPath();
+  ctx.moveTo(xNegEnd.x, xNegEnd.y);
+  ctx.lineTo(xPosEnd.x, xPosEnd.y);
+  ctx.stroke();
+
+  drawArrowhead(xPosEnd.x, xPosEnd.y, origin.x, origin.y, xColor);
+  if (xMin < 0) {
+    drawArrowhead(xNegEnd.x, xNegEnd.y, origin.x, origin.y, xColor);
+  }
+
+  // Ticks and numbers on X
+  for (let vx = Math.ceil(xMin / step) * step; vx <= xMax; vx += step) {
+    if (Math.abs(vx) < 1e-6) continue;
+    const tp = project3D(vx, 0, 0);
+    drawTick(tp.x, tp.y, 0, 1, xColor);
+    ctx.fillStyle = '#fecdd3';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(String(vx), tp.x, tp.y + 6 * dpr);
+  }
+
+  // 8. Render Y Axis (Green / Emerald)
+  const yColor = '#10b981'; // Vibrant Green
+  const yPosEnd = project3D(0, yMax, 0);
+  const yNegEnd = project3D(0, yMin, 0);
+
+  ctx.strokeStyle = yColor;
+  ctx.lineWidth = 2.4 * dpr;
+  ctx.beginPath();
+  ctx.moveTo(yNegEnd.x, yNegEnd.y);
+  ctx.lineTo(yPosEnd.x, yPosEnd.y);
+  ctx.stroke();
+
+  drawArrowhead(yPosEnd.x, yPosEnd.y, origin.x, origin.y, yColor);
+  if (yMin < 0) {
+    drawArrowhead(yNegEnd.x, yNegEnd.y, origin.x, origin.y, yColor);
+  }
+
+  // Ticks and numbers on Y
+  for (let vy = Math.ceil(yMin / step) * step; vy <= yMax; vy += step) {
+    if (Math.abs(vy) < 1e-6) continue;
+    const tp = project3D(0, vy, 0);
+    drawTick(tp.x, tp.y, 0, 1, yColor);
+    ctx.fillStyle = '#a7f3d0';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(vy), tp.x - 6 * dpr, tp.y);
+  }
+
+  // 9. Render Z Axis (Cyan / Sky Blue)
+  const zColor = '#38bdf8'; // Vibrant Sky Blue
+  const zPosEnd = project3D(0, 0, zMax);
+  const zNegEnd = project3D(0, 0, zMin);
+
+  ctx.strokeStyle = zColor;
+  ctx.lineWidth = 2.4 * dpr;
+  ctx.beginPath();
+  ctx.moveTo(zNegEnd.x, zNegEnd.y);
+  ctx.lineTo(zPosEnd.x, zPosEnd.y);
+  ctx.stroke();
+
+  drawArrowhead(zPosEnd.x, zPosEnd.y, origin.x, origin.y, zColor);
+  if (zMin < 0) {
+    drawArrowhead(zNegEnd.x, zNegEnd.y, origin.x, origin.y, zColor);
+  }
+
+  // Ticks and numbers on Z
+  for (let vz = Math.ceil(zMin / step) * step; vz <= zMax; vz += step) {
+    if (Math.abs(vz) < 1e-6) continue;
+    const tp = project3D(0, 0, vz);
+    drawTick(tp.x, tp.y, 1, 0, zColor);
+    ctx.fillStyle = '#bae6fd';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(vz), tp.x - 7 * dpr, tp.y);
+  }
+
+  // 10. Origin O(0,0,0)
+  ctx.beginPath();
+  ctx.arc(origin.x, origin.y, 4 * dpr, 0, Math.PI * 2);
+  ctx.fillStyle = '#f59e0b';
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.stroke();
+
+  ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+  ctx.fillStyle = '#fde68a';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('O(0,0,0)', origin.x + 6 * dpr, origin.y + 4 * dpr);
+
+  // 11. Bold Italic Axis Labels: x, y, z
+  const labelFont = Math.max(14, Math.round(16 * dpr));
+  ctx.font = `bold italic ${labelFont}px 'Cambria Math', Georgia, serif`;
+
+  ctx.fillStyle = xColor;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('x', xPosEnd.x + 12 * dpr, xPosEnd.y);
+
+  ctx.fillStyle = yColor;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('y', yPosEnd.x + 12 * dpr, yPosEnd.y);
+
+  ctx.fillStyle = zColor;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('z', zPosEnd.x, zPosEnd.y - 12 * dpr);
+
+  // 12. Interactive Rotation Hint Badge in Footer
+  const hintFont = Math.max(9, Math.round(10 * dpr));
+  ctx.font = `500 ${hintFont}px Inter, sans-serif`;
+  ctx.fillStyle = '#64748b';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(
+    '↻ Double-click to configure axes, ranges, and angles • X: Red, Y: Green, Z: Blue',
+    x + w / 2,
+    y + h - 10 * dpr
+  );
 }
 
 function renderNumberLine(

@@ -19,6 +19,7 @@ import { InlineTextEditor } from './InlineTextEditor';
 import { AddToResourceLibraryModal } from './AddToResourceLibraryModal';
 import { AngleConstructionModal } from './subjectModals/AngleConstructionModal';
 import { CartesianPlaneModal } from './subjectModals/CartesianPlaneModal';
+import { Cartesian3DPlaneModal } from './subjectModals/Cartesian3DPlaneModal';
 import { FunctionPlotterModal } from './subjectModals/FunctionPlotterModal';
 import { NumberLineModal } from './subjectModals/NumberLineModal';
 import { Geometry3DModal } from './subjectModals/Geometry3DModal';
@@ -71,7 +72,8 @@ import {
   evaluateFlipFlopNextState,
   evaluateCounter,
 } from '../services/subjectModules/digitalLogicModule';
-import { isLatexSyntax } from '../services/latexService';
+import { isLatexSyntax, isPureLatexFormula } from '../services/latexService';
+import { isMarkdownSyntax } from '../services/markdownRenderService';
 import { isTypingOrInputFocused } from '../utils/keyboardUtils';
 import { isGeoShapeType, GeoAnnotationItem } from '../services/geography/types';
 import { getGeoMapTransform } from '../engine/geographyShapeRenderer';
@@ -79,6 +81,8 @@ import { GeographyResourceCentreModal } from './geography/GeographyResourceCentr
 import { GeographyAtlasModal } from './geography/GeographyAtlasModal';
 import { Globe3DModal } from './geography/Globe3DModal';
 import { GisThematicModal } from './geography/GisThematicModal';
+import { VectorDiagramModal } from './vectorDiagram/VectorDiagramModal';
+import { renderDiagramToSvg, diagramSvgToDataUrl } from '../services/vectorDiagramService';
 import { v4 as uuidv4 } from 'uuid';
 import './WhiteboardCanvas.css';
 
@@ -125,12 +129,14 @@ export function WhiteboardCanvas(): React.ReactElement {
   // Text modal state
   const [textModalPos, setTextModalPos] = useState<Point | null>(null);
   const [editingTextObj, setEditingTextObj] = useState<TextObject | null>(null);
+  const [editingDiagramObj, setEditingDiagramObj] = useState<ImageObject | null>(null);
   const [showAddToResourceModal, setShowAddToResourceModal] = useState(false);
   const [resourceObjectToSave, setResourceObjectToSave] = useState<CanvasObject | null>(null);
 
   // Subject Shape Interactive Edit Modals
   const [editingAngleShape, setEditingAngleShape] = useState<ShapeObject | null>(null);
   const [editingCartesianShape, setEditingCartesianShape] = useState<ShapeObject | null>(null);
+  const [editingCartesian3DShape, setEditingCartesian3DShape] = useState<ShapeObject | null>(null);
   const [editingFunctionShape, setEditingFunctionShape] = useState<ShapeObject | null>(null);
   const [editingNumberLineShape, setEditingNumberLineShape] = useState<ShapeObject | null>(null);
   const [editingGeometry3DShape, setEditingGeometry3DShape] = useState<ShapeObject | null>(null);
@@ -193,6 +199,8 @@ export function WhiteboardCanvas(): React.ReactElement {
 
   // Slide Transitions (Section 10)
   const [activeTransitionClass, setActiveTransitionClass] = useState<string>('');
+  const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
+  const transitionUnderlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const prevPageIndexRef = useRef<number>(currentPageIndex);
 
   useEffect(() => {
@@ -200,11 +208,32 @@ export function WhiteboardCanvas(): React.ReactElement {
       prevPageIndexRef.current = currentPageIndex;
       const transType = currentPage?.transition?.type;
       if (transType && transType !== 'none' && !reducedMotion) {
+        // Snapshot the outgoing page onto underlay to prevent black screen flashing
+        const underlay = transitionUnderlayCanvasRef.current;
+        const bgCanvas = bgCanvasRef.current;
+        const comCanvas = committedCanvasRef.current;
+        if (underlay && bgCanvas && comCanvas && bgCanvas.width > 0 && bgCanvas.height > 0) {
+          underlay.width = bgCanvas.width;
+          underlay.height = bgCanvas.height;
+          const uctx = underlay.getContext('2d');
+          if (uctx) {
+            uctx.clearRect(0, 0, underlay.width, underlay.height);
+            uctx.drawImage(bgCanvas, 0, 0);
+            uctx.drawImage(comCanvas, 0, 0);
+          }
+          setIsTransitioning(true);
+        }
+
         const cls = `canvas-trans-${transType}`;
         setActiveTransitionClass(cls);
         const dur = currentPage?.transition?.duration || 400;
         const timer = setTimeout(() => {
           setActiveTransitionClass('');
+          setIsTransitioning(false);
+          if (underlay) {
+            const uctx = underlay.getContext('2d');
+            uctx?.clearRect(0, 0, underlay.width, underlay.height);
+          }
         }, dur);
         return () => clearTimeout(timer);
       }
@@ -834,6 +863,7 @@ export function WhiteboardCanvas(): React.ReactElement {
         if (
           s.shapeType !== 'angleMeasurement' &&
           s.shapeType !== 'cartesianAxes' &&
+          s.shapeType !== 'cartesian3DPlane' &&
           s.shapeType !== 'functionPlot' &&
           s.shapeType !== 'numberLine' &&
           s.shapeType !== 'geometry3D' &&
@@ -859,6 +889,8 @@ export function WhiteboardCanvas(): React.ReactElement {
           setEditingAngleShape(hitShape);
         } else if (hitShape.shapeType === 'cartesianAxes') {
           setEditingCartesianShape(hitShape);
+        } else if (hitShape.shapeType === 'cartesian3DPlane') {
+          setEditingCartesian3DShape(hitShape);
         } else if (hitShape.shapeType === 'functionPlot') {
           setEditingFunctionShape(hitShape);
         } else if (hitShape.shapeType === 'numberLine') {
@@ -2019,27 +2051,31 @@ export function WhiteboardCanvas(): React.ReactElement {
         },
       });
     } else if (textModalPos) {
-      const isLatex = textData.isLatex ?? (textData.content ? isLatexSyntax(textData.content) : false);
+      const isMarkdown = textData.isMarkdown ?? (!textData.isHtml && !textData.isLatex && (textData.content ? isMarkdownSyntax(textData.content) : false));
+      const isLatex = !isMarkdown && (textData.isLatex ?? (textData.content ? isPureLatexFormula(textData.content) : false));
       const newText: TextObject = {
         id: uuidv4(),
         type: 'text',
         x: textModalPos.x,
         y: textModalPos.y,
-        width: textData.width || (isLatex ? 200 : 200),
-        height: textData.height || (isLatex ? 50 : 48),
+        width: textData.width || (isLatex ? 300 : 400),
+        height: textData.height || (isLatex ? 60 : 60),
         content: textData.content || '',
         fontFamily: textData.fontFamily || (isLatex ? "KaTeX_Main, 'Cambria Math', 'Times New Roman', serif" : 'Inter, sans-serif'),
-        fontSize: textData.fontSize || (isLatex ? 32 : 20),
+        fontSize: textData.fontSize || 36,
         fontWeight: textData.fontWeight || 400,
         fontStyle: textData.fontStyle || 'normal',
         textDecoration: textData.textDecoration || 'none',
         textAlign: textData.textAlign || 'left',
         color: textData.color || '#ffffff',
         backgroundColor: textData.backgroundColor || 'transparent',
+        lineHeight: textData.lineHeight ?? 1.4,
         opacity: 1,
         rotation: 0,
         preset: textData.preset || (isLatex ? 'formula' : 'body'),
         isLatex,
+        isMarkdown,
+        isHtml: textData.isHtml,
         locked: false,
         layerId: 'objects',
       };
@@ -2060,6 +2096,7 @@ export function WhiteboardCanvas(): React.ReactElement {
 
     setTextModalPos(null);
     setEditingTextObj(null);
+    setActiveTool('select');
   };
 
 
@@ -2102,10 +2139,19 @@ export function WhiteboardCanvas(): React.ReactElement {
       }
     };
 
+    const handleSmartboardFitPage = () => {
+      const container = containerRef.current;
+      if (container && engineRef.current) {
+        const { width, height } = container.getBoundingClientRect();
+        engineRef.current.fitToPage(width, height, currentPageRef.current?.width || 1920, currentPageRef.current?.height || 1080);
+      }
+    };
+
     window.addEventListener('resize', handleResize);
     window.addEventListener('focus', handleFocusOrVisibility);
     document.addEventListener('visibilitychange', handleFocusOrVisibility);
     window.addEventListener('smartboard:redraw', handleSmartboardRedraw);
+    window.addEventListener('smartboard:fitPage', handleSmartboardFitPage);
 
     const observer = new ResizeObserver(() => {
       handleResize();
@@ -2121,6 +2167,7 @@ export function WhiteboardCanvas(): React.ReactElement {
       window.removeEventListener('focus', handleFocusOrVisibility);
       document.removeEventListener('visibilitychange', handleFocusOrVisibility);
       window.removeEventListener('smartboard:redraw', handleSmartboardRedraw);
+      window.removeEventListener('smartboard:fitPage', handleSmartboardFitPage);
       observer.disconnect();
     };
   }, [drawBackground]);
@@ -2261,39 +2308,67 @@ export function WhiteboardCanvas(): React.ReactElement {
 
   return (
     <div
-      className={`whiteboard-canvas-wrapper ${activeTransitionClass}`}
+      className="whiteboard-canvas-wrapper"
       ref={containerRef}
-      style={{ cursor: 'default' }}
+      style={{
+        cursor: 'default',
+        backgroundColor: currentPage?.background?.color || '#1b4332',
+      }}
     >
-      <canvas ref={bgCanvasRef} className="canvas-layer bg-canvas" aria-hidden="true" style={{ cursor: 'default' }} />
-      <canvas ref={committedCanvasRef} className="canvas-layer committed-canvas" aria-hidden="true" style={{ cursor: 'default' }} />
+      {/* Underlying snapshot of outgoing slide during transition to prevent black screen flashing */}
       <canvas
-        ref={activeCanvasRef}
-        className="canvas-layer active-canvas"
-        aria-label="Drawing surface"
-        role="img"
-        tabIndex={-1}
-        onFocus={() => {
-          closeAllPopups();
-          setActiveFlyout('none');
-        }}
+        ref={transitionUnderlayCanvasRef}
+        className="canvas-layer transition-underlay-canvas whiteboard-canvas"
+        aria-hidden="true"
         style={{
-          touchAction: 'none',
-          cursor:
-            toolState.activeTool === 'eraser'
-              ? 'cell'
-              : toolState.activeTool === 'pan'
-              ? 'grab'
-              : toolState.activeTool === 'text'
-              ? 'text'
-              : toolState.activeTool === 'pen' ||
-                toolState.activeTool === 'highlighter' ||
-                toolState.activeTool === 'shape' ||
-                toolState.activeTool === 'line'
-              ? 'crosshair'
-              : 'default',
+          display: isTransitioning ? 'block' : 'none',
+          zIndex: 0,
+          pointerEvents: 'none',
         }}
       />
+
+      {/* Surface container for incoming slide and active drawing layers */}
+      <div
+        className={`canvas-surface-container whiteboard-canvas-wrapper whiteboard-canvas ${activeTransitionClass}`}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: 1,
+        }}
+      >
+        <canvas ref={bgCanvasRef} className="canvas-layer bg-canvas whiteboard-canvas" aria-hidden="true" style={{ cursor: 'default' }} />
+        <canvas ref={committedCanvasRef} className="canvas-layer committed-canvas whiteboard-canvas" aria-hidden="true" style={{ cursor: 'default' }} />
+        <canvas
+          ref={activeCanvasRef}
+          className="canvas-layer active-canvas whiteboard-canvas"
+          aria-label="Drawing surface"
+          role="img"
+          tabIndex={-1}
+          onFocus={() => {
+            closeAllPopups();
+            setActiveFlyout('none');
+          }}
+          style={{
+            touchAction: 'none',
+            cursor:
+              toolState.activeTool === 'eraser'
+                ? 'cell'
+                : toolState.activeTool === 'pan'
+                ? 'grab'
+                : toolState.activeTool === 'text'
+                ? 'text'
+                : toolState.activeTool === 'pen' ||
+                  toolState.activeTool === 'highlighter' ||
+                  toolState.activeTool === 'shape' ||
+                  toolState.activeTool === 'line'
+                ? 'crosshair'
+                : 'default',
+          }}
+        />
+      </div>
 
       {/* Floating Canvas / Layer / Object Lock Indicator & Unlock Button at Top-Right (Requirement 4) */}
       {toolState.activeTool === 'select' && (isCanvasOrLayerLocked || isSelectedObjectLocked) && (
@@ -2337,23 +2412,278 @@ export function WhiteboardCanvas(): React.ReactElement {
           style={{
             position: 'absolute',
             left: Math.max(12, selectedScreenBBox.left),
-            top: Math.max(12, selectedScreenBBox.top - 44),
+            top: Math.max(12, selectedScreenBBox.top - 46),
             zIndex: 122,
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            const t = selectedObject as TextObject;
-            setTextModalPos({ x: t.x, y: t.y });
-            setEditingTextObj(t);
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
           }}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <button className="quick-edit-btn" title="Edit text content (or double-click text)">
+          <button
+            className="quick-edit-btn"
+            title="Edit text content (or double-click text)"
+            onClick={(e) => {
+              e.stopPropagation();
+              const t = selectedObject as TextObject;
+              setTextModalPos({ x: t.x, y: t.y });
+              setEditingTextObj(t);
+            }}
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 20h9" />
               <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
             </svg>
-            <span>Edit {(selectedObject as TextObject).isLatex ? 'Formula' : 'Text'}</span>
+            <span>Edit {((selectedObject as TextObject).isLatex && isPureLatexFormula((selectedObject as TextObject).content)) ? 'Formula' : 'Text'}</span>
+          </button>
+
+          {/* Quick Font Size Stepper with Number Textbox directly to the right of 'Edit Text' */}
+          <div
+            className="quick-font-size-stepper"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              background: 'rgba(15, 23, 42, 0.9)',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+              borderRadius: '20px',
+              padding: '2px 4px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="quick-stepper-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                const t = selectedObject as TextObject;
+                const newSize = Math.max(12, (t.fontSize || 36) - 4);
+                const updated: TextObject = { ...t, fontSize: newSize };
+                docDispatch({ type: 'UPDATE_OBJECT', pageIndex: currentPageIndexRef.current, object: updated });
+                setSelectedObject(updated);
+                engineRef.current?.requestActiveRender();
+                engineRef.current?.requestCommittedRender();
+              }}
+              title="Decrease font size (-4px)"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#cbd5e1',
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              A-
+            </button>
+            <input
+              type="number"
+              value={(selectedObject as TextObject).fontSize || 36}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val)) {
+                  const newSize = Math.max(10, Math.min(200, val));
+                  const t = selectedObject as TextObject;
+                  const updated: TextObject = { ...t, fontSize: newSize };
+                  docDispatch({ type: 'UPDATE_OBJECT', pageIndex: currentPageIndexRef.current, object: updated });
+                  setSelectedObject(updated);
+                  engineRef.current?.requestActiveRender();
+                  engineRef.current?.requestCommittedRender();
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              title="Current font size in px"
+              style={{
+                width: '42px',
+                height: '22px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '4px',
+                color: '#ffffff',
+                textAlign: 'center',
+                fontSize: '12px',
+                fontWeight: 700,
+                outline: 'none',
+                margin: '0 2px',
+              }}
+            />
+            <button
+              type="button"
+              className="quick-stepper-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                const t = selectedObject as TextObject;
+                const newSize = Math.min(200, (t.fontSize || 36) + 4);
+                const updated: TextObject = { ...t, fontSize: newSize };
+                docDispatch({ type: 'UPDATE_OBJECT', pageIndex: currentPageIndexRef.current, object: updated });
+                setSelectedObject(updated);
+                engineRef.current?.requestActiveRender();
+                engineRef.current?.requestCommittedRender();
+              }}
+              title="Increase font size (+4px)"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#cbd5e1',
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              A+
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Selection Floating Menu for Vector Diagrams (Modify Code, Recolor Swatches, Copy Code) */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'image' && (selectedObject as ImageObject).isDiagram && selectedScreenBBox && (
+        <div
+          className="selected-diagram-quick-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 46),
+            zIndex: 122,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'rgba(15, 23, 42, 0.92)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.18)',
+            borderRadius: '24px',
+            padding: '4px 10px',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {/* 1. Modify Code Button */}
+          <button
+            type="button"
+            className="quick-edit-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingDiagramObj(selectedObject as ImageObject);
+            }}
+            title="Display and modify diagram code in Studio"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 10px',
+              background: 'rgba(56, 189, 248, 0.18)',
+              border: '1px solid rgba(56, 189, 248, 0.4)',
+              borderRadius: '16px',
+              color: '#38bdf8',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            <span>✏️</span>
+            <span>Modify Code</span>
+          </button>
+
+          {/* 2. Color Swatches to Recolor Diagram */}
+          <div
+            className="diagram-quick-colors"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              borderLeft: '1px solid rgba(255, 255, 255, 0.18)',
+              borderRight: '1px solid rgba(255, 255, 255, 0.18)',
+              padding: '0 8px',
+            }}
+          >
+            {[
+              { color: '#38bdf8', label: 'Cyan' },
+              { color: '#ffffff', label: 'White' },
+              { color: '#facc15', label: 'Yellow' },
+              { color: '#4ade80', label: 'Green' },
+              { color: '#f87171', label: 'Coral' },
+              { color: '#c084fc', label: 'Purple' },
+            ].map((c) => (
+              <button
+                key={c.color}
+                type="button"
+                className="diagram-color-swatch-btn"
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  background: c.color,
+                  border: (selectedObject as ImageObject).diagramColor === c.color ? '2px solid #ffffff' : '1px solid rgba(255, 255, 255, 0.3)',
+                  boxShadow: (selectedObject as ImageObject).diagramColor === c.color ? `0 0 6px ${c.color}` : 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  transition: 'transform 0.1s ease',
+                }}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  const diag = selectedObject as ImageObject;
+                  if (!diag.diagramCode) return;
+                  try {
+                    const res = await renderDiagramToSvg(diag.diagramCode, diag.diagramType as any, c.color);
+                    const dataUrl = diagramSvgToDataUrl(res.svg);
+                    const updated: ImageObject = {
+                      ...diag,
+                      dataUrl,
+                      diagramColor: c.color,
+                    };
+                    docDispatch({ type: 'UPDATE_OBJECT', pageIndex: currentPageIndexRef.current, object: updated });
+                    setSelectedObject(updated);
+                    engineRef.current?.requestActiveRender();
+                    engineRef.current?.requestCommittedRender();
+                  } catch (err) {
+                    console.error('Failed to recolor diagram:', err);
+                  }
+                }}
+                title={`Set diagram color to ${c.label}`}
+              />
+            ))}
+          </div>
+
+          {/* 3. Copy Code Button */}
+          <button
+            type="button"
+            className="quick-edit-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              const diag = selectedObject as ImageObject;
+              if (diag.diagramCode) {
+                navigator.clipboard.writeText(diag.diagramCode);
+              }
+            }}
+            title="Copy diagram code to clipboard"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '4px 8px',
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <span>📋</span>
+            <span>Copy Code</span>
           </button>
         </div>
       )}
@@ -2400,6 +2730,29 @@ export function WhiteboardCanvas(): React.ReactElement {
           <button className="quick-edit-btn" title="Configure X-Y Axes Range & Values (or double-click)">
             <span>📊</span>
             <span>Configure X-Y Axes [{(selectedObject as ShapeObject).params?.xMin ?? -10}..{(selectedObject as ShapeObject).params?.xMax ?? 10}]</span>
+          </button>
+        </div>
+      )}
+
+      {/* Quick "🧊 Configure 3D Axes" floating badge */}
+      {toolState.activeTool === 'select' && selectedObject && selectedObject.type === 'shape' && (selectedObject as ShapeObject).shapeType === 'cartesian3DPlane' && selectedScreenBBox && (
+        <div
+          className="selected-text-quick-edit-pill"
+          style={{
+            position: 'absolute',
+            left: Math.max(12, selectedScreenBBox.left),
+            top: Math.max(12, selectedScreenBBox.top - 44),
+            zIndex: 122,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditingCartesian3DShape(selectedObject as ShapeObject);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button className="quick-edit-btn" title="Configure 3D X-Y-Z Axes & Rotation (or double-click)">
+            <span>🧊</span>
+            <span>Configure 3D Axes [X: {(selectedObject as ShapeObject).params?.xMin ?? -5}..{(selectedObject as ShapeObject).params?.xMax ?? 5}, Z: {(selectedObject as ShapeObject).params?.zMin ?? -5}..{(selectedObject as ShapeObject).params?.zMax ?? 5}]</span>
           </button>
         </div>
       )}
@@ -5475,6 +5828,18 @@ export function WhiteboardCanvas(): React.ReactElement {
         />
       )}
 
+      {/* Interactive 3D Cartesian Plane Edit Modal */}
+      {editingCartesian3DShape && (
+        <Cartesian3DPlaneModal
+          existingShape={editingCartesian3DShape}
+          onClose={() => setEditingCartesian3DShape(null)}
+          onUpdateExisting={(updated) => {
+            handleUpdateShape(editingCartesian3DShape, updated);
+            setEditingCartesian3DShape(null);
+          }}
+        />
+      )}
+
       {/* Interactive Function Plotter Edit Modal */}
       {editingFunctionShape && (
         <FunctionPlotterModal
@@ -5928,6 +6293,29 @@ export function WhiteboardCanvas(): React.ReactElement {
       {showGisModal && (
         <GisThematicModal
           onClose={() => setShowGisModal(false)}
+        />
+      )}
+
+      {/* ✏️ Code-to-Vector Diagram Editor Modal for existing diagram */}
+      {editingDiagramObj && (
+        <VectorDiagramModal
+          initialCode={editingDiagramObj.diagramCode || ''}
+          onClose={() => setEditingDiagramObj(null)}
+          onInsert={async (svg, code, type) => {
+            const dataUrl = diagramSvgToDataUrl(svg);
+            const pageIndex = currentPageIndexRef.current;
+            const updated: ImageObject = {
+              ...editingDiagramObj,
+              dataUrl,
+              diagramCode: code,
+              diagramType: type,
+            };
+            docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: updated });
+            setSelectedObject(updated);
+            setEditingDiagramObj(null);
+            engineRef.current?.requestActiveRender();
+            engineRef.current?.requestCommittedRender();
+          }}
         />
       )}
 

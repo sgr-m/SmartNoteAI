@@ -92,6 +92,59 @@ export function isLatexSyntax(text: string): boolean {
 }
 
 /**
+ * Checks whether text is strictly a pure mathematical formula (e.g. "x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}", "$$a^2+b^2=c^2$$", "E = mc^2")
+ * rather than an English prose sentence or Markdown notes containing inline math.
+ * English sentences like "The sum of interior angles in any triangle is always $180^\circ$:" are NOT pure formulas.
+ */
+export function isPureLatexFormula(text: string): boolean {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+
+  // Multiple paragraphs or markdown thematic break -> definitely NOT a single formula
+  if (trimmed.includes('\n\n') || trimmed.includes('---')) return false;
+
+  // Markdown block formatting -> definitely markdown, not pure formula
+  if (/^#{1,6}\s/.test(trimmed) || /^[\*\-•]\s/.test(trimmed) || /^\d+\.\s/.test(trimmed) || trimmed.includes('|') || trimmed.includes('```')) {
+    return false;
+  }
+
+  // Standalone display formula delimiters: $$...$$ or \[...\]
+  if ((trimmed.startsWith('$$') && trimmed.endsWith('$$') && trimmed.length > 2) ||
+      (trimmed.startsWith('\\[') && trimmed.endsWith('\\]') && trimmed.length > 2)) {
+    return true;
+  }
+
+  // Count standard English words (words with 3+ letters without backslashes)
+  const plainWords = trimmed
+    .replace(/\\[a-zA-Z]+/g, ' ') // strip LaTeX commands
+    .replace(/\$[^\$]+\$/g, ' ') // strip inline math
+    .match(/\b[a-zA-Z]{3,}\b/g) || [];
+
+  // If there are 3 or more regular English words, it is natural prose, NOT a pure formula!
+  if (plainWords.length >= 3) {
+    return false;
+  }
+
+  // Check if it's pure mathematical expression (starts with backslash or has math keywords/operators)
+  if (trimmed.startsWith('\\') && (trimmed.includes('\\frac') || trimmed.includes('\\sqrt') || trimmed.includes('\\int') || trimmed.includes('\\sum') || trimmed.includes('\\begin'))) {
+    return true;
+  }
+
+  // Standalone inline math: $...$ without outside text
+  if (trimmed.startsWith('$') && trimmed.endsWith('$') && !trimmed.slice(1, -1).includes('$')) {
+    return true;
+  }
+
+  // Classic math equations: e.g. "a^2 + b^2 = c^2", "E = mc^2", "f(x) = 2x + 1"
+  if (/^[a-zA-Z0-9\s()^_+*\/=\-–—.,\\{}]+$/.test(trimmed) && trimmed.includes('=') && (trimmed.includes('^') || trimmed.includes('/') || trimmed.includes('\\'))) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Automatically converts natural fraction inputs (e.g. "1/2", "3/4", "a/b", "(\pi \theta / 360)")
  * into standard vertical LaTeX fractions: \frac{numerator}{denominator} ("a upon b").
  */
@@ -310,14 +363,16 @@ export function latexToSvgDataUrl(
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
     <style>
+      /* <![CDATA[ */
       ${KATEX_SVG_CSS}
       .katex-mathml { display: none !important; }
       .katex {
         font-family: KaTeX_Main, 'Cambria Math', 'Times New Roman', serif !important;
       }
       .katex-display { margin: 0 !important; }
+      /* ]]> */
     </style>
-    <foreignObject width="100%" height="100%">
+    <foreignObject x="0" y="0" width="${w}" height="${h}">
       <div xmlns="http://www.w3.org/1999/xhtml" style="color: ${color}; font-size: ${Math.round(fontSize)}px; font-family: KaTeX_Main, 'Cambria Math', 'Times New Roman', serif; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; box-sizing: border-box; overflow: visible; padding: 4px 6px;">
         ${html}
       </div>

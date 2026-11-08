@@ -7,6 +7,7 @@ import {
   createImageObject,
   sanitizeSvg,
 } from '../services/documentImportService';
+import { parsePptxPresentation } from '../services/pptxImportService';
 import './DocumentImportModal.css';
 
 import * as pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs';
@@ -35,6 +36,7 @@ export function DocumentImportModal({ onClose, initialFile }: DocumentImportModa
   const [pages, setPages] = useState<ImportedDocumentPage[]>([]);
   const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set());
   const [importAsBackground, setImportAsBackground] = useState<boolean>(true);
+  const [pptxImportAsImage, setPptxImportAsImage] = useState<boolean>(false);
   const [insertAtEnd, setInsertAtEnd] = useState<boolean>(false);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
 
@@ -145,26 +147,24 @@ export function DocumentImportModal({ onClose, initialFile }: DocumentImportModa
       }
     } else if (lower.endsWith('.pptx') || lower.endsWith('.ppt')) {
       setFileType('pptx');
-      setWarningMessage(
-        'PowerPoint presentation detected: Slides will be converted into high-resolution presentation backgrounds for whiteboard teaching and annotation. Proprietary animations and macros are excluded.'
-      );
-      // Simulate/prepare PowerPoint slide representation
-      const reader = new FileReader();
-      reader.onload = () => {
-        // Mock 3 slide preview for PowerPoint presentations
-        const mockPages: ImportedDocumentPage[] = [
-          {
-            pageNumber: 1,
-            thumbnailDataUrl: '',
-            fullDataUrl: '',
-            width: 1920,
-            height: 1080,
-          },
-        ];
-        setPages(mockPages);
-        setSelectedPages(new Set([1]));
-      };
-      reader.readAsArrayBuffer(f);
+      try {
+        if (lower.endsWith('.ppt') && !lower.endsWith('.pptx')) {
+          setWarningMessage(
+            'Legacy .ppt format detected. For best results with full editable shapes, text boxes, and images, please save your presentation as modern .pptx or export to PDF.'
+          );
+        }
+        const loadedPages = await parsePptxPresentation(f, (pct) => setLoadingProgress(pct));
+        if (loadedPages.length === 0) {
+          throw new Error('No slides could be extracted from this PowerPoint presentation.');
+        }
+        setPages(loadedPages);
+        const allSet = new Set<number>();
+        loadedPages.forEach((p) => allSet.add(p.pageNumber));
+        setSelectedPages(allSet);
+      } catch (err: any) {
+        console.error('PowerPoint parsing error:', err);
+        setWarningMessage(`Could not parse PowerPoint presentation: ${err?.message || 'Invalid or encrypted file'}`);
+      }
     } else if (
       lower.endsWith('.png') ||
       lower.endsWith('.jpg') ||
@@ -272,8 +272,11 @@ export function DocumentImportModal({ onClose, initialFile }: DocumentImportModa
       setToastMessage?.(`Inserted image onto Page ${docState.currentPageIndex + 1}`);
     } else {
       // Convert to SmartBoard pages
+      const isPptx = fileType === 'pptx';
+      const importAsObjects = isPptx ? !pptxImportAsImage : false;
       const newPages = convertDocumentPagesToSmartboardPages(pagesToImport, {
-        asBackground: importAsBackground,
+        asBackground: isPptx ? pptxImportAsImage : importAsBackground,
+        asObjects: importAsObjects,
         titlePrefix: fileName.replace(/\.[^.]+$/, ''),
       });
 
@@ -414,14 +417,34 @@ export function DocumentImportModal({ onClose, initialFile }: DocumentImportModa
 
             {/* Import Settings */}
             <div className="import-settings-row">
-              <label className="import-setting-label">
-                <input
-                  type="checkbox"
-                  checked={importAsBackground}
-                  onChange={(e) => setImportAsBackground(e.target.checked)}
-                />
-                <span>Set as Whiteboard Presentation Background (Enables pen annotation over pages)</span>
-              </label>
+              {fileType === 'pptx' ? (
+                <div className="pptx-import-mode-box">
+                  <label className="import-setting-label pptx-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={pptxImportAsImage}
+                      onChange={(e) => setPptxImportAsImage(e.target.checked)}
+                    />
+                    <div className="pptx-checkbox-text">
+                      <strong>Insert PPT slides as high-resolution images</strong>
+                      <span className="pptx-checkbox-desc">
+                        {pptxImportAsImage
+                          ? 'Slides will be inserted as high-resolution presentation backgrounds (optimized for quick pen annotation).'
+                          : 'Slides will be imported as editable SmartBoard objects (text boxes, shapes, and images modifiable during teaching mode).'}
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              ) : (
+                <label className="import-setting-label">
+                  <input
+                    type="checkbox"
+                    checked={importAsBackground}
+                    onChange={(e) => setImportAsBackground(e.target.checked)}
+                  />
+                  <span>Set as Whiteboard Presentation Background (Enables pen annotation over pages)</span>
+                </label>
+              )}
 
               <label className="import-setting-label">
                 <input

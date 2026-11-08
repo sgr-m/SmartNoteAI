@@ -150,3 +150,116 @@ export function makeMoveObjectCommand(
     },
   };
 }
+
+export interface InsertPagesCommandOptions {
+  dispatch: (action: any) => void;
+  pages: Page[];
+  afterIndex?: number;
+  previousPageIndex?: number;
+  description?: string;
+}
+
+/**
+ * Creates an atomic, reversible command for inserting a batch of presentation pages.
+ * Supports single-step undo (removing the entire batch) and redo (re-inserting the batch).
+ */
+export function makeInsertPagesCommand(options: InsertPagesCommandOptions): Command {
+  const { dispatch, pages, afterIndex, previousPageIndex, description } = options;
+  const pageIds = pages.map((p) => p.id);
+  const count = pages.length;
+
+  return {
+    id: uuidv4(),
+    description: description || `Insert ${count} Slide${count === 1 ? '' : 's'}`,
+    execute() {
+      dispatch({ type: 'INSERT_PAGES', pages, after: afterIndex });
+    },
+    undo() {
+      dispatch({ type: 'DELETE_PAGES_BY_ID', pageIds });
+      if (previousPageIndex !== undefined) {
+        dispatch({ type: 'GOTO_PAGE', index: previousPageIndex });
+      }
+    },
+  };
+}
+
+/**
+ * Creates an atomic, reversible command for updating a single canvas object.
+ */
+export function makeUpdateObjectCommand(
+  pageIndex: number,
+  previousObject: CanvasObject,
+  updatedObject: CanvasObject,
+  dispatch: (action: any) => void,
+  setSelectedObject?: (obj: CanvasObject | null) => void,
+  description?: string
+): Command {
+  return {
+    id: uuidv4(),
+    description: description || `Update ${updatedObject.type}`,
+    execute() {
+      dispatch({ type: 'UPDATE_OBJECT', pageIndex, object: updatedObject });
+      setSelectedObject?.(updatedObject);
+    },
+    undo() {
+      dispatch({ type: 'UPDATE_OBJECT', pageIndex, object: previousObject });
+      setSelectedObject?.(previousObject);
+    },
+  };
+}
+
+/**
+ * Creates an atomic, reversible command for replacing a set of canvas objects.
+ */
+export function makeReplaceObjectsCommand(
+  pageIndex: number,
+  previousObjects: CanvasObject[],
+  newObjects: CanvasObject[],
+  dispatch: (action: any) => void,
+  description?: string
+): Command {
+  const previousIds = previousObjects.map((o) => o.id);
+  const newIds = newObjects.map((o) => o.id);
+  return {
+    id: uuidv4(),
+    description: description || `Replace ${previousObjects.length} objects`,
+    execute() {
+      dispatch({
+        type: 'REPLACE_OBJECTS',
+        pageIndex,
+        removeIds: previousIds,
+        newObjects,
+      });
+    },
+    undo() {
+      dispatch({
+        type: 'REPLACE_OBJECTS',
+        pageIndex,
+        removeIds: newIds,
+        newObjects: previousObjects,
+      });
+    },
+  };
+}
+
+/**
+ * Creates an atomic, reversible command for renaming a presentation slide page.
+ */
+export function makeRenamePageCommand(
+  pageIndex: number,
+  previousTitle: string,
+  newTitle: string,
+  dispatch: (action: any) => void,
+  description?: string
+): Command {
+  return {
+    id: uuidv4(),
+    description: description || `Rename Slide to "${newTitle}"`,
+    execute() {
+      dispatch({ type: 'RENAME_PAGE', pageIndex, title: newTitle });
+    },
+    undo() {
+      dispatch({ type: 'RENAME_PAGE', pageIndex, title: previousTitle });
+    },
+  };
+}

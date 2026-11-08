@@ -3,7 +3,7 @@
  * Left island (System/Menu), Center island (Glossy Teaching Dock), Right island (Page Navigation)
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PenFlyout } from './PenFlyout';
 import { ShapeFlyout } from './ShapeFlyout';
@@ -17,7 +17,9 @@ import './Toolbar.css';
 
 interface ToolbarProps {
   onTogglePagePanel?: () => void;
+  onOpenSlideGridView?: () => void;
   onOpenSubjectTools?: () => void;
+  onOpenVectorDiagram?: () => void;
   onOpenResourceLibrary?: () => void;
   onOpenActivities?: () => void;
   onTogglePresentationMode?: () => void;
@@ -36,6 +38,10 @@ interface ToolbarProps {
   onDesktop?: () => void;
   onReturnToBoard?: () => void;
   isPresentationMode?: boolean;
+  onToggleBrowser?: () => void;
+  isBrowserOpen?: boolean;
+  onToggleAIChat?: () => void;
+  isAIChatOpen?: boolean;
 }
 
 const PEN_NAMES: Record<string, string> = {
@@ -240,7 +246,9 @@ function renderShapeDockIcon(shapeStyle?: ShapeStyle) {
 
 export function Toolbar({
   onTogglePagePanel,
+  onOpenSlideGridView,
   onOpenSubjectTools,
+  onOpenVectorDiagram,
   onOpenResourceLibrary,
   onOpenActivities,
   onTogglePresentationMode,
@@ -259,6 +267,10 @@ export function Toolbar({
   onDesktop,
   onReturnToBoard,
   isPresentationMode,
+  onToggleBrowser,
+  isBrowserOpen,
+  onToggleAIChat,
+  isAIChatOpen,
 }: ToolbarProps): React.ReactElement {
   const {
     toolState,
@@ -365,6 +377,30 @@ export function Toolbar({
     }
   }, [docDispatch, currentPageIndex, totalPages]);
 
+  // Click vs Double Click on Slide Sheet Indicator (Requirement 4)
+  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handlePageSheetClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+    }
+    clickTimeoutRef.current = setTimeout(() => {
+      onTogglePagePanel?.();
+      clickTimeoutRef.current = null;
+    }, 240);
+  }, [onTogglePagePanel]);
+
+  const handlePageSheetDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+    }
+    onOpenSlideGridView?.();
+  }, [onOpenSlideGridView]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -439,6 +475,7 @@ export function Toolbar({
             onOpenSettings={onOpenSettings}
             onOpenRecentLessons={onOpenRecentLessons}
             onOpenSubjectTools={onOpenSubjectTools}
+            onOpenVectorDiagram={onOpenVectorDiagram}
             onTogglePresentationMode={onTogglePresentationMode}
             onOpenAIAssistant={onOpenAIAssistant}
             onOpenRecordingStudio={onOpenRecordingStudio}
@@ -450,6 +487,7 @@ export function Toolbar({
             onToggleTimer={onToggleTimer}
             onScreenshot={onScreenshot}
             onDesktop={onDesktop}
+            onOpenBrowser={onToggleBrowser}
           />
         )}
       </div>
@@ -498,6 +536,28 @@ export function Toolbar({
         aria-label="Subject Teaching Platform"
       >
         <div className="tools-icon-graphic">🎓</div>
+      </button>,
+
+      /* Code-to-Vector Diagram Studio */
+      <button
+        key="vector-diagram-btn"
+        className="dock-icon-btn"
+        onClick={() => onOpenVectorDiagram?.()}
+        title="Insert Vector Diagram (Mermaid, Function Graphs, 2D Geometry, Logic Circuits, Timing, TikZ)"
+        aria-label="Code-to-Vector Diagram Studio"
+      >
+        <div className="tools-icon-graphic">📐</div>
+      </button>,
+
+      /* Web Browser Dock Button (Replaces AI Presentation Studio) */
+      <button
+        key="browser-dock-btn"
+        className={`dock-icon-btn ${isBrowserOpen ? 'active' : ''}`}
+        onClick={() => onToggleBrowser?.()}
+        title="Web Browser (Google, Images & Wikipedia) — Search web & paste images to board (Ctrl+Shift+B)"
+        aria-label="Web Browser"
+      >
+        <div className="tools-icon-graphic">🌐</div>
       </button>,
 
       /* Desktop Annotation Pen & Overlay */
@@ -695,6 +755,46 @@ export function Toolbar({
         <span className="dock-tool-icon text-serif-t">T</span>
       </button>
 
+      {/* 6.5 AI Teaching Assistant Chatbox (Just left of Undo button) */}
+      <button
+        className={`dock-tool-btn ai-chat-dock-btn ${isAIChatOpen ? 'active' : ''}`}
+        onClick={() => {
+          closeAllFlyouts();
+          onToggleAIChat?.();
+        }}
+        title="AI Teaching Assistant Chat (Ctrl+Shift+A) — Open side chat to generate lesson explanations, math derivations, and content"
+        aria-label="AI Teaching Assistant Chat"
+      >
+        <span className="dock-tool-icon ai-chat-icon-container">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none">
+            <defs>
+              <linearGradient id="aiChatBubbleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#38bdf8" />
+                <stop offset="50%" stopColor="#6366f1" />
+                <stop offset="100%" stopColor="#a855f7" />
+              </linearGradient>
+              <linearGradient id="aiSparkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#fef08a" />
+                <stop offset="100%" stopColor="#f59e0b" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M20 14c0 1.1-.9 2-2 2H7l-4 4V5c0-1.1.9-2 2-2h13c1.1 0 2 .9 2 2v9z"
+              stroke="url(#aiChatBubbleGrad)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="rgba(99, 102, 241, 0.12)"
+            />
+            <path
+              d="M12 6.5c0 1.8-.7 2.5-2.5 2.5 1.8 0 2.5.7 2.5 2.5 0-1.8.7-2.5 2.5-2.5-1.8 0-2.5-.7-2.5-2.5z"
+              fill="url(#aiSparkGrad)"
+            />
+            <circle cx="16.5" cy="7" r="1" fill="#38bdf8" />
+          </svg>
+        </span>
+      </button>
+
       {/* 7. Undo */}
       <button
         className="dock-tool-btn undo-btn"
@@ -765,13 +865,11 @@ export function Toolbar({
         {/* Page Thumbnail Sheet Card */}
         <button
           className="dock-page-sheet-card"
-          onClick={(e) => {
-            e.stopPropagation();
-            onTogglePagePanel?.();
-          }}
+          onClick={handlePageSheetClick}
+          onDoubleClick={handlePageSheetDoubleClick}
           onPointerDown={(e) => e.stopPropagation()}
-          title="Open Page Thumbnails & Slide Deck"
-          aria-label={`Page ${currentPageIndex + 1} of ${totalPages}`}
+          title="Single click: Slide Panel | Double click: Large Slide Grid View"
+          aria-label={`Page ${currentPageIndex + 1} of ${totalPages}. Double-click for Grid View`}
         >
           <div className="page-sheet-graphic">
             <span className="page-number-display">{currentPageIndex + 1}</span>

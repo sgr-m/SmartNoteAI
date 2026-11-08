@@ -21,7 +21,7 @@ export function isTypingOrInputFocused(e?: KeyboardEvent | React.KeyboardEvent):
 
     if (typeof target.closest === 'function') {
       const isInsideEditableOrDialog = target.closest(
-        'input, textarea, select, [contenteditable="true"], [role="dialog"]:not(.smartboard-pen-flyout):not(.smartboard-eraser-flyout):not(.smartboard-shape-flyout), .add-res-overlay, .res-lib-overlay, .modal-backdrop, .dialog-backdrop, .modal, .inline-text-editor-container, .text-modal-overlay'
+        'input, textarea, select, [contenteditable="true"], [role="dialog"]:not(.smartboard-pen-flyout):not(.smartboard-eraser-flyout):not(.smartboard-shape-flyout), .add-res-overlay, .res-lib-overlay, .modal-backdrop, .dialog-backdrop, .modal, .inline-text-editor-container, .text-modal-overlay, .ai-chat-side-panel, .ai-chat-input-wrapper, .model-settings-drawer, .model-settings-drawer-overlay, .ai-chat-history-drawer'
       );
       if (isInsideEditableOrDialog) {
         return true;
@@ -42,12 +42,20 @@ export function isTypingOrInputFocused(e?: KeyboardEvent | React.KeyboardEvent):
     ) {
       return true;
     }
+    if (typeof active.closest === 'function') {
+      const isInsideChatOrModal = active.closest(
+        '.ai-chat-side-panel, .model-settings-drawer, .model-settings-drawer-overlay, .ai-chat-input-wrapper, .ai-chat-history-drawer'
+      );
+      if (isInsideChatOrModal) {
+        return true;
+      }
+    }
   }
 
   // 3. Inspect if any modal overlay or dialog is currently mounted in document
   if (typeof document !== 'undefined' && document.querySelector) {
     const openModal = document.querySelector(
-      '.add-res-overlay, .res-lib-overlay, .modal-backdrop, .modal, [role="dialog"]:not(.smartboard-pen-flyout):not(.smartboard-eraser-flyout):not(.smartboard-shape-flyout), .inline-text-editor-container, .text-modal-overlay'
+      '.add-res-overlay, .res-lib-overlay, .modal-backdrop, .modal, [role="dialog"]:not(.smartboard-pen-flyout):not(.smartboard-eraser-flyout):not(.smartboard-shape-flyout), .inline-text-editor-container, .text-modal-overlay, .model-settings-drawer-overlay'
     );
     if (openModal) {
       return true;

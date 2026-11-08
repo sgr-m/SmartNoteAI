@@ -154,7 +154,7 @@ export const ESSENTIAL_OFFLINE_MAPS: OfflineMapAsset[] = [
     resolution: '50m Resolution High-Density Contours & National Grid',
     description:
       'Benchmark topographical sheet prescribed for contour interpretation, escarpments, spot heights, drainage, and 4/6-figure grid references.',
-    localAssetPath: './assets/maps/soi_topo_sheet_45d7.svg',
+    localAssetPath: './assets/maps/soi_topo_sheet_45d7_official.jpg',
   },
   // 6. Educational Toposheet 45 D/10 (Aravalli Scarp & Guru Shikhar)
   {
@@ -170,7 +170,7 @@ export const ESSENTIAL_OFFLINE_MAPS: OfflineMapAsset[] = [
     resolution: '1:50,000 Survey Scale',
     description:
       'Steep slope contours, radial drainage, bench marks, and spot elevations in southern Rajasthan.',
-    localAssetPath: './assets/maps/soi_topo_sheet_45d10.svg',
+    localAssetPath: './assets/maps/soi_topo_sheet_45d10_official.jpg',
   },
   // 7. Educational Toposheet 53 E/4 (Himalayan Foothills & Shimla)
   {
@@ -186,7 +186,7 @@ export const ESSENTIAL_OFFLINE_MAPS: OfflineMapAsset[] = [
     resolution: 'High-Relief Mountain Toposheet Grid',
     description:
       'Mountain ridge contours, spurs, deep V-shaped valleys, and snowline features in the Greater Himalayas.',
-    localAssetPath: './assets/maps/soi_topo_sheet_53e4.svg',
+    localAssetPath: './assets/maps/soi_topo_sheet_53e16_official.jpg',
   },
   // 8. Official Survey of India World Atlas Basemaps
   {

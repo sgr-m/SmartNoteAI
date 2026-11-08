@@ -6,10 +6,54 @@
 import React, { createContext, useContext, useReducer, useRef, useCallback, useEffect } from 'react';
 import { documentReducer, initialDocumentState, DocumentState, DocumentAction, serializeLesson, deserializeLesson } from '../store/documentStore';
 import { CommandSystem } from '../engine/CommandSystem';
-import { StrokeStyle, ToolId, CanvasObject, StrokeObject, ShapeObject, TextObject, ImageObject, GroupObject, Point, LessonDocument } from '../../shared/types';
+import { StrokeStyle, ToolId, CanvasObject, StrokeObject, ShapeObject, TextObject, ImageObject, GroupObject, Point, LessonDocument, PenType } from '../../shared/types';
 import { ShapeStyle } from '../engine/DrawingEngine';
 import { createImageObject } from '../services/documentImportService';
 import { v4 as uuidv4 } from 'uuid';
+
+// ─── Individual Pen Thickness Defaults & Memory ──────────────────────────────
+export const DEFAULT_PEN_THICKNESSES: Record<PenType, number> = {
+  normal: 2,
+  flatBrush: 6,
+  calligraphy: 5,
+  fine: 1,
+  pencil: 1,
+  highlighter: 20,
+  brush: 4,
+  laser: 4,
+  magic: 3,
+  pattern: 6,
+  dashed: 2,
+  dotted: 2,
+  marker: 8,
+};
+
+export function getInitialPenThicknesses(): Record<PenType, number> {
+  try {
+    const raw = localStorage.getItem('smartboard_pen_thicknesses');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { ...DEFAULT_PEN_THICKNESSES, ...parsed };
+    }
+  } catch {}
+  return { ...DEFAULT_PEN_THICKNESSES };
+}
+
+// ─── Toolbar Scale Preference ───────────────────────────────────────────────
+export type ToolbarScale = 'compact' | 'standard' | 'large';
+
+export function getInitialToolbarScale(): ToolbarScale {
+  try {
+    const saved = localStorage.getItem('smartboard_toolbar_scale');
+    if (saved === 'compact' || saved === 'standard' || saved === 'large') {
+      return saved;
+    }
+  } catch {}
+  if (typeof window !== 'undefined' && (window.innerWidth <= 1400 || window.innerHeight <= 800)) {
+    return 'compact';
+  }
+  return 'standard';
+}
 
 // ─── Tool State ───────────────────────────────────────────────────────────────
 
@@ -25,12 +69,14 @@ export interface ToolState {
   panY: number;
 }
 
+const initialWidths = getInitialPenThicknesses();
+
 const DEFAULT_TOOL_STATE: ToolState = {
   activeTool: 'pen',
   penStyle: {
     penType: 'normal',
     color: '#ffffff',
-    width: 3,
+    width: initialWidths.normal || 2,
     opacity: 1,
     smoothing: 0.5,
     pressureSensitive: true,
@@ -60,9 +106,9 @@ interface AppContextValue {
   setZoom: (zoom: number) => void;
   setPan: (x: number, y: number) => void;
 
-  // Toolbar Flyouts (Pen, Shape, Eraser, Menu)
-  activeToolbarFlyout: 'none' | 'pen' | 'eraser' | 'shape' | 'menu';
-  setActiveToolbarFlyout: (flyout: 'none' | 'pen' | 'eraser' | 'shape' | 'menu') => void;
+  // Toolbar Flyouts (Pen, Shape, Eraser, Menu, AI)
+  activeToolbarFlyout: 'none' | 'pen' | 'eraser' | 'shape' | 'menu' | 'ai';
+  setActiveToolbarFlyout: (flyout: 'none' | 'pen' | 'eraser' | 'shape' | 'menu' | 'ai') => void;
   closeAllPopups: () => void;
 
   // Selection
@@ -101,10 +147,14 @@ interface AppContextValue {
   canRedo: boolean;
 
   // Lesson I/O
-  saveLesson: () => Promise<void>;
-  saveLessonAs: () => Promise<void>;
+  saveLesson: () => Promise<boolean>;
+  saveLessonAs: () => Promise<boolean>;
   openLesson: () => Promise<void>;
   newLesson: () => void;
+
+  // Responsive Display & Toolbar Scale
+  toolbarScale: ToolbarScale;
+  setToolbarScale: (scale: ToolbarScale) => void;
 
   // Crash Recovery & Transitions (Section 10)
   crashRecoveryDraft: { lesson: LessonDocument; timestamp: number; savedPath: string | null; currentPageIndex?: number } | null;
@@ -127,7 +177,7 @@ export function useAppContext(): AppContextValue {
 export function AppProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const [docState, docDispatch] = useReducer(documentReducer, initialDocumentState);
   const [toolState, setToolStateRaw] = React.useState<ToolState>(DEFAULT_TOOL_STATE);
-  const [activeToolbarFlyout, setActiveToolbarFlyout] = React.useState<'none' | 'pen' | 'eraser' | 'shape' | 'menu'>('none');
+  const [activeToolbarFlyout, setActiveToolbarFlyout] = React.useState<'none' | 'pen' | 'eraser' | 'shape' | 'menu' | 'ai'>('none');
   const [shapeStyle, setShapeStyleRaw] = React.useState<ShapeStyle>({
     shapeType: 'recognition',
     fillColor: '#4facfe',
@@ -166,6 +216,32 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
   }, [commandSystem]);
 
   const [reducedMotion, setReducedMotion] = React.useState<boolean>(false);
+
+  // Responsive Display & Toolbar Scale Preference
+  const [toolbarScale, setToolbarScaleState] = React.useState<ToolbarScale>(getInitialToolbarScale);
+
+  const setToolbarScale = useCallback((scale: ToolbarScale) => {
+    setToolbarScaleState(scale);
+    try {
+      localStorage.setItem('smartboard_toolbar_scale', scale);
+    } catch {}
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-toolbar-scale', scale);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-toolbar-scale', toolbarScale);
+    }
+  }, [toolbarScale]);
+
+  // Sync document dirty state to Electron main process for exit prompt
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.invoke('app:setDirty', docState.isDirty).catch(() => {});
+    }
+  }, [docState.isDirty]);
 
   // Crash Recovery draft state (Section 10)
   const [crashRecoveryDraft, setCrashRecoveryDraft] = React.useState<{
@@ -267,8 +343,43 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
     }
   }, [setSelectedObject]);
 
+  // Individual pen thickness memory
+  const penThicknessesRef = useRef<Record<PenType, number>>(getInitialPenThicknesses());
+
   const setPenStyle = useCallback((style: Partial<StrokeStyle>) => {
-    setToolStateRaw(s => ({ ...s, penStyle: { ...s.penStyle, ...style } }));
+    setToolStateRaw(s => {
+      const currentType = s.penStyle.penType;
+      const targetType = style.penType || currentType;
+
+      const newWidths = { ...penThicknessesRef.current };
+      let newWidth = style.width !== undefined ? style.width : s.penStyle.width;
+
+      if (style.width !== undefined) {
+        newWidths[currentType] = style.width;
+      }
+
+      if (style.penType && style.penType !== currentType && style.width === undefined) {
+        newWidth = newWidths[style.penType] ?? DEFAULT_PEN_THICKNESSES[style.penType] ?? 2;
+      }
+
+      if (style.penType && style.width !== undefined) {
+        newWidths[style.penType] = style.width;
+      }
+
+      penThicknessesRef.current = newWidths;
+      try {
+        localStorage.setItem('smartboard_pen_thicknesses', JSON.stringify(newWidths));
+      } catch {}
+
+      return {
+        ...s,
+        penStyle: {
+          ...s.penStyle,
+          ...style,
+          width: newWidth,
+        },
+      };
+    });
   }, []);
 
   const setEraserMode = useCallback((mode: EraserMode) => {
@@ -294,39 +405,60 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
 
   // ─── Lesson I/O ───────────────────────────────────────────────────────────
 
-  const performSave = async (filePath: string): Promise<void> => {
-    const json = serializeLesson(docState.lesson);
-    await window.electronAPI.invoke('file:writeText', filePath, json);
-    docDispatch({ type: 'SET_CLEAN', savedPath: filePath });
+  const performSave = async (filePath: string): Promise<boolean> => {
     try {
-      localStorage.removeItem('smartboard_crash_recovery_v1');
-    } catch {}
-    // Update DB record
-    await window.electronAPI.invoke('db:upsertLesson', {
-      id: docState.lesson.meta.id,
-      title: docState.lesson.meta.title,
-      file_path: filePath,
-      page_count: docState.lesson.pages.length,
-    });
+      const json = serializeLesson(docState.lesson);
+      await window.electronAPI.invoke('file:writeText', filePath, json);
+      docDispatch({ type: 'SET_CLEAN', savedPath: filePath });
+      try {
+        localStorage.removeItem('smartboard_crash_recovery_v1');
+      } catch {}
+      // Update DB record
+      await window.electronAPI.invoke('db:upsertLesson', {
+        id: docState.lesson.meta.id,
+        title: docState.lesson.meta.title,
+        file_path: filePath,
+        page_count: docState.lesson.pages.length,
+      });
+      return true;
+    } catch (err) {
+      console.error('Failed to save lesson:', err);
+      return false;
+    }
   };
 
-  const saveLesson = useCallback(async () => {
-    if (!docState.savedPath) {
-      await saveLessonAs();
-      return;
+  const saveLessonAs = useCallback(async (): Promise<boolean> => {
+    try {
+      const result = await window.electronAPI?.invoke('file:saveDialog', {
+        title: 'Save Lesson',
+        filters: [{ name: 'SmartNoteAI Lesson', extensions: ['sbl'] }],
+        defaultPath: (docState.lesson?.meta?.title || 'Untitled Lesson') + '.sbl',
+      }) as string | null;
+      if (!result) return false;
+      return await performSave(result);
+    } catch {
+      return false;
     }
-    await performSave(docState.savedPath);
   }, [docState]);
 
-  const saveLessonAs = useCallback(async () => {
-    const result = await window.electronAPI.invoke('file:saveDialog', {
-      title: 'Save Lesson',
-      filters: [{ name: 'SmartNoteAI Lesson', extensions: ['sbl'] }],
-      defaultPath: docState.lesson.meta.title + '.sbl',
-    }) as string | null;
-    if (!result) return;
-    await performSave(result);
-  }, [docState]);
+  const saveLesson = useCallback(async (): Promise<boolean> => {
+    if (!docState.savedPath) {
+      return await saveLessonAs();
+    }
+    return await performSave(docState.savedPath);
+  }, [docState, saveLessonAs]);
+
+  // Handle application close save request
+  useEffect(() => {
+    if (!window.electronAPI) return;
+    const unsub = window.electronAPI.on('app:request-save-and-close', async () => {
+      const saved = await saveLesson();
+      if (saved) {
+        await window.electronAPI.invoke('app:confirm-close');
+      }
+    });
+    return () => unsub();
+  }, [saveLesson]);
 
   const openLesson = useCallback(async () => {
     const files = await window.electronAPI.invoke('file:openDialog', {
@@ -1449,6 +1581,8 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
     saveLessonAs,
     openLesson,
     newLesson,
+    toolbarScale,
+    setToolbarScale,
     crashRecoveryDraft,
     restoreCrashRecoveryDraft,
     discardCrashRecoveryDraft,

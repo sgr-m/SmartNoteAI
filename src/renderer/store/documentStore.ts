@@ -18,6 +18,8 @@ export type DocumentAction =
   | { type: 'ADD_PAGE'; after?: number }
   | { type: 'INSERT_PAGES'; pages: Page[]; after?: number }
   | { type: 'DELETE_PAGE'; index: number }
+  | { type: 'DELETE_PAGES'; indices: number[] }
+  | { type: 'DELETE_PAGES_BY_ID'; pageIds: string[] }
   | { type: 'MOVE_PAGE'; from: number; to: number }
   | { type: 'GOTO_PAGE'; index: number }
   | { type: 'RENAME_PAGE'; pageIndex: number; title: string }
@@ -167,6 +169,26 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
       if (state.lesson.pages.length <= 1) return state; // can't delete last page
       const pages = state.lesson.pages.filter((_, i) => i !== action.index);
       const currentPageIndex = Math.min(state.currentPageIndex, pages.length - 1);
+      return { ...state, lesson: { ...state.lesson, pages }, currentPageIndex, isDirty: true };
+    }
+
+    case 'DELETE_PAGES': {
+      const toDelete = new Set(action.indices);
+      let pages = state.lesson.pages.filter((_, i) => !toDelete.has(i));
+      if (pages.length === 0) {
+        pages = [createDefaultPage()];
+      }
+      const currentPageIndex = Math.max(0, Math.min(state.currentPageIndex, pages.length - 1));
+      return { ...state, lesson: { ...state.lesson, pages }, currentPageIndex, isDirty: true };
+    }
+
+    case 'DELETE_PAGES_BY_ID': {
+      const toDelete = new Set(action.pageIds);
+      let pages = state.lesson.pages.filter((p) => !toDelete.has(p.id));
+      if (pages.length === 0) {
+        pages = [createDefaultPage()];
+      }
+      const currentPageIndex = Math.max(0, Math.min(state.currentPageIndex, pages.length - 1));
       return { ...state, lesson: { ...state.lesson, pages }, currentPageIndex, isDirty: true };
     }
 

@@ -12,6 +12,8 @@ export interface ImportedDocumentPage {
   fullDataUrl: string;
   width: number;
   height: number;
+  objects?: CanvasObject[];
+  backgroundColor?: string;
 }
 
 export interface DocumentImportResult {
@@ -79,6 +81,7 @@ export function convertDocumentPagesToSmartboardPages(
   importedPages: ImportedDocumentPage[],
   options: {
     asBackground: boolean;
+    asObjects?: boolean;
     titlePrefix?: string;
   }
 ): Page[] {
@@ -89,6 +92,26 @@ export function convertDocumentPagesToSmartboardPages(
     // SmartBoard standard presentation canvas is 1920 x 1080
     const canvasW = 1920;
     const canvasH = 1080;
+
+    // Option 1: Import as Editable SmartBoard Objects (Text, Shapes, Images)
+    if (options.asObjects && ip.objects && ip.objects.length > 0) {
+      const bgColor = ip.backgroundColor || '#ffffff';
+      return {
+        id: pageId,
+        title,
+        width: canvasW,
+        height: canvasH,
+        background: { type: 'color', color: bgColor },
+        layers: [
+          { id: 'background', name: 'Background', visible: true, locked: true, opacity: 1, order: 0 },
+          { id: 'imported-media', name: 'Imported Media', visible: true, locked: false, opacity: 1, order: 1 },
+          { id: 'drawing', name: 'Drawings & Ink', visible: true, locked: false, opacity: 1, order: 2 },
+          { id: 'objects', name: 'Shapes & Text', visible: true, locked: false, opacity: 1, order: 3 },
+          { id: 'interaction', name: 'Interaction Tools', visible: true, locked: false, opacity: 1, order: 4 },
+        ],
+        objects: ip.objects,
+      };
+    }
 
     if (options.asBackground) {
       const background: PageBackground = {

@@ -399,6 +399,27 @@
 }
 
 /* ─── Slide Transitions (Section 10) ─── */
+.canvas-surface-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.transition-underlay-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+  pointer-events: none;
+}
+
 .canvas-trans-fade {
   animation: canvasFadeIn 0.35s ease-out;
 }
@@ -411,7 +432,7 @@
   animation: canvasSlideLeft 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes canvasSlideLeft {
-  from { transform: translateX(60px); opacity: 0.7; }
+  from { transform: translateX(100%); opacity: 0.9; }
   to { transform: translateX(0); opacity: 1; }
 }
 
@@ -419,7 +440,7 @@
   animation: canvasSlideRight 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes canvasSlideRight {
-  from { transform: translateX(-60px); opacity: 0.7; }
+  from { transform: translateX(-100%); opacity: 0.9; }
   to { transform: translateX(0); opacity: 1; }
 }
 
@@ -427,7 +448,7 @@
   animation: canvasSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes canvasSlideUp {
-  from { transform: translateY(60px); opacity: 0.7; }
+  from { transform: translateY(100%); opacity: 0.9; }
   to { transform: translateY(0); opacity: 1; }
 }
 
@@ -435,7 +456,7 @@
   animation: canvasSlideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes canvasSlideDown {
-  from { transform: translateY(-60px); opacity: 0.7; }
+  from { transform: translateY(-100%); opacity: 0.9; }
   to { transform: translateY(0); opacity: 1; }
 }
 

@@ -1,0 +1,440 @@
+/* SlideGridViewModal.css — Large Thumbnail Slide Grid Overview */
+
+.slide-grid-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 15, 29, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  animation: gridFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes gridFadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.slide-grid-modal-container {
+  width: 95vw;
+  max-width: 1400px;
+  height: 90vh;
+  max-height: 920px;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #f1f5f9;
+}
+
+/* ─── Header ─── */
+.slide-grid-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: rgba(17, 24, 39, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.slide-grid-title-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.slide-grid-icon {
+  font-size: 20px;
+  color: #38bdf8;
+}
+
+.slide-grid-title-area h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+}
+
+.slide-grid-count-badge {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.slide-grid-lesson-title {
+  font-size: 13px;
+  color: #94a3b8;
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slide-grid-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.slide-grid-bulk-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.grid-selected-count {
+  font-size: 12px;
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.grid-action-pill-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.grid-action-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.grid-add-slide-btn {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: rgba(99, 102, 241, 0.6);
+  color: #a5b4fc;
+}
+
+.grid-add-slide-btn:hover {
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+.grid-delete-bulk-btn {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+}
+
+.grid-delete-bulk-btn:not(:disabled):hover {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.grid-delete-bulk-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.grid-close-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #94a3b8;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.grid-close-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #ffffff;
+}
+
+/* ─── Body & Grid ─── */
+.slide-grid-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.slide-grid-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+/* ─── Slide Card ─── */
+.grid-slide-card {
+  background: rgba(31, 41, 55, 0.7);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.grid-slide-card:hover {
+  background: rgba(31, 41, 55, 0.95);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.grid-slide-card.active-current-slide {
+  border: 2px solid #38bdf8;
+  background: rgba(14, 165, 233, 0.12);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+}
+
+.grid-slide-card.selected-for-bulk {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+}
+
+.grid-slide-card.dragging {
+  opacity: 0.35;
+  border-style: dashed;
+  border-color: #38bdf8;
+}
+
+.grid-slide-card.drag-over {
+  border-color: #38bdf8;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.6);
+  transform: scale(1.02);
+}
+
+/* ─── Card Top ─── */
+.grid-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.grid-card-top-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.grid-card-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+
+.grid-index-badge {
+  background: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+.grid-index-badge.active {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
+.grid-card-title-box {
+  flex: 1;
+  min-width: 0;
+}
+
+.grid-card-title-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.grid-card-rename-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid #38bdf8;
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 12px;
+  padding: 2px 6px;
+  outline: none;
+}
+
+.grid-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.grid-icon-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  color: #94a3b8;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.grid-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.grid-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+/* ─── Thumbnail Viewport ─── */
+.grid-thumbnail-viewport {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #1e293b;
+  position: relative;
+}
+
+.grid-current-indicator-tag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #38bdf8;
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* ─── Card Bottom ─── */
+.grid-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.grid-transition-wrapper {
+  position: relative;
+}
+
+.grid-transition-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.grid-transition-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.grid-transition-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  background: #1f2937;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  z-index: 10;
+  min-width: 130px;
+}
+
+.grid-trans-item {
+  background: none;
+  border: none;
+  color: #cbd5e1;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+
+.grid-trans-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.grid-trans-item.active {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.grid-drag-handle {
+  color: #64748b;
+  font-size: 16px;
+  cursor: grab;
+  user-select: none;
+  padding: 0 4px;
+}
+
+.grid-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* ─── Footer ─── */
+.slide-grid-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: rgba(17, 24, 39, 0.95);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+

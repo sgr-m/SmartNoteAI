@@ -7,6 +7,7 @@ import { jsPDF } from 'jspdf';
 import { LessonDocument, Page, CanvasObject, StrokeObject, ShapeObject, TextObject, ImageObject } from '../../shared/types';
 import { isLatexSyntax, latexToSvgDataUrl } from './latexService';
 import { renderSubjectShape, isSubjectShape } from '../engine/subjectShapeRenderer';
+import { isGeometryInstrument, renderGeometryInstrument } from '../engine/geometryInstrumentRenderer';
 
 export interface ExportRenderOptions {
   scale?: number; // 1 for normal, 2 for 300 DPI high-res
@@ -425,69 +426,324 @@ function renderStroke(ctx: CanvasRenderingContext2D, stroke: StrokeObject) {
   ctx.stroke();
 }
 
+function drawExportArrow(
+  ctx: CanvasRenderingContext2D,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  strokeWidth = 3
+): void {
+  const headlen = Math.max(12, strokeWidth * 3.5);
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const angle = Math.atan2(dy, dx);
+
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(
+    x1 - headlen * Math.cos(angle - Math.PI / 6),
+    y1 - headlen * Math.sin(angle - Math.PI / 6)
+  );
+  ctx.lineTo(
+    x1 - headlen * Math.cos(angle + Math.PI / 6),
+    y1 - headlen * Math.sin(angle + Math.PI / 6)
+  );
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
 function renderShape(ctx: CanvasRenderingContext2D, shape: ShapeObject) {
   ctx.save();
   const centerX = shape.x + shape.width / 2;
   const centerY = shape.y + shape.height / 2;
 
-  if (shape.rotation) {
+  if (
+    shape.rotation &&
+    shape.shapeType !== 'line' &&
+    shape.shapeType !== 'arrow' &&
+    shape.shapeType !== 'arc'
+  ) {
     ctx.translate(centerX, centerY);
     ctx.rotate((shape.rotation * Math.PI) / 180);
     ctx.translate(-centerX, -centerY);
   }
-
-  ctx.strokeStyle = shape.strokeColor || '#ffffff';
-  ctx.lineWidth = shape.strokeWidth || 3;
-  ctx.fillStyle = shape.fillColor || 'transparent';
 
   const x = shape.x;
   const y = shape.y;
   const w = shape.width;
   const h = shape.height;
 
-  ctx.beginPath();
+  // 1. Check if it's a calibrated geometry instrument (ruler, protractor, compass, cartesianAxes)
+  if (isGeometryInstrument(shape.shapeType)) {
+    renderGeometryInstrument(ctx, shape, x, y, w, h, 1);
+    ctx.restore();
+    return;
+  }
+
+  // 2. Check if it's a subject shape (periodic table, digital logic gate, molecule, etc.)
+  if (isSubjectShape(shape.shapeType)) {
+    renderSubjectShape(ctx, shape, x, y, w, h, 1);
+    ctx.restore();
+    return;
+  }
+
+  // 3. Standard Geometric Shapes (Whiteboard Core)
+  const fillOpacity =
+    shape.fillOpacity !== undefined
+      ? shape.fillOpacity
+      : shape.fillColor && shape.fillColor !== 'transparent'
+      ? 1
+      : 0;
+  const strokeOpacity = shape.strokeOpacity !== undefined ? shape.strokeOpacity : 1;
+  const strokeWidth = shape.strokeWidth !== undefined ? shape.strokeWidth : 3;
+  const strokeColor = shape.strokeColor || '#ffffff';
+  const fillColor = shape.fillColor || 'transparent';
+
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = strokeWidth;
+  ctx.fillStyle = fillColor;
+
+  if (typeof ctx.setLineDash === 'function') {
+    if (shape.strokeStyle === 'dashed') {
+      ctx.setLineDash([8, 6]);
+    } else if (shape.strokeStyle === 'dotted') {
+      ctx.setLineDash([2, 4]);
+    } else {
+      ctx.setLineDash([]);
+    }
+  }
+
   switch (shape.shapeType) {
     case 'rect':
-    case 'roundedRect':
-      ctx.rect(x, y, w, h);
+    case 'recognition':
+      if (fillOpacity > 0 && fillColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = fillOpacity;
+        ctx.fillRect(x, y, w, h);
+        ctx.restore();
+      }
+      if (strokeOpacity > 0 && strokeWidth > 0 && strokeColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = strokeOpacity;
+        if (typeof ctx.strokeRect === 'function') {
+          ctx.strokeRect(x, y, w, h);
+        } else {
+          ctx.beginPath();
+          ctx.rect(x, y, w, h);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
       break;
-    case 'circle':
+
+    case 'roundedRect': {
+      const radius = 16;
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(x, y, w, h, radius);
+      } else {
+        ctx.rect(x, y, w, h);
+      }
+      if (fillOpacity > 0 && fillColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = fillOpacity;
+        ctx.fill();
+        ctx.restore();
+      }
+      if (strokeOpacity > 0 && strokeWidth > 0 && strokeColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = strokeOpacity;
+        ctx.stroke();
+        ctx.restore();
+      }
+      break;
+    }
+
+    case 'circle': {
+      const radius = Math.min(Math.abs(w), Math.abs(h)) / 2;
+      ctx.beginPath();
+      ctx.arc(x + w / 2, y + h / 2, radius, 0, Math.PI * 2);
+      if (fillOpacity > 0 && fillColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = fillOpacity;
+        ctx.fill();
+        ctx.restore();
+      }
+      if (strokeOpacity > 0 && strokeWidth > 0 && strokeColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = strokeOpacity;
+        ctx.stroke();
+        ctx.restore();
+      }
+      break;
+    }
+
     case 'ellipse':
-      ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
+      ctx.beginPath();
+      ctx.ellipse(
+        x + w / 2,
+        y + h / 2,
+        Math.max(1, Math.abs(w / 2)),
+        Math.max(1, Math.abs(h / 2)),
+        0,
+        0,
+        Math.PI * 2
+      );
+      if (fillOpacity > 0 && fillColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = fillOpacity;
+        ctx.fill();
+        ctx.restore();
+      }
+      if (strokeOpacity > 0 && strokeWidth > 0 && strokeColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = strokeOpacity;
+        ctx.stroke();
+        ctx.restore();
+      }
       break;
+
+    case 'line':
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + w, y + h);
+      if (strokeOpacity > 0 && strokeWidth > 0 && strokeColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = strokeOpacity;
+        ctx.stroke();
+        ctx.restore();
+      }
+      break;
+
+    case 'arrow':
+      if (strokeOpacity > 0 && strokeWidth > 0 && strokeColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = strokeOpacity;
+        ctx.fillStyle = strokeColor;
+        drawExportArrow(ctx, x, y, x + w, y + h, strokeWidth);
+        ctx.restore();
+      }
+      break;
+
+    case 'arc':
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + w / 2, y - h * 0.5, x + w, y + h);
+      if (strokeOpacity > 0 && strokeWidth > 0 && strokeColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = strokeOpacity;
+        ctx.stroke();
+        ctx.restore();
+      }
+      break;
+
     case 'triangle':
-    case 'rightTriangle':
+      ctx.beginPath();
       ctx.moveTo(x + w / 2, y);
       ctx.lineTo(x + w, y + h);
       ctx.lineTo(x, y + h);
       ctx.closePath();
-      break;
-    case 'arrow': {
-      const headLength = Math.min(w, h) * 0.35;
-      ctx.moveTo(x, y + h * 0.35);
-      ctx.lineTo(x + w - headLength, y + h * 0.35);
-      ctx.lineTo(x + w - headLength, y);
-      ctx.lineTo(x + w, y + h * 0.5);
-      ctx.lineTo(x + w - headLength, y + h);
-      ctx.lineTo(x + w - headLength, y + h * 0.65);
-      ctx.lineTo(x, y + h * 0.65);
-      ctx.closePath();
-      break;
-    }
-    default:
-      if (isSubjectShape(shape.shapeType)) {
-        renderSubjectShape(ctx, shape, x, y, w, h, 1);
+      if (fillOpacity > 0 && fillColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = fillOpacity;
+        ctx.fill();
         ctx.restore();
-        return;
       }
+      if (strokeOpacity > 0 && strokeWidth > 0 && strokeColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = strokeOpacity;
+        ctx.stroke();
+        ctx.restore();
+      }
+      break;
+
+    case 'rightTriangle':
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y + h);
+      ctx.lineTo(x + w, y + h);
+      ctx.closePath();
+      if (fillOpacity > 0 && fillColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = fillOpacity;
+        ctx.fill();
+        ctx.restore();
+      }
+      if (strokeOpacity > 0 && strokeWidth > 0 && strokeColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = strokeOpacity;
+        ctx.stroke();
+        ctx.restore();
+      }
+      break;
+
+    case 'parallelogram':
+      ctx.beginPath();
+      ctx.moveTo(x + w * 0.25, y);
+      ctx.lineTo(x + w, y);
+      ctx.lineTo(x + w * 0.75, y + h);
+      ctx.lineTo(x, y + h);
+      ctx.closePath();
+      if (fillOpacity > 0 && fillColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = fillOpacity;
+        ctx.fill();
+        ctx.restore();
+      }
+      if (strokeOpacity > 0 && strokeWidth > 0 && strokeColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = strokeOpacity;
+        ctx.stroke();
+        ctx.restore();
+      }
+      break;
+
+    case 'trapezoid':
+      ctx.beginPath();
+      ctx.moveTo(x + w * 0.2, y);
+      ctx.lineTo(x + w * 0.8, y);
+      ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x, y + h);
+      ctx.closePath();
+      if (fillOpacity > 0 && fillColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = fillOpacity;
+        ctx.fill();
+        ctx.restore();
+      }
+      if (strokeOpacity > 0 && strokeWidth > 0 && strokeColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = strokeOpacity;
+        ctx.stroke();
+        ctx.restore();
+      }
+      break;
+
+    default:
+      ctx.beginPath();
       ctx.rect(x, y, w, h);
+      if (fillOpacity > 0 && fillColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = fillOpacity;
+        ctx.fill();
+        ctx.restore();
+      }
+      if (strokeOpacity > 0 && strokeWidth > 0 && strokeColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = strokeOpacity;
+        ctx.stroke();
+        ctx.restore();
+      }
       break;
   }
 
-  if (shape.fillColor && shape.fillColor !== 'transparent') {
-    ctx.fill();
-  }
-  ctx.stroke();
   ctx.restore();
 }
 

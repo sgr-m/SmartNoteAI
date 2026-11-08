@@ -193,29 +193,20 @@ describe('Stage 1 — Geography Resource Centre Architecture', () => {
     expect(geoModule?.icon).toBe('🌍');
 
     const tools = SubjectRegistry.getToolsBySubject('geography');
-    expect(tools.length).toBeGreaterThanOrEqual(7);
+    expect(tools.length).toBe(6);
 
     const toolIds = tools.map((t) => t.id);
     expect(toolIds).toContain('geo-tool-resource-centre');
     expect(toolIds).toContain('geo-tool-india-political');
-    expect(toolIds).toContain('geo-tool-world-atlas');
     expect(toolIds).toContain('geo-tool-3d-globe');
     expect(toolIds).toContain('geo-tool-soi-toposheets');
-    expect(toolIds).toContain('geo-tool-topo-grid-lab');
+    expect(toolIds).toContain('geo-tool-topo-symbols');
     expect(toolIds).toContain('geo-tool-india-outline-worksheet');
 
-    // Templates
+    // Templates removed per specification
     const templates = SubjectRegistry.getAllTemplates();
     const geoTemplates = templates.filter((t) => t.subjectId === 'geography');
-    expect(geoTemplates.length).toBeGreaterThanOrEqual(1);
-
-    const tmplIds = geoTemplates.map((t) => t.id);
-    expect(tmplIds).toContain('geo-template-india-physiography');
-
-    // Execute template object generation
-    const sampleObjects = geoTemplates[0].createObjects({ x: 100, y: 100 });
-    expect(sampleObjects.length).toBeGreaterThanOrEqual(2);
-    expect(sampleObjects[0].id).toBeDefined();
+    expect(geoTemplates.length).toBe(0);
   });
 
   // ─── 8. Tool Execution & Whiteboard Object Creation ─────────────────────────
