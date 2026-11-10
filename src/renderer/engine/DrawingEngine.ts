@@ -29,8 +29,9 @@ import {
 } from '../../shared/types';
 import { v4 as uuidv4 } from 'uuid';
 import { isLatexSyntax, isPureLatexFormula, getCachedLatexImage, measureLatexSize } from '../services/latexService';
-import { getCachedHtmlImage } from '../services/htmlRenderService';
+import { getCachedHtmlImage, measureHtmlSize } from '../services/htmlRenderService';
 import { isMarkdownSyntax, getCachedMarkdownImage, measureMarkdownSize } from '../services/markdownRenderService';
+import { detectTextFormatMode } from '../services/formatDetectionService';
 import { renderSubjectShape, isSubjectShape } from './subjectShapeRenderer';
 import { isGeoShapeType } from '../services/geography/types';
 import { hitTestGeoFeature, getGeoMapTransform } from './geographyShapeRenderer';
@@ -2111,18 +2112,23 @@ export class DrawingEngine {
     }
     if (obj.type === 'text') {
       const t = obj as TextObject;
-      const isPureFormula = isPureLatexFormula(t.content);
-      const isMarkdown = t.isMarkdown || (!t.isHtml && (!t.isLatex || !isPureFormula) && (isMarkdownSyntax(t.content) || !isPureFormula));
-      const isLatex = !isMarkdown && Boolean((t.isLatex || isPureFormula) && isPureFormula);
+      const mode = detectTextFormatMode(t.content, { isHtml: t.isHtml, isLatex: t.isLatex, isMarkdown: t.isMarkdown });
+      const isHtml = mode.isHtml;
+      const isLatex = mode.isLatex;
+      const isMarkdown = mode.isMarkdown;
 
       let tw = t.width;
       let th = t.height;
 
       if (!tw || !th) {
-        if (isLatex) {
-          const m = measureLatexSize(t.content, t.fontSize || 36);
+        if (isHtml) {
+          const m = measureHtmlSize(t.content, t.fontSize || 24, t.fontFamily || 'Segoe UI, sans-serif', Math.max(1200, (t.width || 800) * 1.1, 1600));
           tw = tw || m.width;
           th = th || m.height;
+        } else if (isLatex) {
+          const m = measureLatexSize(t.content, t.fontSize || 36);
+          tw = Math.max(tw || 0, m.width);
+          th = Math.max(th || 0, m.height);
         } else if (isMarkdown) {
           const m = measureMarkdownSize(t.content, t.fontSize || 36, t.fontFamily, Math.max(1200, (t.width || 800) * 1.1, 1600));
           tw = tw || m.width;
@@ -2622,9 +2628,8 @@ export class DrawingEngine {
 
     if (obj.type === 'text') {
       const t = obj as TextObject;
-      const isPureFormula = isPureLatexFormula(t.content);
-      const isMarkdown = t.isMarkdown || (!t.isHtml && (!t.isLatex || !isPureFormula) && (isMarkdownSyntax(t.content) || !isPureFormula));
-      const isLatex = !isMarkdown && Boolean((t.isLatex || isPureFormula) && isPureFormula);
+      const mode = detectTextFormatMode(t.content, { isHtml: t.isHtml, isLatex: t.isLatex, isMarkdown: t.isMarkdown });
+      const isLatex = mode.isLatex;
       const initW = t.width || (isLatex ? 200 : 200);
       const initH = t.height || (isLatex ? 50 : 40);
       const initFontSize = t.fontSize || (isLatex ? 36 : 24);
@@ -4230,12 +4235,22 @@ export class DrawingEngine {
       ctx.fill();
     }
 
-    // Render Custom HTML/CSS with crisp SVG ForeignObject rendering
-    if (text.isHtml) {
+    const mode = detectTextFormatMode(text.content, {
+      isHtml: text.isHtml,
+      isLatex: text.isLatex,
+      isMarkdown: text.isMarkdown,
+    });
+
+    // 1. Render Custom HTML/CSS with crisp SVG ForeignObject rendering
+    if (mode.isHtml) {
       const fontSize = text.fontSize || 24;
-      const fontFamily = text.fontFamily || 'Segoe UI, sans-serif';
-      const targetW = text.width || 400;
-      const targetH = text.height || 120;
+      const fontFamily = text.fontFamily || 'Inter, system-ui, -apple-system, sans-serif';
+      const availableMaxW = Math.max(1200, (text.width || 800) * 1.1, 1600);
+      const measured = measureHtmlSize(text.content, fontSize, fontFamily, availableMaxW);
+      const targetW = Math.max(text.width || 0, measured.width);
+      const targetH = Math.max(text.height || 0, measured.height);
+      const drawTw = Math.max(tw, measured.width * s);
+      const drawTh = Math.max(th, measured.height * s);
 
       const img = getCachedHtmlImage(
         text.id,
@@ -4253,16 +4268,59 @@ export class DrawingEngine {
         text.lineHeight || 1.4
       );
       if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
-        ctx.drawImage(img, x, y, tw, th);
+        ctx.drawImage(img, x, y, drawTw, drawTh);
+        ctx.restore();
+        return;
       }
       ctx.restore();
       return;
     }
 
-    // 2. Render Markdown + mixed KaTeX formulas with high-fidelity vector rendering
-    const isPureFormula = isPureLatexFormula(text.content);
-    const isMarkdown = text.isMarkdown || (!text.isHtml && (!text.isLatex || !isPureFormula) && (isMarkdownSyntax(text.content) || !isPureFormula));
-    if (isMarkdown) {
+    // 2. Render Pure LaTeX Mathematical Formulas (standalone formulas without English prose)
+    if (mode.isLatex) {
+      const fontSize = text.fontSize || 36;
+      const measured = measureLatexSize(text.content, fontSize);
+      const targetW = Math.max(text.width || 0, measured.width + 32);
+      const targetH = Math.max(text.height || 0, measured.height + 16);
+      const drawTw = Math.max(tw, (measured.width + 32) * s);
+      const drawTh = Math.max(th, (measured.height + 16) * s);
+
+      const img = getCachedLatexImage(
+        text.id,
+        text.content,
+        text.color || '#ffffff',
+        fontSize,
+        targetW,
+        targetH,
+        () => {
+          this.requestActiveRender();
+          this.requestCommittedRender();
+        }
+      );
+      if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        // Fit within drawTw and drawTh preserving natural aspect ratio without distortion or cropping
+        const imgAspect = img.naturalWidth / img.naturalHeight;
+        let finalW = drawTw;
+        let finalH = drawTw / imgAspect;
+
+        if (finalH > drawTh) {
+          finalH = drawTh;
+          finalW = drawTh * imgAspect;
+        }
+
+        const drawX = x + Math.max(0, (drawTw - finalW) / 2);
+        const drawY = y + Math.max(0, (drawTh - finalH) / 2);
+
+        ctx.drawImage(img, drawX, drawY, finalW, finalH);
+        ctx.restore();
+        return;
+      }
+      ctx.restore();
+      return;
+    }
+
+    // 3. Render Markdown + mixed KaTeX formulas with high-fidelity vector rendering
+    if (mode.isMarkdown) {
       const fontSize = text.fontSize || 36;
       const fontFamily = text.fontFamily || 'Inter, -apple-system, sans-serif';
       const availableMaxW = Math.max(1200, (text.width || 800) * 1.1, 1600);
@@ -4294,47 +4352,6 @@ export class DrawingEngine {
       }
       // If SVG data URL image is still loading or unavailable, fall through directly to line-by-line canvas drawing!
       // This guarantees 0ms latency: text is NEVER BLANK and NEVER disappears!
-    }
-
-    // 3. Render Pure LaTeX Mathematical Formulas (standalone formulas without English prose)
-    const isLatex = !isMarkdown && Boolean((text.isLatex || isPureFormula) && isPureFormula);
-    if (isLatex) {
-      const fontSize = text.fontSize || 36;
-      const measured = measureLatexSize(text.content, fontSize);
-      const targetW = text.width || measured.width;
-      const targetH = text.height || measured.height;
-
-      const img = getCachedLatexImage(
-        text.id,
-        text.content,
-        text.color || '#ffffff',
-        fontSize,
-        targetW,
-        targetH,
-        () => {
-          this.requestActiveRender();
-          this.requestCommittedRender();
-        }
-      );
-      if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
-        // Fit within tw and th strictly preserving natural aspect ratio (never distorts or stretches!)
-        const imgAspect = img.naturalWidth / img.naturalHeight;
-        let drawW = tw;
-        let drawH = tw / imgAspect;
-
-        if (drawH > th) {
-          drawH = th;
-          drawW = th * imgAspect;
-        }
-
-        const drawX = x + (tw - drawW) / 2;
-        const drawY = y + (th - drawH) / 2;
-
-        ctx.drawImage(img, drawX, drawY, drawW, drawH);
-        ctx.restore();
-        return;
-      }
-      // If LaTeX SVG is still loading, fall through to direct canvas text rendering below!
     }
 
     ctx.textBaseline = 'top';

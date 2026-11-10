@@ -84,6 +84,7 @@ import { GisThematicModal } from './geography/GisThematicModal';
 import { VectorDiagramModal } from './vectorDiagram/VectorDiagramModal';
 import { renderDiagramToSvg, diagramSvgToDataUrl } from '../services/vectorDiagramService';
 import { enhanceIndividualTextWithAI } from '../services/boardEnhanceService';
+import { detectTextFormatMode } from '../services/formatDetectionService';
 import { v4 as uuidv4 } from 'uuid';
 import './WhiteboardCanvas.css';
 
@@ -2072,8 +2073,14 @@ export function WhiteboardCanvas(props?: WhiteboardCanvasProps): React.ReactElem
         },
       });
     } else if (textModalPos) {
-      const isMarkdown = textData.isMarkdown ?? (!textData.isHtml && !textData.isLatex && (textData.content ? isMarkdownSyntax(textData.content) : false));
-      const isLatex = !isMarkdown && (textData.isLatex ?? (textData.content ? isPureLatexFormula(textData.content) : false));
+      const mode = detectTextFormatMode(textData.content || '', {
+        isHtml: textData.isHtml,
+        isLatex: textData.isLatex,
+        isMarkdown: textData.isMarkdown,
+      });
+      const isHtml = mode.isHtml;
+      const isLatex = mode.isLatex;
+      const isMarkdown = mode.isMarkdown;
       const newText: TextObject = {
         id: uuidv4(),
         type: 'text',
@@ -2096,7 +2103,7 @@ export function WhiteboardCanvas(props?: WhiteboardCanvasProps): React.ReactElem
         preset: textData.preset || (isLatex ? 'formula' : 'body'),
         isLatex,
         isMarkdown,
-        isHtml: textData.isHtml,
+        isHtml,
         locked: false,
         layerId: 'objects',
       };

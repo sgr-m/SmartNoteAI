@@ -26,6 +26,7 @@ import {
   measureMarkdownSize,
   markdownToHtml,
 } from '../services/markdownRenderService';
+import { detectTextFormatMode } from '../services/formatDetectionService';
 import './InlineTextEditor.css';
 
 interface InlineTextEditorProps {
@@ -138,16 +139,17 @@ export function InlineTextEditor({
   const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>(initialText?.textAlign ?? 'left');
   const [color, setColor] = useState(initialText?.color ?? '#ffffff');
   const [backgroundColor, setBackgroundColor] = useState(initialText?.backgroundColor ?? 'transparent');
-  const [isLatexMode, setIsLatexMode] = useState<boolean>(() => {
-    if (initialText?.isMarkdown) return false;
-    if (initialText?.content && !isPureLatexFormula(initialText.content)) return false;
-    return Boolean(initialText?.isLatex && (!initialText.content || isPureLatexFormula(initialText.content)));
-  });
-  const [isHtmlMode, setIsHtmlMode] = useState<boolean>(initialText?.isHtml ?? false);
-  const [isMarkdownMode, setIsMarkdownMode] = useState<boolean>(() => {
-    if (initialText?.content && isPureLatexFormula(initialText.content)) return false;
-    return Boolean(initialText?.isMarkdown || (initialText?.content && (isMarkdownSyntax(initialText.content) || !isPureLatexFormula(initialText.content))));
-  });
+  const initialMode = useMemo(() => {
+    return detectTextFormatMode(initialText?.content || '', {
+      isHtml: initialText?.isHtml,
+      isLatex: initialText?.isLatex,
+      isMarkdown: initialText?.isMarkdown,
+    });
+  }, [initialText]);
+
+  const [isLatexMode, setIsLatexMode] = useState<boolean>(initialMode.isLatex);
+  const [isHtmlMode, setIsHtmlMode] = useState<boolean>(initialMode.isHtml);
+  const [isMarkdownMode, setIsMarkdownMode] = useState<boolean>(initialMode.isMarkdown);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editorBoxRef = useRef<HTMLDivElement>(null);
@@ -206,14 +208,20 @@ export function InlineTextEditor({
       return;
     }
 
-    const isPure = isPureLatexFormula(content);
-    const isLatex = !isHtmlMode && !isMarkdownMode && Boolean((isLatexMode || isPure) && isPure);
-    const isMarkdown = !isHtmlMode && (isMarkdownMode || !isLatex);
+    const detected = detectTextFormatMode(content, {
+      isHtml: isHtmlMode,
+      isLatex: isLatexMode,
+      isMarkdown: isMarkdownMode,
+    });
+    const isLatex = detected.isLatex;
+    const isHtml = detected.isHtml;
+    const isMarkdown = detected.isMarkdown;
+
     const normalizedContent = isLatex ? autoFormatLatexFractions(autoFormatMathOperators(content)) : content;
     let estimatedWidth: number;
     let estimatedHeight: number;
 
-    if (isHtmlMode) {
+    if (isHtml) {
       const measured = measureHtmlSize(normalizedContent, fontSize, fontFamily, maxAvailableWidth);
       estimatedWidth = Math.min(maxAvailableWidth, measured.width);
       estimatedHeight = measured.height;
@@ -235,8 +243,8 @@ export function InlineTextEditor({
       x: initialPoint.x,
       y: initialPoint.y,
       content: normalizedContent,
-      preset: activePreset,
-      fontFamily,
+      preset: isLatex ? 'formula' : activePreset,
+      fontFamily: isLatex ? "KaTeX_Main, 'Cambria Math', 'Times New Roman', serif" : fontFamily,
       fontSize,
       fontWeight,
       fontStyle,
@@ -244,15 +252,15 @@ export function InlineTextEditor({
       textAlign,
       color,
       backgroundColor,
-      width: initialText?.width || estimatedWidth,
-      height: initialText?.height || estimatedHeight,
+      width: isLatex ? Math.max(initialText?.width || 0, estimatedWidth) : (initialText?.width || estimatedWidth),
+      height: isLatex ? Math.max(initialText?.height || 0, estimatedHeight) : (initialText?.height || estimatedHeight),
       lineHeight,
       opacity: 1,
       rotation: initialText?.rotation || 0,
       locked: false,
       layerId: initialText?.layerId || 'objects',
       isLatex,
-      isHtml: isHtmlMode,
+      isHtml,
       isMarkdown,
     });
     onClose();
@@ -401,14 +409,20 @@ export function InlineTextEditor({
             onChange={(e) => {
               const val = e.target.value;
               setContent(val);
-              if (!isHtmlMode && !isMarkdownMode) {
-                if (isPureLatexFormula(val)) {
-                  setIsLatexMode(true);
-                  setFontSize((prev) => Math.max(28, prev));
-                } else if (isMarkdownSyntax(val)) {
-                  setIsMarkdownMode(true);
-                  setIsLatexMode(false);
-                }
+              const detected = detectTextFormatMode(val);
+              if (detected.isHtml) {
+                setIsHtmlMode(true);
+                setIsLatexMode(false);
+                setIsMarkdownMode(false);
+              } else if (detected.isLatex) {
+                setIsLatexMode(true);
+                setIsHtmlMode(false);
+                setIsMarkdownMode(false);
+                setFontSize((prev) => Math.max(28, prev));
+              } else if (detected.isMarkdown) {
+                setIsMarkdownMode(true);
+                setIsLatexMode(false);
+                setIsHtmlMode(false);
               }
             }}
             onKeyDown={handleKeyDown}

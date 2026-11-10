@@ -4,6 +4,7 @@
  */
 
 import katex from 'katex';
+export { KATEX_SVG_CSS } from './katexStyles';
 import { KATEX_SVG_CSS } from './katexStyles';
 import { markdownToHtml, isMarkdownSyntax, markdownToSvgDataUrl } from './markdownRenderService';
 
@@ -339,7 +340,7 @@ export function measureLatexSize(
     span.style.lineHeight = '1.2';
     span.style.fontFamily = "KaTeX_Main, 'Cambria Math', 'Times New Roman', serif";
 
-    const { html, success } = renderLatexHtml(cleanExpr, false);
+    const { html, success } = renderLatexHtml(cleanExpr, true);
     span.innerHTML = success ? html : cleanExpr;
     measureContainer.appendChild(span);
 
@@ -348,8 +349,8 @@ export function measureLatexSize(
 
     if (rect.width > 0) {
       const measured = {
-        width: Math.max(60, Math.ceil(rect.width) + 16),
-        height: Math.max(36, Math.ceil(rect.height) + 12),
+        width: Math.max(80, Math.ceil(rect.width) + 36),
+        height: Math.max(40, Math.ceil(rect.height) + 20),
       };
       latexSizeCache.set(cacheKey, measured);
       return measured;
@@ -358,16 +359,16 @@ export function measureLatexSize(
     // JSDOM / headless layout fallback
     const visualChars = estimateLatexVisualCharCount(cleanExpr);
     const measured = {
-      width: Math.max(60, Math.ceil(visualChars * fontSize * 0.65) + 16),
-      height: Math.max(36, Math.ceil(fontSize * 1.5) + 12),
+      width: Math.max(80, Math.ceil(visualChars * fontSize * 0.75) + 36),
+      height: Math.max(44, Math.ceil(fontSize * 1.8) + 20),
     };
     latexSizeCache.set(cacheKey, measured);
     return measured;
   } catch {
     const visualChars = estimateLatexVisualCharCount(cleanExpr);
     return {
-      width: Math.max(60, Math.ceil(visualChars * fontSize * 0.65) + 16),
-      height: Math.max(36, Math.ceil(fontSize * 1.5) + 12),
+      width: Math.max(80, Math.ceil(visualChars * fontSize * 0.75) + 36),
+      height: Math.max(44, Math.ceil(fontSize * 1.8) + 20),
     };
   }
 }
@@ -455,8 +456,8 @@ export function getCachedLatexImage(
     img.crossOrigin = 'anonymous';
     // Render at crisp 2x resolution preserving the exact natural aspect ratio of the measured formula!
     const scale = 2;
-    const baseW = Math.max(120, Math.round(width * scale));
-    const baseH = Math.max(72, Math.round(height * scale));
+    const baseW = Math.max(220, Math.round(width * scale) + 80);
+    const baseH = Math.max(100, Math.round(height * scale) + 40);
     const baseFont = Math.round(roundedFont * scale);
     img.src = latexToSvgDataUrl(rawText, color, baseFont, baseW, baseH);
     img.onload = () => {

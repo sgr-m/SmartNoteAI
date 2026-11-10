@@ -4,10 +4,69 @@
  * using SVG ForeignObject data URLs with high-DPR image caching.
  */
 
+import { renderLatexHtml, KATEX_SVG_CSS } from './latexService';
+
 const htmlImageCache = new Map<string, HTMLImageElement>();
 const htmlSizeCache = new Map<string, { width: number; height: number }>();
 
 let measureDiv: HTMLDivElement | null = null;
+
+/**
+ * Sanitizes HTML content for SVG ForeignObject XML compatibility:
+ * - Converts HTML named entities (&bull;, &nbsp;, &times;) to numeric XML entities
+ * - Ensures self-closing tags (<br />, <hr />, <img />)
+ * - Renders inline KaTeX math ($...$) if present
+ * - Escapes bare ampersands
+ */
+export function sanitizeHtmlForSvg(html: string): string {
+  if (!html) return '';
+  return html
+    // 1. Common named HTML entities to numeric XML entities
+    .replace(/&bull;/g, '&#8226;')
+    .replace(/&nbsp;/g, '&#160;')
+    .replace(/&thinsp;/g, '&#8201;')
+    .replace(/&ensp;/g, '&#8194;')
+    .replace(/&emsp;/g, '&#8195;')
+    .replace(/&times;/g, '&#215;')
+    .replace(/&minus;/g, '&#8722;')
+    .replace(/&sdot;/g, '&#8901;')
+    .replace(/&middot;/g, '&#183;')
+    .replace(/&deg;/g, '&#176;')
+    .replace(/&plusmn;/g, '&#177;')
+    .replace(/&le;/g, '&#8804;')
+    .replace(/&ge;/g, '&#8805;')
+    .replace(/&ne;/g, '&#8800;')
+    .replace(/&approx;/g, '&#8776;')
+    .replace(/&infin;/g, '&#8734;')
+    .replace(/&check;/g, '&#10003;')
+    .replace(/&rarr;/g, '&#8594;')
+    .replace(/&larr;/g, '&#8592;')
+    .replace(/&uarr;/g, '&#8593;')
+    .replace(/&darr;/g, '&#8595;')
+    .replace(/&hellip;/g, '&#8230;')
+    .replace(/&mdash;/g, '&#8212;')
+    .replace(/&ndash;/g, '&#8211;')
+    .replace(/&ldquo;/g, '&#8220;')
+    .replace(/&rdquo;/g, '&#8221;')
+    .replace(/&lsquo;/g, '&#8216;')
+    .replace(/&rsquo;/g, '&#8217;')
+    // 2. Self-closing tags required by XML / SVG foreignObject
+    .replace(/<br(?:\s*\/)?>/gi, '<br />')
+    .replace(/<hr(?:\s*\/)?>/gi, '<hr />')
+    .replace(/<img([^>]*?)(?<!\/)>/gi, '<img$1 />')
+    .replace(/<input([^>]*?)(?<!\/)>/gi, '<input$1 />')
+    // 3. Convert inline LaTeX math like ($x$) or ($\bar{x}$) if present
+    .replace(/\$([^\$\n]+?)\$/g, (_, math) => {
+      try {
+        const { html: mathHtml } = renderLatexHtml(math, false);
+        return mathHtml;
+      } catch {
+        return math;
+      }
+    })
+    // 4. Escape remaining bare ampersands not part of valid XML entities
+    .replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
+}
 
 /**
  * Measure natural rendered dimensions of custom HTML content
@@ -51,15 +110,15 @@ export function measureHtmlSize(
     testEl.style.lineHeight = '1.4';
     testEl.style.padding = '8px';
     testEl.style.boxSizing = 'border-box';
-    testEl.innerHTML = htmlContent;
+    testEl.innerHTML = sanitizeHtmlForSvg(htmlContent);
 
     measureDiv.appendChild(testEl);
     const rect = testEl.getBoundingClientRect();
     measureDiv.removeChild(testEl);
 
     const measured = {
-      width: Math.max(120, Math.ceil(rect.width) + 24),
-      height: Math.max(40, Math.ceil(rect.height) + 16),
+      width: Math.max(120, Math.ceil(rect.width) + 32),
+      height: Math.max(40, Math.ceil(rect.height) + 20),
     };
 
     htmlSizeCache.set(cacheKey, measured);
@@ -84,11 +143,21 @@ export function htmlToSvgDataUrl(
 ): string {
   const w = Math.max(80, Math.round(width));
   const h = Math.max(30, Math.round(height));
+  const innerHtml = sanitizeHtmlForSvg(htmlContent);
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <style>
+      /* <![CDATA[ */
+      ${KATEX_SVG_CSS}
+      .katex-mathml { display: none !important; }
+      .katex {
+        font-family: KaTeX_Main, 'Cambria Math', 'Times New Roman', serif !important;
+      }
+      /* ]]> */
+    </style>
     <foreignObject x="0" y="0" width="${w}" height="${h}">
-      <div xmlns="http://www.w3.org/1999/xhtml" style="color: ${color}; font-family: ${fontFamily || 'Segoe UI, sans-serif'}; font-size: ${Math.round(fontSize)}px; line-height: ${lineHeight}; text-align: ${textAlign}; width: 100%; height: 100%; box-sizing: border-box; overflow: hidden; padding: 4px;">
-        ${htmlContent}
+      <div xmlns="http://www.w3.org/1999/xhtml" style="color: ${color}; font-family: ${fontFamily || 'Inter, system-ui, -apple-system, sans-serif'}; font-size: ${Math.round(fontSize)}px; line-height: ${lineHeight}; text-align: ${textAlign}; width: 100%; height: 100%; box-sizing: border-box; overflow: hidden; padding: 4px;">
+        ${innerHtml}
       </div>
     </foreignObject>
   </svg>`;

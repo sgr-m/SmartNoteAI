@@ -16,6 +16,9 @@
 import { CanvasObject, TextObject, ShapeObject, Page, PageBackground } from '../../shared/types';
 import { aiProviderManager, AIProviderManager } from './aiPresentation/aiProviderManager';
 import { measureMarkdownSize } from './markdownRenderService';
+import { detectTextFormatMode } from './formatDetectionService';
+import { measureHtmlSize } from './htmlRenderService';
+import { measureLatexSize } from './latexService';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface EnhanceStep {
@@ -295,6 +298,43 @@ function enhanceTextBolding(content: string): string {
 }
 
 /**
+ * Strips artificial pill badges, headers ("FORMULA", "CORE FORMULA", "STATISTICAL FORMULA", etc.)
+ * and explanatory text ("Where: ...") from formulas to ensure pure LaTeX rendering without cropping.
+ */
+export function cleanFormulaContent(raw: string): string {
+  if (!raw) return '';
+  let cleaned = raw.trim();
+
+  // If it's a theorem statement or numbered bullet like "1. Pythagorean Theorem: ...", enhance bolding instead of stripping
+  if (/^(\d+\.|\*|-)\s+/i.test(cleaned)) {
+    return enhanceTextBolding(cleaned);
+  }
+
+  // 1. Remove HTML tags if wrapped in HTML
+  cleaned = cleaned.replace(/<[^>]*>/g, '').trim();
+
+  // 2. Remove pill tags / headers like "CORE FORMULA", "STATISTICAL FORMULA", "FORMULA DERIVATION", "EQUATION OF TRANSFORMATION", "FORMULA", "EQUATION", "STEP X", etc.
+  cleaned = cleaned.replace(/^(formula\s*derivation|statistical\s*formula|core\s*formula|equation\s*of\s*transformation|formula|equation|step\s*\d+):\s*/i, '');
+  cleaned = cleaned.replace(/^(formula\s*derivation|statistical\s*formula|core\s*formula|equation\s*of\s*transformation|formula|equation)\b/i, '').trim();
+
+  // 3. Remove trailing "Where: ..." or "where: ..." explanatory notes attached to formula blocks
+  cleaned = cleaned.replace(/\n*Where:[\s\S]*$/i, '').trim();
+  cleaned = cleaned.replace(/\n*where:[\s\S]*$/i, '').trim();
+
+  // 4. Strip surrounding $$ or \[ \] if present so we have clean formula
+  if ((cleaned.startsWith('$$') && cleaned.endsWith('$$')) || (cleaned.startsWith('\\[') && cleaned.endsWith('\\]'))) {
+    cleaned = cleaned.slice(2, -2).trim();
+  }
+
+  // 5. Repair common backslash issues where \b was lost in JSON parse
+  cleaned = cleaned.replace(/(^|[^a-zA-Z\\])ar\{([a-zA-Z0-9]+)\}/g, '$1\\bar{$2}');
+  cleaned = cleaned.replace(/\x08ar\{/g, '\\bar{');
+  cleaned = cleaned.replace(/\x0cac\{/g, '\\frac{');
+
+  return cleaned;
+}
+
+/**
  * Estimates element height with high accuracy using DOM bounding measurements to prevent any canvas overlaps
  */
 export function estimateElementHeight(obj: CanvasObject, fontSize: number, width: number, isTable: boolean): number {
@@ -309,6 +349,19 @@ export function estimateElementHeight(obj: CanvasObject, fontSize: number, width
     if (isTable) {
       const rows = tObj.content.trim().split('\n').filter(Boolean).length;
       return Math.max(220, rows * 52 + 50);
+    }
+    const mode = detectTextFormatMode(tObj.content, {
+      isHtml: tObj.isHtml,
+      isLatex: tObj.isLatex,
+      isMarkdown: tObj.isMarkdown,
+    });
+    if (mode.isLatex) {
+      const measured = measureLatexSize(tObj.content, fontSize);
+      return Math.max(50, measured.height + 20);
+    }
+    if (mode.isHtml) {
+      const measured = measureHtmlSize(tObj.content, fontSize, tObj.fontFamily || 'Inter, -apple-system, sans-serif', Math.max(1200, width));
+      return Math.max(50, measured.height + 20);
     }
     const measured = measureMarkdownSize(
       tObj.content,
@@ -364,11 +417,11 @@ DESIGN & STYLING SPECIFICATIONS:
 1. IF HEADING / TITLE:
    - Create an online presentation heading style with high visual impact.
    - Include a category or topic pill tag:
-     <div style="display:inline-block; padding: 2px 10px; background: rgba(250,204,21,0.18); border: 1px solid #facc15; border-radius: 12px; font-size: 13px; color: #facc15; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">CATEGORY</div>
-   - Heading text with high-contrast color (${params.isDark ? '#fbbf24 warm gold or #38bdf8 sky blue' : '#1e40af royal blue'}).
+     <div style="display:inline-block; padding: 2px 10px; background: rgba(56,189,248,0.16); border: 1px solid #38bdf8; border-radius: 12px; font-size: 13px; color: #38bdf8; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">CATEGORY</div>
+   - Heading text with high-contrast color (${params.isDark ? '#f8fafc crisp chalk white' : '#0f172a deep navy'}).
    - An elegant accent line or gradient underline covering screen width:
-     <div style="width: 100%; height: 3.5px; background: linear-gradient(90deg, #facc15 0%, #38bdf8 55%, transparent 100%); margin-top: 8px; border-radius: 2px;"></div>
-   - Format: Markdown or HTML with embedded styles.
+     <div style="width: 100%; height: 3.5px; background: linear-gradient(90deg, #38bdf8 0%, #34d399 55%, transparent 100%); margin-top: 8px; border-radius: 2px;"></div>
+   - Format: HTML or Markdown with embedded styles.
 
 2. IF TABULAR DATA / FREQUENCY TABLE:
    - CRITICAL REQUIREMENT: PRESERVE ALL ORIGINAL ROWS, COLUMNS, NUMBERS, AND TOTALS EXACTLY! Do NOT drop rows, do NOT swap columns, and do NOT alter data values.
@@ -376,16 +429,19 @@ DESIGN & STYLING SPECIFICATIONS:
    - Bold headers and totals row (**Totals**).
 
 3. IF FORMULA / DERIVATION:
-   - Display math using display KaTeX ($$...$$) or inline ($...$).
-   - Include crisp bold variable definitions.
+   - CRITICAL: Output ONLY the pure mathematical formula in LaTeX.
+   - NEVER add labels, pills, tags, or headers on top of the formula (NO 'CORE FORMULA', 'STATISTICAL FORMULA', 'FORMULA', etc.).
+   - Use display KaTeX ($$...$$) or inline ($...$).
+   - Color MUST be pure chalk white (${params.isDark ? '#ffffff' : '#0f172a'}).
 
-4. IF SUBTITLE / PROBLEM STATEMENT / EXPLANATION:
+4. IF SUBTITLE / PROBLEM STATEMENT / EXPLANATION / BODY:
    - Elevate typography, bold key terms, and add educational callout badges (∑ for math, 💡 for concepts).
+   - CRITICAL CONTRAST: NEVER make body text yellow! On dark chalkboard, body text MUST be crisp off-white (${params.isDark ? '#e2e8f0' : '#1e293b'}).
 
 OUTPUT FORMAT:
 Return a valid JSON object strictly matching this schema:
 {
-  "content": "Enhanced Markdown or HTML content string",
+  "content": "Enhanced Markdown, HTML, or LaTeX content string",
   "fontSize": number,
   "color": "hex color string",
   "fontWeight": number,
@@ -409,10 +465,10 @@ function generateOnlinePresentationStyle(params: {
     case 'title': {
       let cleanTitle = content.replace(/^#+\s*/, '').replace(/^[🚩📌💡🎯📐\s]+/, '').trim();
       const categoryTag = (slideTitle || 'ACADEMIC LESSON').toUpperCase().slice(0, 24);
-      const tagBg = isDark ? 'rgba(250, 204, 21, 0.16)' : 'rgba(30, 64, 175, 0.12)';
-      const tagBorder = isDark ? '#facc15' : '#1e40af';
-      const tagColor = isDark ? '#fbbf24' : '#1e40af';
-      const gradEnd = isDark ? '#38bdf8' : '#0284c7';
+      const tagBg = isDark ? 'rgba(56, 189, 248, 0.16)' : 'rgba(30, 64, 175, 0.12)';
+      const tagBorder = isDark ? '#38bdf8' : '#1e40af';
+      const tagColor = isDark ? '#38bdf8' : '#1e40af';
+      const gradEnd = isDark ? '#34d399' : '#0284c7';
 
       const styled = `<div style="display:inline-block; padding: 2px 10px; background: ${tagBg}; border: 1px solid ${tagBorder}; border-radius: 12px; font-size: 13px; color: ${tagColor}; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">${categoryTag}</div>\n\n# 🚩 ${cleanTitle}\n<div style="width: 100%; height: 3.5px; background: linear-gradient(90deg, ${palette.underline} 0%, ${gradEnd} 55%, transparent 100%); margin-top: 8px; border-radius: 2px;"></div>`;
 
@@ -421,7 +477,7 @@ function generateOnlinePresentationStyle(params: {
         fontSize: 42,
         color: palette.title,
         fontWeight: 700,
-        isMarkdown: true,
+        isMarkdown: false,
       };
     }
 
@@ -450,13 +506,13 @@ function generateOnlinePresentationStyle(params: {
     }
 
     case 'definition-formula': {
-      let formulaContent = enhanceTextBolding(content);
+      const formulaContent = cleanFormulaContent(content);
       return {
         content: formulaContent,
-        fontSize: 32,
-        color: palette.definition,
-        fontWeight: 700,
-        isMarkdown: true,
+        fontSize: 36,
+        color: palette.definition, // '#ffffff' on dark, '#0f172a' on light
+        fontWeight: 600,
+        isMarkdown: false,
       };
     }
 
@@ -505,26 +561,26 @@ export async function enhanceIndividualTextWithAI(
 
   const palette = isDark
     ? {
-        title: '#fbbf24',
+        title: '#f8fafc',
         titleAlt: '#38bdf8',
-        subheading: '#cbd5e1',
-        definition: '#fde047',
+        subheading: '#38bdf8',
+        definition: '#ffffff', // Pure chalk white for formulas, NEVER yellow!
         warning: '#f87171',
         solution: '#4ade80',
-        body: '#f8fafc',
+        body: '#e2e8f0', // Crisp off-white for body text
         subtitle: '#cbd5e1',
-        underline: '#facc15',
+        underline: '#38bdf8',
         canvasBg: '#142d22',
       }
     : {
-        title: '#1e40af',
+        title: '#0f172a',
         titleAlt: '#0284c7',
-        subheading: '#475569',
-        definition: '#4338ca',
+        subheading: '#0f766e',
+        definition: '#0f172a', // Pure dark slate for formulas
         warning: '#dc2626',
         solution: '#166534',
         body: '#1e293b',
-        subtitle: '#475569',
+        subtitle: '#334155',
         underline: '#2563eb',
         canvasBg: '#ffffff',
       };
@@ -578,20 +634,49 @@ export async function enhanceIndividualTextWithAI(
     slideTitle,
   });
 
-  const finalContent = aiResult?.content || fallback.content;
+  const rawFinalContent = aiResult?.content || fallback.content;
   const finalFontSize = aiResult?.fontSize || fallback.fontSize;
   const finalColor = aiResult?.color || fallback.color;
   const finalFontWeight = aiResult?.fontWeight || fallback.fontWeight;
 
+  // Clean formulas from unwanted pill labels ("FORMULA", "CORE FORMULA", etc.)
+  const cleanContent = role === 'definition-formula' ? cleanFormulaContent(rawFinalContent) : rawFinalContent;
+
+  // Automatically detect format mode (HTML, LaTeX math, or Markdown)
+  const detectedMode = detectTextFormatMode(cleanContent, {
+    isHtml: aiResult?.isHtml,
+    isLatex: aiResult?.isLatex,
+    isMarkdown: aiResult?.isMarkdown,
+  });
+
+  // Calculate measured dimensions so formulas and HTML never crop on canvas
+  let finalWidth = textObj.width || 800;
+  let finalHeight = textObj.height || 60;
+  if (detectedMode.isLatex) {
+    const measured = measureLatexSize(cleanContent, finalFontSize);
+    finalWidth = Math.max(finalWidth, measured.width);
+    finalHeight = Math.max(finalHeight, measured.height);
+  } else if (detectedMode.isHtml) {
+    const measured = measureHtmlSize(cleanContent, finalFontSize, 'Inter, -apple-system, sans-serif', finalWidth);
+    finalWidth = Math.max(finalWidth, measured.width);
+    finalHeight = Math.max(finalHeight, measured.height);
+  } else {
+    const measured = measureMarkdownSize(cleanContent, finalFontSize, textObj.fontFamily || 'Inter, -apple-system, sans-serif', Math.max(1200, finalWidth));
+    finalWidth = Math.max(finalWidth, measured.width);
+    finalHeight = Math.max(finalHeight, measured.height);
+  }
+
   const enhancedObject: TextObject = {
     ...textObj,
-    content: finalContent,
+    content: cleanContent,
     fontSize: finalFontSize,
-    color: finalColor,
+    color: detectedMode.isLatex ? palette.definition : finalColor,
     fontWeight: finalFontWeight,
-    isMarkdown: true,
-    isHtml: false,
-    isLatex: false,
+    isMarkdown: detectedMode.isMarkdown,
+    isHtml: detectedMode.isHtml,
+    isLatex: detectedMode.isLatex,
+    width: finalWidth,
+    height: finalHeight,
     lineHeight: 1.45,
   };
 
@@ -626,26 +711,26 @@ export async function enhanceSlideContentWithAI(
 
   const palette = isDark
     ? {
-        title: '#fbbf24',
+        title: '#f8fafc',
         titleAlt: '#38bdf8',
-        subheading: '#cbd5e1',
-        definition: '#fde047',
+        subheading: '#38bdf8',
+        definition: '#ffffff', // Pure chalk white for formulas, NEVER yellow!
         warning: '#f87171',
         solution: '#4ade80',
-        body: '#f8fafc',
+        body: '#e2e8f0', // Crisp off-white for body text
         subtitle: '#cbd5e1',
-        underline: '#facc15',
+        underline: '#38bdf8',
         canvasBg: '#142d22',
       }
     : {
-        title: '#1e40af',
+        title: '#0f172a',
         titleAlt: '#0284c7',
-        subheading: '#475569',
-        definition: '#4338ca',
+        subheading: '#0f766e',
+        definition: '#0f172a', // Pure dark slate for formulas
         warning: '#dc2626',
         solution: '#166534',
         body: '#1e293b',
-        subtitle: '#475569',
+        subtitle: '#334155',
         underline: '#2563eb',
         canvasBg: '#ffffff',
       };
@@ -849,26 +934,26 @@ export function enhanceSlideContent(page: Page): EnhanceResult {
 
   const palette = isDark
     ? {
-        title: '#fbbf24',
+        title: '#f8fafc',
         titleAlt: '#38bdf8',
-        subheading: '#cbd5e1',
-        definition: '#fde047',
+        subheading: '#38bdf8',
+        definition: '#ffffff', // Pure chalk white for formulas, NEVER yellow!
         warning: '#f87171',
         solution: '#4ade80',
-        body: '#f8fafc',
+        body: '#e2e8f0', // Crisp off-white for body text
         subtitle: '#cbd5e1',
-        underline: '#facc15',
+        underline: '#38bdf8',
         canvasBg: '#142d22',
       }
     : {
-        title: '#1e40af',
+        title: '#0f172a',
         titleAlt: '#0284c7',
-        subheading: '#475569',
-        definition: '#4338ca',
+        subheading: '#0f766e',
+        definition: '#0f172a', // Pure dark slate for formulas
         warning: '#dc2626',
         solution: '#166534',
         body: '#1e293b',
-        subtitle: '#475569',
+        subtitle: '#334155',
         underline: '#2563eb',
         canvasBg: '#ffffff',
       };
@@ -910,15 +995,17 @@ export function enhanceSlideContent(page: Page): EnhanceResult {
       slideTitle: page.title,
     });
 
+    const mode = detectTextFormatMode(styled.content);
+
     return {
       ...tObj,
       content: styled.content,
       fontSize: styled.fontSize,
-      color: styled.color,
+      color: mode.isLatex ? palette.definition : styled.color,
       fontWeight: styled.fontWeight,
-      isMarkdown: true,
-      isHtml: false,
-      isLatex: false,
+      isMarkdown: mode.isMarkdown,
+      isHtml: mode.isHtml,
+      isLatex: mode.isLatex,
       lineHeight: 1.45,
     };
   });

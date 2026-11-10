@@ -196,7 +196,7 @@ describe('AI 1-Click Board Enhancement & Vector Icon Library', () => {
       const enhancedTitle = result.enhancedObjects.find((o) => o.id === 't1') as TextObject;
       expect(enhancedTitle).toBeDefined();
       expect(enhancedTitle.fontSize).toBeGreaterThanOrEqual(40);
-      expect(enhancedTitle.color).toBe('#fbbf24'); // Warm gold on dark chalkboard
+      expect(enhancedTitle.color).toBe('#f8fafc'); // Crisp off-white on dark chalkboard
       expect(enhancedTitle.fontWeight).toBe(700);
       expect(enhancedTitle.width).toBeGreaterThanOrEqual(1000);
 
@@ -279,7 +279,7 @@ Totals | \\sum f_i = 20 | \\sum (f_i * x_i) = 1540`;
       const result = enhanceSlideContent(whitePage);
       expect(result.success).toBe(true);
       const enhancedTitle = result.enhancedObjects.find((o) => o.id === 't1') as TextObject;
-      expect(enhancedTitle.color).toBe('#1e40af'); // Deep royal blue on light whiteboard
+      expect(enhancedTitle.color).toBe('#0f172a'); // Deep navy on light whiteboard
     });
 
     it('perfectly enhances Image 9 frequency table slide with gold title, KaTeX table, and strict zero-overlap', () => {
@@ -347,7 +347,7 @@ Totals    \\sum f_i = 20    \\sum (f_i * x_i) = 1540`,
 
       const heading = result.enhancedObjects.find((o) => o.id === 'item-heading') as TextObject;
       expect(heading).toBeDefined();
-      expect(heading.color).toBe('#fbbf24'); // Warm gold title
+      expect(heading.color).toBe('#f8fafc'); // Crisp off-white title
       expect(heading.content).toContain('Step-by-Step Calculation Example');
       expect(heading.content).toContain('🚩');
 
@@ -418,7 +418,7 @@ Totals    \\sum f_i = 20    \\sum (f_i * x_i) = 1540`,
 
       expect(result.success).toBe(true);
       expect(result.enhancedObject).toBeDefined();
-      expect(result.enhancedObject.isMarkdown).toBe(true);
+      expect(result.enhancedObject.isHtml).toBe(true);
 
       // Verify Online Presentation Heading Styling:
       // 1. Tag pill with border & background
@@ -427,7 +427,7 @@ Totals    \\sum f_i = 20    \\sum (f_i * x_i) = 1540`,
       // 2. High-contrast title
       expect(result.enhancedObject.content).toContain('# 🚩 Standard Deviation');
       // 3. Full-width gradient accent line
-      expect(result.enhancedObject.content).toContain('linear-gradient(90deg, #facc15 0%, #38bdf8 55%, transparent 100%)');
+      expect(result.enhancedObject.content).toContain('linear-gradient(90deg, #38bdf8 0%, #34d399 55%, transparent 100%)');
     });
 
     it('enhances table text directly preserving exact formulas and row counts', async () => {

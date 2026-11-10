@@ -76,6 +76,10 @@ function ensureMermaidInit(): void {
       mermaid.initialize({
         startOnLoad: false,
         suppressErrorRendering: true,
+        parseError: () => {
+          // Suppress Mermaid's internal DOM error element injection!
+          // This completely prevents Mermaid from appending bomb icon SVG to document.body
+        },
         theme: 'dark',
         securityLevel: 'loose',
         fontFamily: 'Inter, -apple-system, sans-serif',
@@ -89,7 +93,8 @@ function ensureMermaidInit(): void {
           secondaryColor: '#1e293b',
           tertiaryColor: '#1e1b4b',
         },
-      });
+      } as any);
+      (mermaid as any).parseError = () => {};
       mermaidInitialized = true;
     } catch {
       // ignore
@@ -105,7 +110,7 @@ export function cleanupMermaidDomArtifacts(): void {
   if (typeof document === 'undefined') return;
   try {
     const strayErrors = document.querySelectorAll(
-      '[id^="dmermaid"], [id^="mermaid-render-"], .error-icon, [aria-roledescription="error"]'
+      '[id^="dmermaid"], [id^="mermaid-render-"], .error-icon, [aria-roledescription="error"], svg[id^="dmermaid"], body > svg[id^="d"]'
     );
     strayErrors.forEach((el) => {
       if (el.parentNode === document.body || el.id?.startsWith('dmermaid') || el.classList.contains('error-icon')) {
@@ -120,8 +125,9 @@ export function cleanupMermaidDomArtifacts(): void {
 /**
  * Sanitizes Mermaid code before parsing:
  * 1. Strips markdown fences (```mermaid ... ```)
- * 2. Auto-quotes unquoted node labels with parentheses e.g. A[Sea Level (1013.25 mb)] => A["Sea Level (1013.25 mb)"]
- * 3. Auto-quotes node labels containing colons or semicolons
+ * 2. Ensures direction statement is followed by newline
+ * 3. Auto-quotes unquoted node labels with parentheses e.g. A[Sea Level (1013.25 mb)] => A["Sea Level (1013.25 mb)"]
+ * 4. Auto-quotes node labels containing colons, semicolons, brackets, or math
  */
 export function sanitizeMermaidCode(rawCode: string): string {
   let cleaned = (rawCode || '').trim();
@@ -129,12 +135,16 @@ export function sanitizeMermaidCode(rawCode: string): string {
   // Strip code fences if present
   cleaned = cleaned.replace(/^```(?:mermaid)?\s*/i, '').replace(/\s*```$/i, '').trim();
 
+  // Ensure diagram direction has newline before first node:
+  // e.g. "flowchart LR A[...]" => "flowchart LR\nA[...]"
+  cleaned = cleaned.replace(/^((?:graph|flowchart)\s+(?:TD|TB|BT|RL|LR))\s+([A-Za-z0-9])/im, '$1\n$2');
+
   // Fix single arrows: replace ' -> ' or '->' with ' --> ' (without breaking '-->' or '==>' or '-.->')
   cleaned = cleaned.replace(/([^-=.\s])\s*->\s*([^-=>\s])/g, '$1 --> $2');
   cleaned = cleaned.replace(/(\s)->(\s)/g, '$1-->$2');
   cleaned = cleaned.replace(/([^-=.\s])\s*<-\s*([^-=<\s])/g, '$1 <-- $2');
 
-  // Fix unquoted node labels with parentheses inside square brackets:
+  // Fix unquoted node labels with parentheses or special chars inside square brackets:
   // e.g. A[Sea Level (1013.25 mb)] => A["Sea Level (1013.25 mb)"]
   cleaned = cleaned.replace(/\[([^"\]\r\n]+)\]/g, (match, inner) => {
     if (inner.startsWith('"') && inner.endsWith('"')) return match;
@@ -144,8 +154,11 @@ export function sanitizeMermaidCode(rawCode: string): string {
     return match;
   });
 
-  // Fix nested parentheses in rounded nodes e.g. B(High Altitude (2000m)) => B["High Altitude (2000m)"]
-  cleaned = cleaned.replace(/\(([^"\)\r\n]+\([^"\)\r\n]+\)[^"\)\r\n]*)\)/g, '["$1"]');
+  // Fix unquoted rounded nodes with nested parentheses:
+  // e.g. B(High Altitude (2000m)) => B["High Altitude (2000m)"]
+  cleaned = cleaned.replace(/\b([A-Za-z0-9_-]+)\(([^"\r\n]*\([^"\r\n]*\)[^"\r\n]*)\)/g, (match, id, inner) => {
+    return `${id}["${inner.replace(/"/g, "'")}"]`;
+  });
 
   return cleaned;
 }
