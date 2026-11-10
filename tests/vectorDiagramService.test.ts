@@ -16,6 +16,7 @@ import {
   renderGeometrySvg,
   renderTimingSvg,
   diagramSvgToDataUrl,
+  sanitizeMermaidCode,
 } from '../src/renderer/services/vectorDiagramService';
 
 describe('Vector Diagram Subsystem', () => {
@@ -100,6 +101,43 @@ describe('Vector Diagram Subsystem', () => {
     const dataUrl = diagramSvgToDataUrl(svg);
     expect(dataUrl.startsWith('data:image/svg+xml;charset=utf-8,')).toBe(true);
     expect(dataUrl).toContain('circle');
+  });
+
+  it('sanitizes Mermaid code with unquoted parentheses and colons in node labels', () => {
+    const brokenMermaid = `graph LR
+    A[Sea Level (1013.25 mb)] --> B[Troposphere (11 km)]
+    C[Pressure: Low] --> D[Altitude: High]`;
+    const cleaned = sanitizeMermaidCode(brokenMermaid);
+    expect(cleaned).toContain('A["Sea Level (1013.25 mb)"]');
+    expect(cleaned).toContain('B["Troposphere (11 km)"]');
+    expect(cleaned).toContain('C["Pressure: Low"]');
+    expect(cleaned).toContain('D["Altitude: High"]');
+  });
+
+  it('auto-fits and centers 2D geometry with large coordinate points without blank/offscreen overflow', () => {
+    const largeCoordSpec = {
+      type: 'geometry' as const,
+      title: 'Scaled Triangle',
+      shapes: [
+        {
+          kind: 'triangle' as const,
+          points: [[0, 0], [100, 0], [50, 80]] as Array<[number, number]>,
+          label: 'Large Triangle',
+        },
+      ],
+    };
+    const svg = renderGeometrySvg(largeCoordSpec);
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('<polygon');
+    expect(svg).toContain('Scaled Triangle');
+    // Ensure all points lie within the 600x420 viewBox
+    const pointsMatch = svg.match(/points="([^"]+)"/);
+    expect(pointsMatch).toBeTruthy();
+    const coords = pointsMatch![1].split(' ').flatMap((pair) => pair.split(',').map(Number));
+    coords.forEach((c) => {
+      expect(c).toBeGreaterThanOrEqual(0);
+      expect(c).toBeLessThanOrEqual(600);
+    });
   });
 });
 

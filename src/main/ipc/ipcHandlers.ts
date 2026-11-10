@@ -1161,7 +1161,35 @@ async function executeProviderGenerateText(
       }
       model = model.replace(/\s+•.*$/, '').trim();
 
-      // First try /api/generate
+      // Primary: Use /api/chat so Ollama applies the model's native chat template (Gemma, Llama, Qwen)
+      try {
+        const chatRes = await fetch(`${endpoint}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            messages: [
+              ...(req.systemPrompt ? [{ role: 'system', content: req.systemPrompt }] : []),
+              { role: 'user', content: req.prompt || '' },
+            ],
+            stream: false,
+            options: {
+              temperature: typeof req.temperature === 'number' ? req.temperature : 0.7,
+            },
+          }),
+          signal: controller.signal,
+        });
+
+        if (chatRes.ok) {
+          const chatJson = (await chatRes.json()) as any;
+          const text = chatJson?.message?.content || '';
+          return { success: true, text, model, provider: 'ollama' };
+        }
+      } catch {
+        // Fallback to /api/generate only if /api/chat fails
+      }
+
+      // Fallback: /api/generate
       const res = await fetch(`${endpoint}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1178,28 +1206,7 @@ async function executeProviderGenerateText(
       });
 
       if (!res.ok) {
-        // Fallback to /api/chat if /api/generate failed
-        const chatRes = await fetch(`${endpoint}/api/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model,
-            messages: [
-              ...(req.systemPrompt ? [{ role: 'system', content: req.systemPrompt }] : []),
-              { role: 'user', content: req.prompt || '' },
-            ],
-            stream: false,
-          }),
-          signal: controller.signal,
-        });
-
-        if (!chatRes.ok) {
-          throw new Error(`Ollama returned status ${chatRes.status}`);
-        }
-
-        const chatJson = (await chatRes.json()) as any;
-        const text = chatJson?.message?.content || '';
-        return { success: true, text, model, provider: 'ollama' };
+        throw new Error(`Ollama returned status ${res.status}`);
       }
 
       const json = (await res.json()) as any;

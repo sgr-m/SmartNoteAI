@@ -42,6 +42,7 @@ interface ToolbarProps {
   isBrowserOpen?: boolean;
   onToggleAIChat?: () => void;
   isAIChatOpen?: boolean;
+  onEnhanceSlide?: () => void;
 }
 
 const PEN_NAMES: Record<string, string> = {
@@ -271,6 +272,7 @@ export function Toolbar({
   isBrowserOpen,
   onToggleAIChat,
   isAIChatOpen,
+  onEnhanceSlide,
 }: ToolbarProps): React.ReactElement {
   const {
     toolState,
@@ -791,6 +793,30 @@ export function Toolbar({
               fill="url(#aiSparkGrad)"
             />
             <circle cx="16.5" cy="7" r="1" fill="#38bdf8" />
+          </svg>
+        </span>
+      </button>
+
+      {/* 6.6 1-Click AI Enhance Button */}
+      <button
+        className="dock-tool-btn ai-enhance-dock-btn"
+        onClick={() => {
+          closeAllFlyouts();
+          onEnhanceSlide?.();
+        }}
+        title="✨ 1-Click AI Enhance — Auto-format font hierarchy, underlines, theme contrast colors, and place semantic vector icons"
+        aria-label="1-Click AI Enhance"
+      >
+        <span className="dock-tool-icon ai-enhance-icon-container">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 2L14.39 8.26L21 9.27L16.27 13.97L17.5 20.6L12 17.27L6.5 20.6L7.73 13.97L3 9.27L9.61 8.26L12 2Z"
+              stroke="#38bdf8"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="rgba(56, 189, 248, 0.2)"
+            />
           </svg>
         </span>
       </button>

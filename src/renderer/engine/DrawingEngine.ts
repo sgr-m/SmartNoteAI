@@ -2111,8 +2111,9 @@ export class DrawingEngine {
     }
     if (obj.type === 'text') {
       const t = obj as TextObject;
-      const isMarkdown = t.isMarkdown || (!t.isHtml && !t.isLatex && isMarkdownSyntax(t.content));
-      const isLatex = !isMarkdown && (t.isLatex || isPureLatexFormula(t.content));
+      const isPureFormula = isPureLatexFormula(t.content);
+      const isMarkdown = t.isMarkdown || (!t.isHtml && (!t.isLatex || !isPureFormula) && (isMarkdownSyntax(t.content) || !isPureFormula));
+      const isLatex = !isMarkdown && Boolean((t.isLatex || isPureFormula) && isPureFormula);
 
       let tw = t.width;
       let th = t.height;
@@ -2123,7 +2124,7 @@ export class DrawingEngine {
           tw = tw || m.width;
           th = th || m.height;
         } else if (isMarkdown) {
-          const m = measureMarkdownSize(t.content, t.fontSize || 36, t.fontFamily, 900);
+          const m = measureMarkdownSize(t.content, t.fontSize || 36, t.fontFamily, Math.max(1200, (t.width || 800) * 1.1, 1600));
           tw = tw || m.width;
           th = th || m.height;
         } else {
@@ -2621,8 +2622,9 @@ export class DrawingEngine {
 
     if (obj.type === 'text') {
       const t = obj as TextObject;
-      const isMarkdown = t.isMarkdown || (!t.isHtml && !t.isLatex && isMarkdownSyntax(t.content));
-      const isLatex = !isMarkdown && (t.isLatex || isPureLatexFormula(t.content));
+      const isPureFormula = isPureLatexFormula(t.content);
+      const isMarkdown = t.isMarkdown || (!t.isHtml && (!t.isLatex || !isPureFormula) && (isMarkdownSyntax(t.content) || !isPureFormula));
+      const isLatex = !isMarkdown && Boolean((t.isLatex || isPureFormula) && isPureFormula);
       const initW = t.width || (isLatex ? 200 : 200);
       const initH = t.height || (isLatex ? 50 : 40);
       const initFontSize = t.fontSize || (isLatex ? 36 : 24);
@@ -4258,13 +4260,17 @@ export class DrawingEngine {
     }
 
     // 2. Render Markdown + mixed KaTeX formulas with high-fidelity vector rendering
-    const isMarkdown = text.isMarkdown || (!text.isHtml && !text.isLatex && isMarkdownSyntax(text.content));
+    const isPureFormula = isPureLatexFormula(text.content);
+    const isMarkdown = text.isMarkdown || (!text.isHtml && (!text.isLatex || !isPureFormula) && (isMarkdownSyntax(text.content) || !isPureFormula));
     if (isMarkdown) {
       const fontSize = text.fontSize || 36;
       const fontFamily = text.fontFamily || 'Inter, -apple-system, sans-serif';
-      const measured = measureMarkdownSize(text.content, fontSize, fontFamily, 900, text.lineHeight || 1.45, text.textAlign || 'left');
+      const availableMaxW = Math.max(1200, (text.width || 800) * 1.1, 1600);
+      const measured = measureMarkdownSize(text.content, fontSize, fontFamily, availableMaxW, text.lineHeight || 1.45, text.textAlign || 'left');
       const targetW = text.width || measured.width;
       const targetH = text.height || measured.height;
+      const drawTw = (text.width || measured.width) * s;
+      const drawTh = (text.height || measured.height) * s;
 
       const img = getCachedMarkdownImage(
         text.id,
@@ -4282,7 +4288,7 @@ export class DrawingEngine {
         text.lineHeight || 1.45
       );
       if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
-        ctx.drawImage(img, x, y, tw, th);
+        ctx.drawImage(img, x, y, drawTw, drawTh);
         ctx.restore();
         return;
       }
@@ -4291,7 +4297,7 @@ export class DrawingEngine {
     }
 
     // 3. Render Pure LaTeX Mathematical Formulas (standalone formulas without English prose)
-    const isLatex = !isMarkdown && (text.isLatex || isPureLatexFormula(text.content));
+    const isLatex = !isMarkdown && Boolean((text.isLatex || isPureFormula) && isPureFormula);
     if (isLatex) {
       const fontSize = text.fontSize || 36;
       const measured = measureLatexSize(text.content, fontSize);
@@ -4556,13 +4562,43 @@ export class DrawingEngine {
         ctx.fillText(boldText, curX, y);
         curX += ctx.measureText(boldText).width;
       } else if (part.startsWith('$$') && part.endsWith('$$') && part.length >= 4) {
-        const mathText = part.slice(2, -2).trim();
+        const rawMath = part.slice(2, -2).trim();
+        const mathText = rawMath
+          .replace(/\\circ\b/g, '°')
+          .replace(/\\sum\b/g, '∑')
+          .replace(/\\sqrt\b/g, '√')
+          .replace(/\\pm\b/g, '±')
+          .replace(/\\cdot\b/g, '·')
+          .replace(/\\approx\b/g, '≈')
+          .replace(/\\neq\b/g, '≠')
+          .replace(/\\leq\b|\\le\b/g, '≤')
+          .replace(/\\geq\b|\\ge\b/g, '≥')
+          .replace(/\\infty\b/g, '∞')
+          .replace(/\\pi\b/g, 'π')
+          .replace(/\\to\b/g, '→')
+          .replace(/\\text\{([^}]+)\}/g, '$1')
+          .replace(/[{}]/g, '');
         ctx.font = `italic ${size}px 'Cambria Math', 'Times New Roman', serif`;
         ctx.fillStyle = color;
         ctx.fillText(mathText, curX, y);
         curX += ctx.measureText(mathText).width;
       } else if (part.startsWith('$') && part.endsWith('$') && part.length >= 2) {
-        const mathText = part.slice(1, -1);
+        const rawMath = part.slice(1, -1);
+        const mathText = rawMath
+          .replace(/\\circ\b/g, '°')
+          .replace(/\\sum\b/g, '∑')
+          .replace(/\\sqrt\b/g, '√')
+          .replace(/\\pm\b/g, '±')
+          .replace(/\\cdot\b/g, '·')
+          .replace(/\\approx\b/g, '≈')
+          .replace(/\\neq\b/g, '≠')
+          .replace(/\\leq\b|\\le\b/g, '≤')
+          .replace(/\\geq\b|\\ge\b/g, '≥')
+          .replace(/\\infty\b/g, '∞')
+          .replace(/\\pi\b/g, 'π')
+          .replace(/\\to\b/g, '→')
+          .replace(/\\text\{([^}]+)\}/g, '$1')
+          .replace(/[{}]/g, '');
         ctx.font = `italic ${size}px 'Cambria Math', 'Times New Roman', serif`;
         ctx.fillStyle = color;
         ctx.fillText(mathText, curX, y);

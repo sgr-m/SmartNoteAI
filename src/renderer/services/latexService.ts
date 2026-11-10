@@ -5,6 +5,7 @@
 
 import katex from 'katex';
 import { KATEX_SVG_CSS } from './katexStyles';
+import { markdownToHtml, isMarkdownSyntax, markdownToSvgDataUrl } from './markdownRenderService';
 
 const latexImageCache = new Map<string, HTMLImageElement>();
 
@@ -112,17 +113,26 @@ export function isPureLatexFormula(text: string): boolean {
   // Standalone display formula delimiters: $$...$$ or \[...\]
   if ((trimmed.startsWith('$$') && trimmed.endsWith('$$') && trimmed.length > 2) ||
       (trimmed.startsWith('\\[') && trimmed.endsWith('\\]') && trimmed.length > 2)) {
+    // If the content inside contains multiple plain English words, it is prose with math!
+    const inner = (trimmed.startsWith('$$') ? trimmed.slice(2, -2) : trimmed.slice(2, -2)).trim();
+    const innerWords = inner.replace(/\\[a-zA-Z]+/g, ' ').replace(/\$[^\$]+\$/g, ' ').match(/\b[a-zA-Z]{3,}\b/g) || [];
+    if (innerWords.length >= 2) return false;
     return true;
   }
 
-  // Count standard English words (words with 3+ letters without backslashes)
+  // Count standard English words (words with 2+ letters without backslashes)
   const plainWords = trimmed
     .replace(/\\[a-zA-Z]+/g, ' ') // strip LaTeX commands
     .replace(/\$[^\$]+\$/g, ' ') // strip inline math
-    .match(/\b[a-zA-Z]{3,}\b/g) || [];
+    .match(/\b[a-zA-Z]{2,}\b/g) || [];
 
-  // If there are 3 or more regular English words, it is natural prose, NOT a pure formula!
-  if (plainWords.length >= 3) {
+  // If there are 2 or more regular English words, it is natural prose, NOT a pure formula!
+  if (plainWords.length >= 2) {
+    return false;
+  }
+
+  // If it ends with sentence colon or question mark with an English word, it's prose
+  if (/[:?]$/.test(trimmed) && plainWords.length >= 1) {
     return false;
   }
 
@@ -230,6 +240,10 @@ export function renderLatexHtml(
   rawText: string,
   displayMode = true
 ): { html: string; success: boolean; error?: string } {
+  if (!rawText || !rawText.trim()) {
+    return { html: '', success: true };
+  }
+
   try {
     const expr = cleanLatexExpression(rawText);
     const html = katex.renderToString(expr, {
@@ -241,13 +255,25 @@ export function renderLatexHtml(
     return { html, success: true };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    // Fallback without throwing
+    // If KaTeX threw an error and text is mixed prose/markdown with inline $...$,
+    // gracefully render via markdownToHtml so words and inline $math$ render seamlessly!
+    if (!isPureLatexFormula(rawText) && (rawText.includes('$') || isMarkdownSyntax(rawText))) {
+      try {
+        const mdHtml = markdownToHtml(rawText);
+        if (mdHtml) {
+          return { html: mdHtml, success: true };
+        }
+      } catch {}
+    }
+    // Fallback without throwing, but neutralize error styling so it never displays in bright red!
     try {
-      const fallbackHtml = katex.renderToString(cleanLatexExpression(rawText), {
+      let fallbackHtml = katex.renderToString(cleanLatexExpression(rawText), {
         displayMode,
         output: 'html',
         throwOnError: false,
       });
+      // Replace red error color (#cc0000) with clean neutral white
+      fallbackHtml = fallbackHtml.replace(/style="color:\s*#cc0000;?"/gi, 'style="color: inherit;"');
       return { html: fallbackHtml, success: false, error: errorMsg };
     } catch {
       return { html: '', success: false, error: errorMsg };
@@ -356,7 +382,15 @@ export function latexToSvgDataUrl(
   width: number,
   height: number
 ): string {
-  const { html } = renderLatexHtml(rawText, true);
+  // If the text has prose or mixed markdown, use markdownToSvgDataUrl to avoid KaTeX error SVGs
+  if (!isPureLatexFormula(rawText) && (rawText.includes('$') || isMarkdownSyntax(rawText) || /\b[a-zA-Z]{3,}\b/.test(rawText))) {
+    return markdownToSvgDataUrl(rawText, color, fontSize, 'Inter, -apple-system, sans-serif', width, height);
+  }
+
+  const { html, success } = renderLatexHtml(rawText, true);
+  if (!success && !html) {
+    return markdownToSvgDataUrl(rawText, color, fontSize, 'Inter, -apple-system, sans-serif', width, height);
+  }
   // Ensure crisp dimensions that match the formula's true aspect ratio with snug, clean padding
   const w = Math.max(60, Math.round(width));
   const h = Math.max(36, Math.round(height));

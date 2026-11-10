@@ -57,10 +57,13 @@ export interface AIChatSidePanelProps {
   onClose: () => void;
   onInsertToBoard: (content: string, title?: string, targetPos?: { x: number; y: number }, isFormulaHint?: boolean) => void;
   onOpenVectorStudio?: (code: string) => void;
+  onEnhanceBoard?: () => void;
   currentTopic?: string;
   currentSubject?: string;
   width?: number;
   onWidthChange?: (width: number) => void;
+  initialQuery?: string | null;
+  onClearInitialQuery?: () => void;
 }
 
 export interface ConnectedModelOption {
@@ -130,36 +133,103 @@ function useTypingPlaceholder(phrases: string[], typingSpeed = 55, pauseTime = 2
   return displayedText;
 }
 
+/**
+ * Detects whether the user's message is a greeting or introductory query
+ * so we can respond warmly instead of hallucinating random curriculum lessons.
+ */
+export function isGreetingOrChitchat(text: string): boolean {
+  const t = (text || '').trim().toLowerCase();
+  return (
+    /^(hi+|hello+|hey+|good\s*(morning|afternoon|evening)|howdy|greetings|hola|who are you|what can you do|help)\b/i.test(t) ||
+    t === 'hi' ||
+    t === 'hello' ||
+    t === 'hey' ||
+    t === 'test'
+  );
+}
+
+const DEFAULT_WELCOME_MESSAGE: ChatMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  content:
+    `Welcome to **SmartNoteAI** Teaching Assistant!\n\nAsk me to generate lesson notes, step-by-step math derivations, classroom vector diagrams, or practice problems.\n\n• **Drag to Board**: Drag any formula, diagram, or explanation card directly onto your whiteboard.\n• **1-Click Insert**: Click **➕ Insert** to place content instantly on board.\n• **Vector Diagrams**: Ask for flowcharts (Mermaid), mathematical graphs (parabolas, sine waves), logic circuits, or geometry figures.\n• **Bottom Toolbar**: Switch models, start new chats, and access your full conversation history directly at the bottom!`,
+  timestamp: Date.now(),
+};
+
+/**
+ * On application startup, ensure the user starts with a fresh new chat,
+ * while automatically archiving and preserving any prior conversation in history!
+ */
+function getInitialMessagesAndPreserveHistory(): ChatMessage[] {
+  let isSessionStarted = false;
+  try {
+    isSessionStarted = Boolean(sessionStorage.getItem('smartnoteai_app_session_started'));
+  } catch {}
+
+  if (!isSessionStarted) {
+    // New app launch: archive existing chat if it contains user messages
+    try {
+      const saved = localStorage.getItem('smartnoteai_chat_history');
+      if (saved) {
+        const parsed: ChatMessage[] = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const userMsgs = parsed.filter((m) => m.role === 'user');
+          if (userMsgs.length > 0) {
+            const rawSessions = localStorage.getItem('smartnoteai_chat_sessions');
+            const sessions: ChatSessionRecord[] = rawSessions ? JSON.parse(rawSessions) : [];
+            const firstQ = userMsgs[0].content;
+            const lastMsg = parsed[parsed.length - 1];
+            const archived: ChatSessionRecord = {
+              id: `session-startup-${Date.now()}`,
+              title: firstQ.length > 38 ? `${firstQ.slice(0, 38)}...` : firstQ,
+              preview: (lastMsg?.content || firstQ).slice(0, 75).replace(/[#*`$\n]/g, ' '),
+              timestamp: lastMsg?.timestamp || Date.now(),
+              messages: parsed,
+            };
+            const filtered = sessions.filter((s) => s.id !== 'session-active' && s.title !== archived.title);
+            const updated = [archived, ...filtered].slice(0, 40);
+            localStorage.setItem('smartnoteai_chat_sessions', JSON.stringify(updated));
+          }
+        }
+      }
+    } catch {}
+
+    try {
+      sessionStorage.setItem('smartnoteai_app_session_started', 'true');
+      localStorage.setItem('smartnoteai_chat_history', JSON.stringify([DEFAULT_WELCOME_MESSAGE]));
+    } catch {}
+
+    return [DEFAULT_WELCOME_MESSAGE];
+  }
+
+  // App is already running in this session: load ongoing history
+  try {
+    const saved = localStorage.getItem('smartnoteai_chat_history');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {}
+
+  return [DEFAULT_WELCOME_MESSAGE];
+}
+
 export function AIChatSidePanel({
   isOpen,
   onClose,
   onInsertToBoard,
   onOpenVectorStudio,
+  onEnhanceBoard,
   currentTopic = '',
   currentSubject = '',
   width = 420,
   onWidthChange,
+  initialQuery = null,
+  onClearInitialQuery,
 }: AIChatSidePanelProps): React.ReactElement | null {
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    try {
-      const saved = localStorage.getItem('smartnoteai_chat_history');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {}
-    return [
-      {
-        id: 'welcome',
-        role: 'assistant',
-        content:
-          `Welcome to **SmartNoteAI** Teaching Assistant!\n\nAsk me to generate lesson notes, step-by-step math derivations, classroom vector diagrams, or practice problems.\n\n• **Drag to Board**: Drag any formula, diagram, or explanation card directly onto your whiteboard.\n• **1-Click Insert**: Click **➕ Insert** to place content instantly on board.\n• **Vector Diagrams**: Ask for flowcharts (Mermaid), mathematical graphs (parabolas, sine waves), logic circuits, or geometry figures.\n• **Model Settings**: Click **⚙️ Settings** to configure Gemini, local Ollama, Kimi, DeepSeek, or custom models!`,
-        timestamp: Date.now(),
-      },
-    ];
-  });
+  const [messages, setMessages] = useState<ChatMessage[]>(getInitialMessagesAndPreserveHistory);
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -653,31 +723,53 @@ export function AIChatSidePanel({
     const topicLine = hasRealTopic ? `Active Lesson Topic: "${currentTopic.trim()}"\n` : '';
     const subjectLine = currentSubject && currentSubject.trim() && currentSubject !== 'General Education' ? `Subject Area: "${currentSubject.trim()}"\n` : '';
 
-    const systemPrompt = `You are SmartNoteAI Teaching Assistant, an intelligent pedagogical AI assistant built for interactive whiteboard instruction, students, and classroom learning.
-The app name is SmartNoteAI (never refer to yourself as SmartBoard Studio).
+    const isGreeting = isGreetingOrChitchat(rawText);
+
+    let systemPrompt = '';
+    if (isGreeting) {
+      systemPrompt = `You are SmartNoteAI Teaching Assistant, an intelligent pedagogical AI assistant built for interactive whiteboard instruction, students, and classroom learning.
+The user greeted you (e.g. saying "${rawText}").
+Reply warmly, politely, and professionally as SmartNoteAI Teaching Assistant. Introduce yourself briefly, highlight 3-4 key capabilities across diverse subjects (math derivations, science flowcharts, programming code, historical timelines, and classroom quizzes ready to drag onto the smartboard), and warmly ask what topic or lesson they would like to teach or explore today. Keep your response friendly, welcoming, and concise. Do NOT invent random lecture topics or quadratic formulas.`;
+    } else {
+      systemPrompt = `You are SmartNoteAI Teaching Assistant, an intelligent pedagogical assistant built for interactive classroom whiteboard instruction.
+The app name is SmartNoteAI.
 ${topicLine}${subjectLine}User Query: "${rawText}"
 
-Your goal is to answer the query accurately and with high pedagogical clarity, formatted into clean modular segments separated by '---' on its own line so formulas, diagrams, explanations, and questions can be dragged onto the smartboard individually.
-NEVER say "Welcome teacher!" or include conversational greetings, preamble, or pleasantries. Only generate the exact educational content requested.
-NEVER invent placeholder topics like "Untitled Lesson represents a foundational educational concept". Always address the user's actual question directly!
+CORE PEDAGOGICAL PHILOSOPHY:
+Be dynamic, subject-adaptive, and deeply relevant to the user's specific query.
+Do NOT force a rigid cookie-cutter template across all subjects. Instead, determine the academic discipline and select 2 to 4 of the most appropriate pedagogical components suited for this specific topic and student learning needs.
+Format your response into clean modular segments separated by '---' on its own line so each element (formula, diagram, code block, table, or question) can be dragged individually onto the smartboard canvas.
 
-Pedagogical & Formatting Rules:
-1. Answer the query directly and accurately.
-2. Structure your response into distinct modular segments separated by '---' on its own line:
-   - Concept / Definition (use ### Heading)
-   - Step-by-Step Explanation / Key Pedagogical Points (clean bullet points)
-   - Mathematical Formulas: ONLY IF the query or topic involves mathematics, physics, or quantitative equations. DO NOT generate math formulas or quadratic equations for humanities, history, biology, computer science concepts, or general queries (like "what is ai"). When formulas are needed, write display equations on their own lines using $$...$$, and inline symbols using $...$.
-   - Vector Diagrams: When asked for a diagram, flowchart, graph, circuit, timing, or geometry, provide executable diagram code in markdown codeblocks:
-     * For flowcharts, UML: \`\`\`mermaid ... \`\`\`
-     * For mathematical graphs (e.g. parabolas, quadratics, trig): \`\`\`graph { "type": "graph", "expressions": ["y = x^2 - 4"], "xRange": [-5, 5], "yRange": [-5, 10], "axes": true, "grid": true } \`\`\`
-     * For 2D geometry (triangles, angles, circles): \`\`\`geometry { "type": "geometry", "title": "Triangle ABC", "shapes": [{ "kind": "triangle", "points": [[-3, -2], [3, -2], [3, 2.5]], "label": "Triangle ABC", "rightAngle": true }] } \`\`\`
-     * For digital logic circuits: \`\`\`circuit { "type": "circuit", "title": "Logic Circuit", "gates": [{ "type": "AND", "label": "AND1", "x": 220, "y": 140, "inputs": ["A", "B"], "output": "Y = A·B" }] } \`\`\`
-     * For timing diagrams: \`\`\`timing { "signal": [{ "name": "CLK", "wave": "p........" }, { "name": "DATA", "wave": "0.10.10.1" }] } \`\`\`
-     * For TikZ / vector paths: \`\`\`tikz ... \`\`\`
-   - Classroom Practice Questions or Key Discussion Points (bullet points)
-3. Do NOT merge multiple distinct formulas into a single continuous paragraph. Keep each primary formula separated so it can be dragged individually.
+SUBJECT-ADAPTIVE CONTENT TOOLBOX (Intelligently select what makes sense for this topic):
+1. Mathematics, Physics & Quantitative Sciences:
+   - Provide step-by-step worked solutions or proofs.
+   - Write primary formulas as display equations on their own lines using $$...$$, and inline symbols using $...$.
+   - When a coordinate plot or geometry figure aids understanding, provide executable code:
+     * Function plots (parabolas, trig, quadratics): \`\`\`graph { "type": "graph", "expressions": ["..."], "xRange": [-5, 5], "yRange": [-5, 10], "axes": true, "grid": true } \`\`\`
+     * 2D Geometry (angles, triangles, circles): \`\`\`geometry { "type": "geometry", "title": "...", "shapes": [...] } \`\`\`
+2. Natural Sciences (Biology, Chemistry, Environmental Science):
+   - Clear breakdown of biological processes, mechanisms, cellular structures, or chemical reactions.
+   - When a visual diagram helps, provide a scientific flowchart, cycle, or breakdown in \`\`\`mermaid flowchart TD/LR ... \`\`\`.
+   - Balanced chemical equations or reaction steps.
+3. History, Geography & Social Sciences:
+   - Historical timelines, sequence of events, or causes-and-effects (\`\`\`mermaid timeline ... \`\`\` or structured chronology).
+   - Geographic context, maps, regional significance, or key historical figures.
+   - Primary document quotes and critical discussion questions.
+4. Computer Science, Programming & IT:
+   - Clean, syntax-highlighted code blocks (\`\`\`python, \`\`\`javascript, \`\`\`cpp, etc.).
+   - Algorithm logic, flowchart (\`\`\`mermaid flowchart TD ... \`\`\`), or digital logic circuits (\`\`\`circuit { "type": "circuit", ... } \`\`\`).
+5. Literature, Languages & Humanities:
+   - Thematic analysis, character motivations, literary devices, and textual quotes.
+   - Comparative tables (| Element | Meaning | Example |).
+   - Socratic questions for classroom debate.
+
+CRITICAL FORMATTING RULES:
+1. Address the user's actual question directly. Never generate placeholder topics or unrelated templates.
+2. NEVER include math formulas for non-mathematical subjects like history, literature, or general definitions.
+3. Keep distinct formulas, diagrams, tables, and questions separated by '---' on its own line so they can be dragged independently onto the whiteboard.
 4. Keep explanations concise, classroom-ready, and formatted in clean Markdown (### headings, **bold**, and bullet points).
-5. For mathematical expressions, terms, and variable definitions: ALWAYS keep variable names and explanations on the same line (e.g. "1. **First Term ($a$ or $a_1$):** The starting number of the sequence."). NEVER break variables, parentheses, or terms onto separate lines. Write complete, fluent pedagogical sentences.`;
+5. For mathematical expressions or variable definitions: ALWAYS keep variable names and explanations on the same line (e.g. "1. **First Term ($a$):** The initial value"). Write complete, fluent pedagogical sentences.`;
+    }
 
     try {
       if (selectedModelKey === 'offline:default') {
@@ -714,10 +806,14 @@ Pedagogical & Formatting Rules:
         }
       } else {
         // Call the configured AI provider
+        const effectivePrompt = isGreeting && (provider === 'ollama' || selectedModelKey.startsWith('ollama:'))
+          ? `Hello! Please introduce yourself briefly as SmartNoteAI Teaching Assistant and ask what lesson or topic they would like to explore today.`
+          : rawText;
+
         const res = await aiProviderManager.generateText({
           provider,
           model,
-          prompt: rawText,
+          prompt: effectivePrompt,
           systemPrompt,
           temperature: 0.5,
           timeoutMs: provider === 'ollama' ? 180000 : 60000,
@@ -788,6 +884,26 @@ Pedagogical & Formatting Rules:
       abortControllerRef.current = null;
     }
   };
+
+  // When Ask AI is clicked from canvas on selected text:
+  // Populate chat input with "explain or derive: " prefix, focus the input, and let user click send
+  useEffect(() => {
+    if (initialQuery && initialQuery.trim()) {
+      const q = initialQuery.trim();
+      onClearInitialQuery?.();
+      const prefix = 'explain or derive: ';
+      const formatted = q.toLowerCase().startsWith('explain or derive:')
+        ? q
+        : `${prefix}${q}`;
+      setInput(formatted);
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(formatted.length, formatted.length);
+        }
+      }, 80);
+    }
+  }, [initialQuery, onClearInitialQuery]);
 
   const handleStop = () => {
     if (abortControllerRef.current) {
@@ -876,6 +992,9 @@ Pedagogical & Formatting Rules:
     groupedModels[opt.group].push(opt);
   }
 
+  const currentModelOpt = modelOptions.find((m) => m.key === selectedModelKey);
+  const currentModelDisplayName = currentModelOpt ? currentModelOpt.modelId : (selectedModelKey.split(':')[1] || selectedModelKey);
+
   return (
     <div
       className="ai-chat-side-panel animated-glow-panel"
@@ -930,6 +1049,16 @@ Pedagogical & Formatting Rules:
         </div>
 
         <div className="ai-chat-header-actions">
+          {onEnhanceBoard && (
+            <button
+              type="button"
+              className="ai-chat-enhance-header-btn"
+              onClick={onEnhanceBoard}
+              title="✨ 1-Click Enhance active whiteboard slide (Fonts, Theme Colors, Icons)"
+            >
+              ✨ Enhance
+            </button>
+          )}
           {/* Model Settings Drawer Icon */}
           <button
             className={`ai-chat-btn-icon settings-gear-btn ${showSettingsDrawer ? 'active' : ''}`}
@@ -941,33 +1070,6 @@ Pedagogical & Formatting Rules:
             aria-label="Model Settings"
           >
             ⚙️
-          </button>
-          <button
-            className={`ai-chat-btn-icon ${showHistoryDrawer ? 'active' : ''}`}
-            onClick={() => {
-              setShowSettingsDrawer(false);
-              setShowHistoryDrawer((prev) => !prev);
-            }}
-            title="Conversation History & Saved Sessions"
-            aria-label="Chat History"
-          >
-            📜
-          </button>
-          <button
-            className="ai-chat-btn-icon"
-            onClick={refreshConnectedModels}
-            title="Refresh Connected Models"
-            aria-label="Refresh Models"
-          >
-            🔄
-          </button>
-          <button
-            className="ai-chat-btn-icon"
-            onClick={handleClearHistory}
-            title="Clear Chat History"
-            aria-label="Clear History"
-          >
-            🗑️
           </button>
           <button
             className="ai-chat-btn-icon close-btn"
@@ -1012,7 +1114,13 @@ Pedagogical & Formatting Rules:
       {showHistoryDrawer && (
         <div className="ai-chat-history-drawer">
           <div className="history-drawer-header">
-            <span className="history-drawer-title">📜 Conversation History</span>
+            <span className="history-drawer-title">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: '6px' }}>
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              Conversation History
+            </span>
             <div className="history-drawer-header-actions">
               <button
                 className="history-new-chat-btn"
@@ -1077,37 +1185,6 @@ Pedagogical & Formatting Rules:
           )}
         </div>
       )}
-
-      {/* ─── Model Selection Bar with Status Badge ─── */}
-      <div className="ai-chat-model-bar">
-        <label htmlFor="ai-model-select" className="ai-model-label">
-          🤖 Model:
-        </label>
-        <select
-          id="ai-model-select"
-          className="ai-model-dropdown"
-          value={selectedModelKey}
-          onChange={handleModelChange}
-          title="Select active AI intelligence engine"
-        >
-          {Object.entries(groupedModels).map(([group, options]) => (
-            <optgroup key={group} label={group}>
-              {options.map((opt) => (
-                <option key={opt.key} value={opt.key}>
-                  {opt.displayName}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-        <button
-          className="model-quick-configure-btn"
-          onClick={() => setShowSettingsDrawer(true)}
-          title="Add API Keys & Configure Custom Models"
-        >
-          + Setup
-        </button>
-      </div>
 
       {/* ─── Quick Prompt Chips ─── */}
       <div className="ai-chat-chips-scroll">
@@ -1251,60 +1328,162 @@ Pedagogical & Formatting Rules:
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ─── Animated Colorful Input Box with Typing Placeholder ─── */}
-      <div
-        className="ai-chat-input-wrapper animated-input-glow"
-        onClick={() => textareaRef.current?.focus()}
-        title="Click to type question"
-      >
-        <textarea
-          ref={textareaRef}
-          id="ai-chat-input-textarea"
-          className="ai-chat-textarea"
-          value={input}
-          onChange={handleInputChange}
-          placeholder={isLoading ? 'AI generating... click Stop or wait' : animatedPlaceholder}
-          rows={1}
-          autoFocus
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSendMessage();
-            }
-          }}
-          onKeyUp={(e) => e.stopPropagation()}
-          onKeyPress={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            textareaRef.current?.focus();
-          }}
-          disabled={isLoading}
-        />
-        {isLoading ? (
-          <button
-            type="button"
-            className="ai-chat-stop-inline-btn"
-            onClick={handleStop}
-            title="Cancel generation and enable typing"
-            aria-label="Stop generation"
-          >
-            ⏹ Stop
-          </button>
-        ) : (
-          <button
-            className="ai-chat-send-btn"
-            onClick={() => handleSendMessage()}
-            disabled={!input.trim()}
-            title="Send Question (Enter)"
-            aria-label="Send"
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-            </svg>
-          </button>
-        )}
+      {/* ─── Bottom Integrated Input Card (Image 3 Style) ─── */}
+      <div className="ai-chat-bottom-card-container">
+        <div
+          className="ai-chat-input-card animated-input-glow"
+          onClick={() => textareaRef.current?.focus()}
+        >
+          {/* Top Textarea */}
+          <textarea
+            ref={textareaRef}
+            id="ai-chat-input-textarea"
+            className="ai-chat-textarea"
+            value={input}
+            onChange={handleInputChange}
+            placeholder={isLoading ? 'AI generating... click Stop or wait' : animatedPlaceholder}
+            rows={1}
+            autoFocus
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+              }
+            }}
+            onKeyUp={(e) => e.stopPropagation()}
+            onKeyPress={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              textareaRef.current?.focus();
+            }}
+            disabled={isLoading}
+          />
+
+          {/* Bottom Card Toolbar (Left: New, Model, History; Right: Send) */}
+          <div className="ai-chat-card-toolbar" onClick={(e) => e.stopPropagation()}>
+            <div className="card-toolbar-left">
+              {/* + New Chat */}
+              <button
+                type="button"
+                className="card-toolbar-btn card-new-chat-btn"
+                onClick={handleStartNewChat}
+                title="Start a new lesson chat (+ New Chat)"
+                aria-label="New Chat"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span className="btn-label">New</span>
+              </button>
+
+              {/* Model Selector Pill */}
+              <div className="card-model-pill" title="Click to change active AI model">
+                <span className="card-model-icon">✨</span>
+                <span className="card-model-name" title={currentModelOpt?.displayName || selectedModelKey}>
+                  {currentModelDisplayName}
+                </span>
+                <span className="card-model-chevron">▾</span>
+                <select
+                  id="ai-model-select-bottom"
+                  className="card-model-native-select"
+                  value={selectedModelKey}
+                  onChange={handleModelChange}
+                  title="Select AI model"
+                  aria-label="Select AI model"
+                >
+                  {Object.entries(groupedModels).map(([group, options]) => (
+                    <optgroup key={group} label={group}>
+                      {options.map((opt) => (
+                        <option key={opt.key} value={opt.key}>
+                          {opt.displayName}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+
+              {/* Modern History Button with Clock Icon */}
+              <button
+                type="button"
+                className={`card-toolbar-btn card-history-btn ${showHistoryDrawer ? 'active' : ''}`}
+                onClick={() => {
+                  setShowSettingsDrawer(false);
+                  setShowHistoryDrawer((prev) => !prev);
+                }}
+                title="Conversation History (Clock Icon)"
+                aria-label="Conversation History"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span className="btn-label">History</span>
+                {savedSessions.length > 0 && (
+                  <span className="card-history-badge">{savedSessions.length}</span>
+                )}
+              </button>
+            </div>
+
+            <div className="card-toolbar-right">
+              {isLoading ? (
+                <button
+                  type="button"
+                  className="ai-chat-stop-inline-btn"
+                  onClick={handleStop}
+                  title="Stop generation"
+                  aria-label="Stop generation"
+                >
+                  ⏹ Stop
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="ai-chat-send-btn card-send-btn"
+                  onClick={() => handleSendMessage()}
+                  disabled={!input.trim()}
+                  title="Send (Enter)"
+                  aria-label="Send"
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="19" x2="12" y2="5" />
+                    <polyline points="5 12 12 5 19 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Sub-footer below card: Provider Badge & permissions */}
+        <div className="ai-chat-card-subfooter">
+          <div className="card-subfooter-left">
+            <span className="card-provider-tag">
+              {selectedModelKey.startsWith('ollama:') ? (
+                <>💻 Local</>
+              ) : selectedModelKey.startsWith('gemini:') ? (
+                <>☁️ Gemini</>
+              ) : selectedModelKey.startsWith('kimi:') ? (
+                <>🌙 Kimi</>
+              ) : selectedModelKey.startsWith('deepseek:') ? (
+                <>⚡ DeepSeek</>
+              ) : selectedModelKey.startsWith('groq:') ? (
+                <>🚀 Groq</>
+              ) : selectedModelKey.startsWith('openai:') ? (
+                <>⚡ OpenAI</>
+              ) : (
+                <>📚 Offline</>
+              )}
+            </span>
+            <span className="card-security-tag">🛡️ Classroom Safe</span>
+          </div>
+          <div className="card-subfooter-right">
+            <span className="card-keyhint">↵ Send • Shift+↵ Line</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1753,6 +1932,20 @@ function SegmentedMessageContent({
  */
 function generateIntelligentEducationalResponse(prompt: string, topic?: string, subject?: string): string {
   const p = prompt.toLowerCase();
+
+  // If greeting or chitchat, respond with friendly, pedagogical introduction without random topics
+  if (isGreetingOrChitchat(prompt)) {
+    return (
+      `### Hello! Welcome to SmartNoteAI Teaching Assistant 👋\n\n` +
+      `I'm ready to assist your classroom! Here are some key things you can ask me to generate:\n\n` +
+      `• **Explain Concepts**: Ask for clear, structured explanations on any subject.\n` +
+      `• **Math & Physics**: Request step-by-step derivations, equations, and solutions with drag-and-drop formulas.\n` +
+      `• **Vector Diagrams**: Ask for flowcharts (Mermaid), 2D geometry figures, parabola graphs, or logic circuits.\n` +
+      `• **Classroom Practice**: Generate quick quizzes and discussion questions for students.\n\n` +
+      `What topic or concept would you like to explore today?`
+    );
+  }
+
   const rawQuery = prompt.replace(/^(what is|explain|define|tell me about|how to)\s*/i, '').trim();
   const effectiveTopic = rawQuery.length > 2 ? rawQuery : (topic || 'Key Classroom Concept');
 
@@ -1772,7 +1965,80 @@ function generateIntelligentEducationalResponse(prompt: string, topic?: string, 
     );
   }
 
-  if (p.includes('math') || p.includes('solve') || p.includes('quadratic') || p.includes('formula')) {
+  if (p.includes('code') || p.includes('python') || p.includes('javascript') || p.includes('programming') || p.includes('algorithm') || p.includes('function') || p.includes('loop')) {
+    return (
+      `### Algorithm & Code: ${effectiveTopic}\n\n` +
+      `**Concept:** Key programming construct utilized to structure logic and automate iterative tasks.\n\n` +
+      `---\n\n` +
+      `\`\`\`python\n` +
+      `# Implementation of ${effectiveTopic}\n` +
+      `def execute_logic(items):\n` +
+      `    results = []\n` +
+      `    for item in items:\n` +
+      `        if item > 0:\n` +
+      `            results.append(item * 2)\n` +
+      `    return results\n` +
+      `\`\`\`\n\n` +
+      `---\n\n` +
+      `\`\`\`mermaid\n` +
+      `flowchart TD\n` +
+      `    Start(["Start"]) --> Input[/"Input Data"/]\n` +
+      `    Input --> Cond{"Condition Met?"}\n` +
+      `    Cond -- Yes --> Process["Process Item"]\n` +
+      `    Process --> Output[/"Output Result"/]\n` +
+      `    Cond -- No --> End(["End"])\n` +
+      `    Output --> End\n` +
+      `\`\`\`\n\n` +
+      `---\n\n` +
+      `#### Student Coding Challenge:\n` +
+      `* Modify the algorithm above to handle edge cases where the input list contains negative or null values.`
+    );
+  }
+
+  if (p.includes('biology') || p.includes('photosynthesis') || p.includes('cell') || p.includes('dna') || p.includes('plant') || p.includes('reaction') || p.includes('chemistry')) {
+    return (
+      `### Scientific Process: ${effectiveTopic}\n\n` +
+      `**Definition:** **${effectiveTopic}** is a foundational scientific mechanism governing energy transfer and cellular/chemical transformations.\n\n` +
+      `---\n\n` +
+      `#### Step-by-Step Mechanism:\n` +
+      `1. **Activation Phase:** Energy or catalyst initiates molecular transformation.\n` +
+      `2. **Intermediate Complex:** Bonds are reorganized with conservation of mass and energy.\n` +
+      `3. **Outcome / Synthesis:** End products are released for biological cellular utilization.\n\n` +
+      `---\n\n` +
+      `\`\`\`mermaid\n` +
+      `flowchart LR\n` +
+      `    Reactants["Reactants / Inputs"] --> Energy["Activation Energy"]\n` +
+      `    Energy --> Cycle["Core Biochemical Cycle"]\n` +
+      `    Cycle --> Products["Essential Products"]\n` +
+      `\`\`\`\n\n` +
+      `---\n\n` +
+      `#### Classroom Verification Question:\n` +
+      `* What external environmental factor acts as the primary rate-limiting step in **${effectiveTopic}**?`
+    );
+  }
+
+  if (p.includes('history') || p.includes('war') || p.includes('revolution') || p.includes('empire') || p.includes('ancient') || p.includes('geography') || p.includes('continent') || p.includes('climate')) {
+    return (
+      `### Historical Overview: ${effectiveTopic}\n\n` +
+      `**Context:** A major historical era or geographic phenomenon that shaped human civilization, institutions, and borders.\n\n` +
+      `---\n\n` +
+      `#### Key Chronological Phases:\n` +
+      `1. **Underlying Causes:** Political, economic, and cultural tensions preceding the event.\n` +
+      `2. **Turning Points:** Decisive diplomatic, military, or environmental shifts.\n` +
+      `3. **Lasting Legacy:** Structural changes to modern governance, trade routes, and societal norms.\n\n` +
+      `---\n\n` +
+      `| Phase | Key Catalyst | Major Impact |\n` +
+      `| :--- | :--- | :--- |\n` +
+      `| **Origins** | Resource scarcity / Governance breakdown | Rapid mobilization |\n` +
+      `| **Climax** | Strategic confrontation | Realignment of powers |\n` +
+      `| **Resolution** | Formal treaty / Reconstruction | Modern institutional frameworks |\n\n` +
+      `---\n\n` +
+      `#### Socratic Discussion Prompt:\n` +
+      `* How do primary source accounts from this era differ from modern retrospective analyses?`
+    );
+  }
+
+  if (p.includes('math') || p.includes('solve') || p.includes('quadratic') || p.includes('formula') || p.includes('geometry') || p.includes('calculus')) {
     return (
       `### Step-by-Step Worked Derivation: ${effectiveTopic}\n\n` +
       `**Standard Form of Quadratic Equation:**\n\n` +

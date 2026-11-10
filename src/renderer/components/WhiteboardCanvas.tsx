@@ -86,7 +86,24 @@ import { renderDiagramToSvg, diagramSvgToDataUrl } from '../services/vectorDiagr
 import { v4 as uuidv4 } from 'uuid';
 import './WhiteboardCanvas.css';
 
-export function WhiteboardCanvas(): React.ReactElement {
+export interface WhiteboardCanvasProps {
+  onOpenExport?: () => void;
+  onActivatePresentationTool?: (tool: any) => void;
+  activePresentationTool?: any;
+  onToggleTimer?: () => void;
+  onScreenshot?: () => void;
+  onDesktop?: () => void;
+  onReturnToBoard?: () => void;
+  isPresentationMode?: boolean;
+  onToggleBrowser?: () => void;
+  isBrowserOpen?: boolean;
+  onToggleAIChat?: () => void;
+  isAIChatOpen?: boolean;
+  onAskAI?: (text: string) => void;
+  onEnhanceBoard?: () => void;
+}
+
+export function WhiteboardCanvas(props?: WhiteboardCanvasProps): React.ReactElement {
   const {
     docState,
     docDispatch,
@@ -239,6 +256,8 @@ export function WhiteboardCanvas(): React.ReactElement {
       }
     }
   }, [currentPageIndex, currentPage?.transition, reducedMotion]);
+
+
 
   // ─── Callbacks for DrawingEngine ──────────────────────────────────────────
 
@@ -2435,6 +2454,25 @@ export function WhiteboardCanvas(): React.ReactElement {
               <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
             </svg>
             <span>Edit {((selectedObject as TextObject).isLatex && isPureLatexFormula((selectedObject as TextObject).content)) ? 'Formula' : 'Text'}</span>
+          </button>
+
+          {/* Quick "✨ Ask AI" button on selected textbox */}
+          <button
+            type="button"
+            className="quick-ask-ai-btn"
+            title="Ask AI about this text (Explain, solve, or elaborate in SmartNoteAI Chat)"
+            onClick={(e) => {
+              e.stopPropagation();
+              const t = selectedObject as TextObject;
+              const content = t.content?.trim();
+              if (content) {
+                props?.onAskAI?.(content);
+                window.dispatchEvent(new CustomEvent('smartboard:ask-ai', { detail: { query: content } }));
+              }
+            }}
+          >
+            <span className="ask-ai-sparkle">✨</span>
+            <span>Ask AI</span>
           </button>
 
           {/* Quick Font Size Stepper with Number Textbox directly to the right of 'Edit Text' */}

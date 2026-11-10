@@ -3,10 +3,12 @@
  * Milestone 3, Section 13
  */
 
-import { CanvasObject, ShapeObject, TextObject } from '../../shared/types';
+import { CanvasObject, ShapeObject, TextObject, ImageObject } from '../../shared/types';
 import { v4 as uuidv4 } from 'uuid';
+import { VECTOR_ICONS_LIBRARY, vectorIconToDataUrl } from './educationalVectorIconsService';
 
 export type ResourceCategory =
+  | 'vector-icons'
   | 'mathematics'
   | 'physics'
   | 'chemistry'
@@ -43,6 +45,7 @@ const STORAGE_KEY_RESOURCES = 'smartboard_saved_resources_v1';
 const STORAGE_KEY_FOLDERS = 'smartboard_resource_folders_v1';
 
 export const BUILTIN_CATEGORIES: { id: ResourceCategory; label: string; icon: string }[] = [
+  { id: 'vector-icons', label: 'Vector Icons & Stickers', icon: '✨' },
   { id: 'mathematics', label: 'Mathematics', icon: '📐' },
   { id: 'physics', label: 'Physics', icon: '⚛️' },
   { id: 'chemistry', label: 'Chemistry', icon: '🧪' },
@@ -60,6 +63,34 @@ export const BUILTIN_CATEGORIES: { id: ResourceCategory; label: string; icon: st
  * Built-in starter teaching resources
  */
 export const STARTER_RESOURCES: SavedResource[] = [
+  // 106 Vector Icons & Pedagogical Stickers
+  ...VECTOR_ICONS_LIBRARY.map((icon) => ({
+    id: `vec-icon-${icon.id}`,
+    name: icon.name,
+    description: `${icon.category.toUpperCase()} icon: ${icon.tags.slice(0, 4).join(', ')}`,
+    category: 'vector-icons' as ResourceCategory,
+    tags: icon.tags,
+    favorite: false,
+    thumbnailUrl: vectorIconToDataUrl(icon.svg),
+    createdAt: 1700000000000,
+    objects: [
+      {
+        id: uuidv4(),
+        type: 'image' as const,
+        x: 100,
+        y: 100,
+        width: 120,
+        height: 120,
+        rotation: 0,
+        filePath: '',
+        dataUrl: vectorIconToDataUrl(icon.svg),
+        opacity: 1,
+        locked: false,
+        visible: true,
+        layerId: 'objects',
+      },
+    ],
+  })),
   // Mathematics: Cartesian Coordinate System
   {
     id: 'math-cartesian-plane',

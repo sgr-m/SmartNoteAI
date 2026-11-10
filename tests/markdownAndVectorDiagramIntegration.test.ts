@@ -4,6 +4,7 @@ import {
   markdownToHtml,
   measureMarkdownSize,
 } from '../src/renderer/services/markdownRenderService';
+import { isPureLatexFormula } from '../src/renderer/services/latexService';
 import {
   detectDiagramType,
   renderDiagramToSvg,
@@ -195,5 +196,25 @@ describe('AI Teaching Assistant Segmentation & Diagram Detection', () => {
 
     const formulaOrBullets = segments.filter((s) => s.type === 'bullets' || s.type === 'heading');
     expect(formulaOrBullets.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('correctly handles mixed prose with inline math without classifying as pure formula or rendering red errors', () => {
+    const text = 'The sum of interior angles in any triangle is always $180^\\circ$:';
+    expect(isPureLatexFormula(text)).toBe(false);
+
+    const html = markdownToHtml(text);
+    expect(html).toContain('The sum of interior angles in any triangle is always');
+    expect(html).toContain('katex');
+    expect(html).not.toContain('#cc0000'); // No red error styling
+  });
+
+  it('renders bullet lists containing vector math without red error text', () => {
+    const list =
+      '- **$\\|A\\|:$** The Euclidean magnitude or length of vector $A$, calculated as $\\sqrt{\\sum_{i=1}^n A_i^2}$.';
+    expect(isPureLatexFormula(list)).toBe(false);
+
+    const html = markdownToHtml(list);
+    expect(html).toContain('Euclidean magnitude');
+    expect(html).not.toContain('#cc0000');
   });
 });

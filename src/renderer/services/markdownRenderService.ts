@@ -89,17 +89,19 @@ export function renderInlineMarkdownAndLatex(line: string): string {
   processed = processed.replace(/(\$[^\$\n]+?\$|\\\([^\n]+?\\\))/g, (_match, expr) => {
     const raw = expr.startsWith('$') ? expr.slice(1, -1) : expr.slice(2, -2);
     try {
-      const rendered = katex.renderToString(raw.trim(), {
+      let rendered = katex.renderToString(raw.trim(), {
         displayMode: false,
         output: 'html',
         throwOnError: false,
       });
+      // Neutralize any red error styling produced by KaTeX
+      rendered = rendered.replace(/style="color:\s*#cc0000;?"/gi, 'style="color: inherit;"');
       const idx = mathTokens.length;
       mathTokens.push(`<span class="md-katex-inline" style="display: inline !important; white-space: nowrap !important;">${rendered}</span>`);
       return `${placeholderPrefix}${idx}___`;
     } catch {
       const idx = mathTokens.length;
-      mathTokens.push(`<span class="md-math-err">${escapeHtml(raw)}</span>`);
+      mathTokens.push(`<span class="md-katex-inline">${escapeHtml(raw)}</span>`);
       return `${placeholderPrefix}${idx}___`;
     }
   });
@@ -153,18 +155,24 @@ export function markdownToHtml(rawMarkdown: string): string {
 
   const flushTable = () => {
     if (inTable && tableBuffer.length > 0) {
-      let tHtml = '<table style="width: 100%; border-collapse: collapse; margin: 8px 0; border: 1px solid rgba(255,255,255,0.15);">';
+      let tHtml = '<table style="width: 100%; border-collapse: collapse; margin: 10px 0; border: 1.5px solid rgba(255,255,255,0.18); border-radius: 6px; overflow: hidden;">';
       tableBuffer.forEach((tRow, rIdx) => {
         const cells = tRow.split('|').map((c) => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
         if (cells.length === 0) return;
         // Skip separator row (e.g. |---|---|)
         if (cells.every((c) => /^[-:]+$/.test(c))) return;
 
-        const tag = rIdx === 0 ? 'th' : 'td';
-        const bg = rIdx === 0 ? 'background: rgba(56, 189, 248, 0.15); font-weight: 700;' : (rIdx % 2 === 0 ? 'background: rgba(255,255,255,0.03);' : '');
+        const isHeader = rIdx === 0;
+        const tag = isHeader ? 'th' : 'td';
+        const isTotals = !isHeader && cells.some((c) => /\b(totals?|sum|average)\b/i.test(c));
+        const bg = isHeader
+          ? 'background: rgba(19, 78, 74, 0.75); color: #f8fafc; font-weight: 700;'
+          : isTotals
+          ? 'background: rgba(255, 255, 255, 0.08); font-weight: 700; border-top: 2px solid rgba(255, 255, 255, 0.3);'
+          : (rIdx % 2 === 0 ? 'background: rgba(255, 255, 255, 0.03);' : 'background: transparent;');
         tHtml += `<tr style="${bg}">`;
         for (const cell of cells) {
-          tHtml += `<${tag} style="padding: 6px 12px; border: 1px solid rgba(255,255,255,0.12); text-align: left;">${renderInlineMarkdownAndLatex(cell)}</${tag}>`;
+          tHtml += `<${tag} style="padding: 9px 16px; border: 1px solid rgba(255,255,255,0.14); text-align: left; font-size: 0.96em;">${renderInlineMarkdownAndLatex(cell)}</${tag}>`;
         }
         tHtml += '</tr>';
       });
@@ -224,9 +232,9 @@ export function markdownToHtml(rawMarkdown: string): string {
       flushList();
       const level = headingMatch[1].length;
       const hText = headingMatch[2];
-      const fontSizes = ['1.6em', '1.35em', '1.18em', '1.05em'];
-      const margins = ['14px 0 8px 0', '12px 0 6px 0', '10px 0 5px 0', '8px 0 4px 0'];
-      const border = level === 1 ? 'border-bottom: 2px solid rgba(56, 189, 248, 0.5); padding-bottom: 4px;' : '';
+      const fontSizes = ['1.2em', '1.12em', '1.05em', '1.0em'];
+      const margins = ['8px 0 6px 0', '6px 0 4px 0', '4px 0 3px 0', '4px 0 2px 0'];
+      const border = level === 1 ? 'border-bottom: 2px solid rgba(250, 204, 21, 0.45); padding-bottom: 3px;' : '';
       htmlParts.push(
         `<div class="md-heading" style="font-size: ${fontSizes[level - 1]}; font-weight: 700; margin: ${margins[level - 1]}; ${border}">${renderInlineMarkdownAndLatex(hText)}</div>`
       );
@@ -418,6 +426,8 @@ export function sanitizeHtmlForSvg(html: string): string {
     .replace(/&ne;/g, '&#8800;')
     .replace(/&approx;/g, '&#8776;')
     .replace(/&infin;/g, '&#8734;')
+    // Escape bare ampersands that are not already part of an existing valid XML entity
+    .replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;')
     .replace(/<br(?:\s*\/)?>/gi, '<br />')
     .replace(/<hr(?:\s*\/)?>/gi, '<hr />')
     .replace(/<img([^>]*?)(?<!\/)>/gi, '<img$1 />')

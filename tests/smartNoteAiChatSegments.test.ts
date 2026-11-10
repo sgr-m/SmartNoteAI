@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { parseMessageSegments, ContentSegment } from '../src/renderer/components/aiChat/AIChatSidePanel';
+import {
+  parseMessageSegments,
+  ContentSegment,
+  isGreetingOrChitchat,
+} from '../src/renderer/components/aiChat/AIChatSidePanel';
 
 describe('SmartNoteAI Modular Segment Parser & LaTeX Drag-and-Drop', () => {
   it('parses modular segments separated by --- dividers', () => {
@@ -98,6 +102,22 @@ Here are the two primary methods prescribed for Class 10th:
     const contentSeg = segments[1];
     expect(contentSeg.rawText).toContain('Here are the two primary methods');
     expect(contentSeg.rawText).not.toContain('### Step-by-Step Methods');
+  });
+
+  it('correctly detects greetings and introductory queries to prevent hallucinated lessons', () => {
+    expect(isGreetingOrChitchat('hi')).toBe(true);
+    expect(isGreetingOrChitchat('HI')).toBe(true);
+    expect(isGreetingOrChitchat('hello')).toBe(true);
+    expect(isGreetingOrChitchat('hey there')).toBe(true);
+    expect(isGreetingOrChitchat('Good morning')).toBe(true);
+    expect(isGreetingOrChitchat('who are you')).toBe(true);
+    expect(isGreetingOrChitchat('what can you do')).toBe(true);
+
+    // Real curriculum queries must NOT be classified as greetings
+    expect(isGreetingOrChitchat('explain quadratic equation')).toBe(false);
+    expect(isGreetingOrChitchat('what is atmospheric pressure')).toBe(false);
+    expect(isGreetingOrChitchat('derive pythagorean theorem')).toBe(false);
+    expect(isGreetingOrChitchat('history of indian independence')).toBe(false);
   });
 });
 

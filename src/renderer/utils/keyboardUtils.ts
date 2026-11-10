@@ -21,7 +21,7 @@ export function isTypingOrInputFocused(e?: KeyboardEvent | React.KeyboardEvent):
 
     if (typeof target.closest === 'function') {
       const isInsideEditableOrDialog = target.closest(
-        'input, textarea, select, [contenteditable="true"], [role="dialog"]:not(.smartboard-pen-flyout):not(.smartboard-eraser-flyout):not(.smartboard-shape-flyout), .add-res-overlay, .res-lib-overlay, .modal-backdrop, .dialog-backdrop, .modal, .inline-text-editor-container, .text-modal-overlay, .ai-chat-side-panel, .ai-chat-input-wrapper, .model-settings-drawer, .model-settings-drawer-overlay, .ai-chat-history-drawer'
+        'input, textarea, select, [contenteditable="true"], [role="dialog"]:not(.smartboard-pen-flyout):not(.smartboard-eraser-flyout):not(.smartboard-shape-flyout), .add-res-overlay, .res-lib-overlay, .modal-backdrop, .dialog-backdrop, .modal, .inline-text-editor-container, .text-modal-overlay, .ai-chat-side-panel, .ai-chat-input-wrapper, .ai-chat-input-card, .ai-chat-bottom-card-container, .model-settings-drawer, .model-settings-drawer-overlay, .ai-chat-history-drawer'
       );
       if (isInsideEditableOrDialog) {
         return true;
@@ -44,7 +44,7 @@ export function isTypingOrInputFocused(e?: KeyboardEvent | React.KeyboardEvent):
     }
     if (typeof active.closest === 'function') {
       const isInsideChatOrModal = active.closest(
-        '.ai-chat-side-panel, .model-settings-drawer, .model-settings-drawer-overlay, .ai-chat-input-wrapper, .ai-chat-history-drawer'
+        '.ai-chat-side-panel, .model-settings-drawer, .model-settings-drawer-overlay, .ai-chat-input-wrapper, .ai-chat-input-card, .ai-chat-bottom-card-container, .ai-chat-history-drawer'
       );
       if (isInsideChatOrModal) {
         return true;

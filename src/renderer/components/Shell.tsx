@@ -48,11 +48,13 @@ import {
 import { measureMarkdownSize } from '../services/markdownRenderService';
 import { createImageObject, sanitizeSvg } from '../services/documentImportService';
 import { isTypingOrInputFocused } from '../utils/keyboardUtils';
+import { enhanceSlideContent } from '../services/boardEnhanceService';
+import { v4 as uuidv4 } from 'uuid';
 import { useAppContext } from '../context/AppContext';
 import './Shell.css';
 
 export function Shell(): React.ReactElement {
-  const { docState, docDispatch, setToastMessage, setSelectedObject, setActiveTool, toolState } = useAppContext();
+  const { docState, docDispatch, setToastMessage, setSelectedObject, setActiveTool, toolState, commandSystem } = useAppContext();
   const [showPagePanel, setShowPagePanel] = useState(false);
   const [showSlideGridView, setShowSlideGridView] = useState(false);
 
@@ -168,6 +170,9 @@ export function Shell(): React.ReactElement {
   // ─── Browser & AI Chat Assistant State & Callbacks ─────────────────────────
   const [showBrowser, setShowBrowser] = useState(false);
   const [showAIChat, setShowAIChat] = useState(false);
+  const [askAiInitialQuery, setAskAiInitialQuery] = useState<string | null>(null);
+  const [isAiEnhancing, setIsAiEnhancing] = useState(false);
+  const [aiEnhanceStepText, setAiEnhanceStepText] = useState('');
   const [chatWidth, setChatWidth] = useState<number>(() => {
     const maxAllowed = Math.floor(window.innerWidth * 0.40);
     const saved = parseInt(localStorage.getItem('smartboard_aichat_width') || '420', 10);
@@ -186,6 +191,101 @@ export function Shell(): React.ReactElement {
   const handleToggleAIChat = useCallback(() => {
     setShowAIChat((prev) => !prev);
   }, []);
+
+  const handleAskAI = useCallback((text: string) => {
+    setShowAIChat(true);
+    setAskAiInitialQuery(text);
+  }, []);
+
+  // Window event listener for canvas quick Ask AI buttons
+  useEffect(() => {
+    const onAskAiEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ query?: string }>;
+      if (customEvent.detail?.query) {
+        handleAskAI(customEvent.detail.query);
+      }
+    };
+    window.addEventListener('smartboard:ask-ai', onAskAiEvent);
+    return () => {
+      window.removeEventListener('smartboard:ask-ai', onAskAiEvent);
+    };
+  }, [handleAskAI]);
+
+  // 1-Click AI Enhance Handler with Progressive Visual Feedback and Zero-Overlap Reflow
+  const handleEnhanceSlide = useCallback(async () => {
+    const pageIndex = docState.currentPageIndex;
+    const page = docState.lesson?.pages[pageIndex];
+    if (!page) return;
+
+    const previousObjects = [...page.objects];
+    const previousBackground = page.background ? { ...page.background } : undefined;
+    const enhanceRes = enhanceSlideContent(page);
+    if (!enhanceRes.success) {
+      setToastMessage(enhanceRes.message);
+      return;
+    }
+
+    setIsAiEnhancing(true);
+
+    // Progressive Generation Execution with live visual feedback
+    for (const step of enhanceRes.steps) {
+      setAiEnhanceStepText(step.statusText);
+      if (step.newBackground) {
+        docDispatch({ type: 'SET_PAGE_BACKGROUND', pageIndex, background: step.newBackground });
+      }
+      docDispatch({
+        type: 'REORDER_OBJECTS',
+        pageIndex,
+        objects: step.objects,
+      });
+      // Brief pause so the user visually sees each step of AI generation live
+      await new Promise((r) => setTimeout(r, 320));
+    }
+
+    // Register a single unified command in commandSystem for seamless Ctrl+Z Undo
+    commandSystem.execute({
+      id: uuidv4(),
+      description: 'AI Board Enhancement & Non-Overlapping Alignment',
+      execute() {
+        if (enhanceRes.newBackground) {
+          docDispatch({ type: 'SET_PAGE_BACKGROUND', pageIndex, background: enhanceRes.newBackground });
+        }
+        docDispatch({
+          type: 'REORDER_OBJECTS',
+          pageIndex,
+          objects: enhanceRes.enhancedObjects,
+        });
+      },
+      undo() {
+        if (previousBackground) {
+          docDispatch({ type: 'SET_PAGE_BACKGROUND', pageIndex, background: previousBackground });
+        }
+        docDispatch({
+          type: 'REORDER_OBJECTS',
+          pageIndex,
+          objects: previousObjects,
+        });
+      },
+    });
+
+    setAiEnhanceStepText('🎉 Slide Beautifully Enhanced & Aligned!');
+    setToastMessage(enhanceRes.message);
+    setTimeout(() => {
+      setIsAiEnhancing(false);
+      setAiEnhanceStepText('');
+    }, 1200);
+  }, [docState.currentPageIndex, docState.lesson, docDispatch, commandSystem, setToastMessage]);
+
+  // Window event listener for 1-Click AI Enhance
+  useEffect(() => {
+    const onEnhanceEvent = () => {
+      handleEnhanceSlide();
+    };
+    window.addEventListener('smartboard:enhance-slide', onEnhanceEvent);
+    return () => {
+      window.removeEventListener('smartboard:enhance-slide', onEnhanceEvent);
+    };
+  }, [handleEnhanceSlide]);
 
   const handleInsertVectorDiagram = useCallback((svg: string, code: string, type: DiagramType) => {
     const pageIndex = docState.currentPageIndex;
@@ -301,11 +401,13 @@ export function Shell(): React.ReactElement {
     }
 
     // 2. Check if this segment is a pure LaTeX mathematical formula
+    const isPure = isPureLatexFormula(rawContent);
     const isFormula =
-      Boolean(isFormulaHint) ||
-      (rawContent.startsWith('$$') && rawContent.endsWith('$$') && !rawContent.includes('\n\n')) ||
-      (rawContent.startsWith('\\[') && rawContent.endsWith('\\]')) ||
-      isPureLatexFormula(rawContent);
+      isPure &&
+      (Boolean(isFormulaHint) ||
+        (rawContent.startsWith('$$') && rawContent.endsWith('$$') && !rawContent.includes('\n\n')) ||
+        (rawContent.startsWith('\\[') && rawContent.endsWith('\\]')) ||
+        isPure);
 
     let cleanFormula = rawContent;
     if (isFormula) {
@@ -711,8 +813,17 @@ export function Shell(): React.ReactElement {
               : {}),
           }}
         >
-          <WhiteboardCanvas />
+          <WhiteboardCanvas onAskAI={handleAskAI} onEnhanceBoard={handleEnhanceSlide} />
           <CrashRecoveryBanner />
+
+          {/* AI 1-Click Progressive Enhancement Live HUD Banner */}
+          {isAiEnhancing && (
+            <div className="canvas-ai-enhance-hud" role="status" aria-live="polite">
+              <div className="enhance-hud-spinner" />
+              <span className="enhance-hud-sparkle">✨</span>
+              <span className="enhance-hud-text">{aiEnhanceStepText}</span>
+            </div>
+          )}
 
           {/* Windows Explorer Drag & Drop Overlay */}
           {isDragOver && (
@@ -809,6 +920,7 @@ export function Shell(): React.ReactElement {
             isBrowserOpen={showBrowser}
             onToggleAIChat={handleToggleAIChat}
             isAIChatOpen={showAIChat}
+            onEnhanceSlide={handleEnhanceSlide}
           />
 
           {/* ─── Milestone 4: Presentation Overlays ───────────────────────────── */}
@@ -854,6 +966,9 @@ export function Shell(): React.ReactElement {
             currentSubject={docState.lesson?.meta?.subject}
             width={chatWidth}
             onWidthChange={handleChatWidthChange}
+            initialQuery={askAiInitialQuery}
+            onClearInitialQuery={() => setAskAiInitialQuery(null)}
+            onEnhanceBoard={handleEnhanceSlide}
           />
         )}
       </div>

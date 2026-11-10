@@ -188,9 +188,14 @@ export function InlineTextEditor({
     return Math.max(720, Math.min(1500, screenWidth - screenLeft - 380));
   }, [screenLeft]);
 
-  // Real-time KaTeX formula rendering — strictly for pure LaTeX math mode
+  // Real-time KaTeX formula / Markdown math live preview
   const latexPreview = useMemo(() => {
     if (!isLatexMode || isMarkdownMode || isHtmlMode || !content.trim()) return null;
+    const isPure = isPureLatexFormula(content);
+    if (!isPure && (content.includes('$') || isMarkdownSyntax(content) || /\b[a-zA-Z]{3,}\b/.test(content))) {
+      const html = markdownToHtml(content);
+      return { html, success: true, isMixed: true, error: undefined };
+    }
     return renderLatexHtml(content || 'E = mc^2', true);
   }, [content, isLatexMode, isMarkdownMode, isHtmlMode]);
 
@@ -201,8 +206,9 @@ export function InlineTextEditor({
       return;
     }
 
-    const isLatex = !isHtmlMode && !isMarkdownMode && (isLatexMode || isPureLatexFormula(content));
-    const isMarkdown = !isHtmlMode && (isMarkdownMode || (!isLatex && isMarkdownSyntax(content)));
+    const isPure = isPureLatexFormula(content);
+    const isLatex = !isHtmlMode && !isMarkdownMode && Boolean((isLatexMode || isPure) && isPure);
+    const isMarkdown = !isHtmlMode && (isMarkdownMode || !isLatex);
     const normalizedContent = isLatex ? autoFormatLatexFractions(autoFormatMathOperators(content)) : content;
     let estimatedWidth: number;
     let estimatedHeight: number;
@@ -431,7 +437,7 @@ export function InlineTextEditor({
               style={{ cursor: 'pointer' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
-                <span className="latex-badge">∑ LaTeX Formula</span>
+                <span className="latex-badge">{(latexPreview as any)?.isMixed ? '∑ Markdown & Math' : '∑ LaTeX Formula'}</span>
                 <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600 }}>Click to apply to board ↵</span>
               </div>
               <div

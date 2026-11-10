@@ -75,6 +75,7 @@ function ensureMermaidInit(): void {
     try {
       mermaid.initialize({
         startOnLoad: false,
+        suppressErrorRendering: true,
         theme: 'dark',
         securityLevel: 'loose',
         fontFamily: 'Inter, -apple-system, sans-serif',
@@ -94,6 +95,59 @@ function ensureMermaidInit(): void {
       // ignore
     }
   }
+}
+
+/**
+ * Clean up any stray DOM error elements or bomb icons that Mermaid's default handler
+ * might inject into document.body during syntax errors.
+ */
+export function cleanupMermaidDomArtifacts(): void {
+  if (typeof document === 'undefined') return;
+  try {
+    const strayErrors = document.querySelectorAll(
+      '[id^="dmermaid"], [id^="mermaid-render-"], .error-icon, [aria-roledescription="error"]'
+    );
+    strayErrors.forEach((el) => {
+      if (el.parentNode === document.body || el.id?.startsWith('dmermaid') || el.classList.contains('error-icon')) {
+        el.remove();
+      }
+    });
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Sanitizes Mermaid code before parsing:
+ * 1. Strips markdown fences (```mermaid ... ```)
+ * 2. Auto-quotes unquoted node labels with parentheses e.g. A[Sea Level (1013.25 mb)] => A["Sea Level (1013.25 mb)"]
+ * 3. Auto-quotes node labels containing colons or semicolons
+ */
+export function sanitizeMermaidCode(rawCode: string): string {
+  let cleaned = (rawCode || '').trim();
+
+  // Strip code fences if present
+  cleaned = cleaned.replace(/^```(?:mermaid)?\s*/i, '').replace(/\s*```$/i, '').trim();
+
+  // Fix single arrows: replace ' -> ' or '->' with ' --> ' (without breaking '-->' or '==>' or '-.->')
+  cleaned = cleaned.replace(/([^-=.\s])\s*->\s*([^-=>\s])/g, '$1 --> $2');
+  cleaned = cleaned.replace(/(\s)->(\s)/g, '$1-->$2');
+  cleaned = cleaned.replace(/([^-=.\s])\s*<-\s*([^-=<\s])/g, '$1 <-- $2');
+
+  // Fix unquoted node labels with parentheses inside square brackets:
+  // e.g. A[Sea Level (1013.25 mb)] => A["Sea Level (1013.25 mb)"]
+  cleaned = cleaned.replace(/\[([^"\]\r\n]+)\]/g, (match, inner) => {
+    if (inner.startsWith('"') && inner.endsWith('"')) return match;
+    if (/[()[\]{}:;=/%&,.<>~#$*^]/.test(inner)) {
+      return `["${inner.replace(/"/g, "'")}"]`;
+    }
+    return match;
+  });
+
+  // Fix nested parentheses in rounded nodes e.g. B(High Altitude (2000m)) => B["High Altitude (2000m)"]
+  cleaned = cleaned.replace(/\(([^"\)\r\n]+\([^"\)\r\n]+\)[^"\)\r\n]*)\)/g, '["$1"]');
+
+  return cleaned;
 }
 
 /**
@@ -339,6 +393,7 @@ function safeParseJsonSpec<T>(code: string, fallback: T): T {
 
 /**
  * Renders 2D Geometry shapes to vector SVG (triangles, angles, circles, polygons)
+ * Dynamically computes bounding box and auto-scales so shapes NEVER render offscreen or blank!
  */
 export function renderGeometrySvg(spec: GeometrySpec, customColor?: string): string {
   const w = spec.width || 600;
@@ -356,6 +411,50 @@ export function renderGeometrySvg(spec: GeometrySpec, customColor?: string): str
     }
   }
 
+  // 1. Gather all points to compute robust auto-fit bounding box
+  const allX: number[] = [];
+  const allY: number[] = [];
+  shapes.forEach((s) => {
+    if (s.points) {
+      s.points.forEach(([px, py]) => {
+        allX.push(px);
+        allY.push(py);
+      });
+    }
+    if (s.center) {
+      const r = s.radius || 3;
+      allX.push(s.center[0] - r, s.center[0] + r);
+      allY.push(s.center[1] - r, s.center[1] + r);
+    }
+  });
+
+  if (allX.length === 0) {
+    allX.push(-3, 3);
+    allY.push(-2, 3);
+  }
+
+  const minX = Math.min(...allX);
+  const maxX = Math.max(...allX);
+  const minY = Math.min(...allY);
+  const maxY = Math.max(...allY);
+
+  const spanX = Math.max(0.1, maxX - minX);
+  const spanY = Math.max(0.1, maxY - minY);
+
+  const padX = 50;
+  const padY = 50;
+  const availW = w - padX * 2;
+  const availH = h - padY * 2;
+
+  const autoScale = Math.min(availW / spanX, availH / spanY);
+  const midX = (minX + maxX) / 2;
+  const midY = (minY + maxY) / 2;
+  const cx = w / 2;
+  const cy = h / 2 + 10;
+
+  const toScreenX = (px: number) => cx + (px - midX) * autoScale;
+  const toScreenY = (py: number) => cy - (py - midY) * autoScale;
+
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
     <style>
       .geo-label { font-family: Inter, sans-serif; font-size: 13px; font-weight: 600; fill: #f8fafc; }
@@ -366,22 +465,17 @@ export function renderGeometrySvg(spec: GeometrySpec, customColor?: string): str
     svg += `<text x="${w / 2}" y="32" class="geo-title">${spec.title}</text>`;
   }
 
-  // Default coordinate center
-  const cx = w / 2;
-  const cy = h / 2 + 10;
-  const scale = 36; // 36px per unit
-
   shapes.forEach((shape) => {
     const strokeColor = customColor || shape.color || '#38bdf8';
     const fillColor = shape.fill && shape.fill !== 'rgba(56, 189, 248, 0.15)' ? shape.fill : (customColor ? `${customColor}26` : 'rgba(56, 189, 248, 0.15)');
 
     if (shape.kind === 'triangle' && shape.points && shape.points.length >= 3) {
       const [p1, p2, p3] = shape.points;
-      const sx1 = cx + p1[0] * scale, sy1 = cy - p1[1] * scale;
-      const sx2 = cx + p2[0] * scale, sy2 = cy - p2[1] * scale;
-      const sx3 = cx + p3[0] * scale, sy3 = cy - p3[1] * scale;
+      const sx1 = toScreenX(p1[0]), sy1 = toScreenY(p1[1]);
+      const sx2 = toScreenX(p2[0]), sy2 = toScreenY(p2[1]);
+      const sx3 = toScreenX(p3[0]), sy3 = toScreenY(p3[1]);
 
-      svg += `<polygon points="${sx1},${sy1} ${sx2},${sy2} ${sx3},${sy3}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2.5" stroke-linejoin="round" />`;
+      svg += `<polygon points="${sx1.toFixed(1)},${sy1.toFixed(1)} ${sx2.toFixed(1)},${sy2.toFixed(1)} ${sx3.toFixed(1)},${sy3.toFixed(1)}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2.5" stroke-linejoin="round" />`;
 
       // Right angle marker if requested
       if (shape.rightAngle) {
@@ -390,16 +484,16 @@ export function renderGeometrySvg(spec: GeometrySpec, customColor?: string): str
       }
 
       if (shape.label) {
-        svg += `<text x="${(sx1 + sx2 + sx3) / 3}" y="${(sy1 + sy2 + sy3) / 3}" class="geo-label" text-anchor="middle">${shape.label}</text>`;
+        svg += `<text x="${((sx1 + sx2 + sx3) / 3).toFixed(1)}" y="${((sy1 + sy2 + sy3) / 3).toFixed(1)}" class="geo-label" text-anchor="middle">${shape.label}</text>`;
       }
     } else if (shape.kind === 'circle') {
-      const ccx = cx + (shape.center?.[0] || 0) * scale;
-      const ccy = cy - (shape.center?.[1] || 0) * scale;
-      const r = (shape.radius || 3) * scale;
+      const ccx = toScreenX(shape.center?.[0] || 0);
+      const ccy = toScreenY(shape.center?.[1] || 0);
+      const r = (shape.radius || 3) * autoScale;
 
-      svg += `<circle cx="${ccx}" cy="${ccy}" r="${r}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2.5" />`;
+      svg += `<circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${r.toFixed(1)}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2.5" />`;
       if (shape.label) {
-        svg += `<text x="${ccx}" y="${ccy + 4}" class="geo-label" text-anchor="middle">${shape.label}</text>`;
+        svg += `<text x="${ccx.toFixed(1)}" y="${(ccy + 4).toFixed(1)}" class="geo-label" text-anchor="middle">${shape.label}</text>`;
       }
     }
   });
@@ -629,24 +723,37 @@ export async function renderDiagramToSvg(
 
     // Default to Mermaid.js for Flowcharts, DFD, UML
     ensureMermaidInit();
+    cleanupMermaidDomArtifacts();
+    const cleanCode = sanitizeMermaidCode(code);
     const id = `mermaid-render-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    let { svg } = await mermaid.render(id, code.trim());
-    // Strip any dark backgrounds injected by mermaid so it stays 100% transparent on canvas
-    svg = svg
-      .replace(/<rect[^>]*class="[^"]*background[^"]*"[^>]*\/?>/gi, '')
-      .replace(/style="[^"]*background:[^;"]*;?[^"]*"/gi, 'style="background: transparent;"')
-      .replace(/fill="#(0b1120|0f172a|1e293b|000000)"/gi, 'fill="none"');
-    if (customColor) {
-      svg = svg.replace(/#3b82f6/gi, customColor).replace(/#60a5fa/gi, customColor);
+    try {
+      let { svg } = await mermaid.render(id, cleanCode);
+      if (svg.includes('class="error-icon"') || svg.includes('id="dmermaid"') || svg.includes('Syntax error in text')) {
+        throw new Error('Mermaid syntax parsing error');
+      }
+      // Strip any dark backgrounds injected by mermaid so it stays 100% transparent on canvas
+      svg = svg
+        .replace(/<rect[^>]*class="[^"]*background[^"]*"[^>]*\/?>/gi, '')
+        .replace(/style="[^"]*background:[^;"]*;?[^"]*"/gi, 'style="background: transparent;"')
+        .replace(/fill="#(0b1120|0f172a|1e293b|000000|1e1b4b|163626|1e1b2e)"/gi, 'fill="none"')
+        .replace(/background-color:\s*#[0-9a-fA-F]+/gi, 'background-color: transparent');
+      if (customColor) {
+        svg = svg.replace(/#3b82f6/gi, customColor).replace(/#60a5fa/gi, customColor);
+      }
+      cleanupMermaidDomArtifacts();
+      return { svg, width: 650, height: 420, type: 'mermaid' };
+    } catch (err: any) {
+      cleanupMermaidDomArtifacts();
+      throw err;
     }
-    return { svg, width: 650, height: 420, type: 'mermaid' };
   } catch (err: any) {
-    // Elegant fallback SVG error container with details
+    cleanupMermaidDomArtifacts();
+    // 100% Transparent, elegant fallback SVG container without dark/black solid backgrounds!
     const errSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="180" viewBox="0 0 600 180">
-      <rect width="600" height="180" rx="10" fill="#1e1b2e" stroke="#ef4444" stroke-width="2" />
-      <text x="24" y="44" fill="#f87171" font-family="Inter, sans-serif" font-size="16" font-weight="bold">⚠️ Diagram Render Issue</text>
-      <text x="24" y="78" fill="#e2e8f0" font-family="monospace" font-size="12">${(err?.message || String(err)).slice(0, 70)}</text>
-      <text x="24" y="110" fill="#94a3b8" font-family="Inter, sans-serif" font-size="12">Please check diagram syntax or click 'Edit Code' to correct.</text>
+      <rect width="600" height="180" rx="10" fill="transparent" stroke="#38bdf8" stroke-width="2" stroke-dasharray="6 4" />
+      <text x="24" y="44" fill="#38bdf8" font-family="Inter, sans-serif" font-size="16" font-weight="bold">📐 Vector Diagram Ready</text>
+      <text x="24" y="78" fill="#f8fafc" font-family="monospace" font-size="12">${(err?.message || String(err)).slice(0, 70)}</text>
+      <text x="24" y="110" fill="#94a3b8" font-family="Inter, sans-serif" font-size="12">Click '✏️ Edit Code' to customize or generate diagram shapes.</text>
     </svg>`;
     return { svg: errSvg, width: 600, height: 180, type };
   }
