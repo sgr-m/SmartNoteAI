@@ -83,6 +83,7 @@ import { Globe3DModal } from './geography/Globe3DModal';
 import { GisThematicModal } from './geography/GisThematicModal';
 import { VectorDiagramModal } from './vectorDiagram/VectorDiagramModal';
 import { renderDiagramToSvg, diagramSvgToDataUrl } from '../services/vectorDiagramService';
+import { enhanceIndividualTextWithAI } from '../services/boardEnhanceService';
 import { v4 as uuidv4 } from 'uuid';
 import './WhiteboardCanvas.css';
 
@@ -146,6 +147,7 @@ export function WhiteboardCanvas(props?: WhiteboardCanvasProps): React.ReactElem
   // Text modal state
   const [textModalPos, setTextModalPos] = useState<Point | null>(null);
   const [editingTextObj, setEditingTextObj] = useState<TextObject | null>(null);
+  const [isEnhancingSelectedText, setIsEnhancingSelectedText] = useState(false);
   const [editingDiagramObj, setEditingDiagramObj] = useState<ImageObject | null>(null);
   const [showAddToResourceModal, setShowAddToResourceModal] = useState(false);
   const [resourceObjectToSave, setResourceObjectToSave] = useState<CanvasObject | null>(null);
@@ -2118,6 +2120,50 @@ export function WhiteboardCanvas(props?: WhiteboardCanvasProps): React.ReactElem
     setActiveTool('select');
   };
 
+  // ─── Individual AI Text Enhancement ─────────────────────────────────────────
+
+  const handleEnhanceSelectedText = async (textObj: TextObject) => {
+    if (!textObj || isEnhancingSelectedText) return;
+    setIsEnhancingSelectedText(true);
+    try {
+      const page = currentPageRef.current;
+      const currentBg = page?.background?.color || '#142d22';
+      const pageIndex = currentPageIndexRef.current;
+
+      const result = await enhanceIndividualTextWithAI({
+        textObj,
+        canvasWidth: page?.width || 1920,
+        canvasHeight: page?.height || 1080,
+        backgroundColor: currentBg,
+        slideTitle: docState.lesson?.meta?.title || 'Lesson',
+        subject: docState.lesson?.meta?.subject,
+      });
+
+      if (result.success && result.enhancedObject) {
+        const prev = textObj;
+        const updated = result.enhancedObject;
+        commandSystem.execute({
+          id: uuidv4(),
+          description: 'AI Enhance Selected Text',
+          execute() {
+            docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: updated });
+            setSelectedObject(updated);
+          },
+          undo() {
+            docDispatch({ type: 'UPDATE_OBJECT', pageIndex, object: prev });
+            setSelectedObject(prev);
+          },
+        });
+        engineRef.current?.requestActiveRender();
+        engineRef.current?.requestCommittedRender();
+      }
+    } catch (err) {
+      console.error('Failed to enhance selected text with AI:', err);
+    } finally {
+      setIsEnhancingSelectedText(false);
+    }
+  };
+
 
 
   // ─── Resize Handling ──────────────────────────────────────────────────────
@@ -2454,6 +2500,22 @@ export function WhiteboardCanvas(props?: WhiteboardCanvasProps): React.ReactElem
               <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
             </svg>
             <span>Edit {((selectedObject as TextObject).isLatex && isPureLatexFormula((selectedObject as TextObject).content)) ? 'Formula' : 'Text'}</span>
+          </button>
+
+          {/* Quick "✨ Enhance" button on selected textbox */}
+          <button
+            type="button"
+            className="quick-enhance-text-btn"
+            title="✨ AI Enhance — Generate presentation styling, borders, theme colors, and formatting"
+            disabled={isEnhancingSelectedText}
+            onClick={async (e) => {
+              e.stopPropagation();
+              const t = selectedObject as TextObject;
+              await handleEnhanceSelectedText(t);
+            }}
+          >
+            <span className="enhance-sparkle">{isEnhancingSelectedText ? '⏳' : '✨'}</span>
+            <span>{isEnhancingSelectedText ? 'Enhancing...' : 'Enhance'}</span>
           </button>
 
           {/* Quick "✨ Ask AI" button on selected textbox */}

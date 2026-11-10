@@ -504,6 +504,41 @@
   transform: translateY(-1px);
 }
 
+.selected-text-quick-edit-pill .quick-enhance-text-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #d97706 0%, #b45309 50%, #f59e0b 100%);
+  border: 1.5px solid #fbbf24;
+  color: #ffffff;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.15s ease;
+}
+
+.selected-text-quick-edit-pill .quick-enhance-text-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #b45309 0%, #92400e 100%);
+  border-color: #fde047;
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.65);
+  transform: translateY(-1px);
+}
+
+.selected-text-quick-edit-pill .quick-enhance-text-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.selected-text-quick-edit-pill .quick-enhance-text-btn .enhance-sparkle {
+  font-size: 13px;
+  filter: drop-shadow(0 0 4px #fde047);
+}
+
 .selected-text-quick-edit-pill .quick-ask-ai-btn {
   display: inline-flex;
   align-items: center;

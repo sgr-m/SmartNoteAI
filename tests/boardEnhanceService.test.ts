@@ -1,7 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   isDarkChalkboardTheme,
   enhanceSlideContent,
+  enhanceSlideContentWithAI,
+  enhanceIndividualTextWithAI,
   isTableContent,
   formatMarkdownTable,
 } from '../src/renderer/services/boardEnhanceService';
@@ -198,11 +200,11 @@ describe('AI 1-Click Board Enhancement & Vector Icon Library', () => {
       expect(enhancedTitle.fontWeight).toBe(700);
       expect(enhancedTitle.width).toBeGreaterThanOrEqual(1000);
 
-      // Verify decorative underline shape beneath title
-      const underlineShape = result.enhancedObjects.find(
-        (o) => o.type === 'shape' && (o as any).shapeType === 'line'
+      // Verify decorative underline styling beneath title (canvas line shape or presentation CSS gradient line)
+      const hasUnderline = result.enhancedObjects.some(
+        (o) => (o.type === 'shape' && (o as any).shapeType === 'line') || (o.type === 'text' && (o as TextObject).content.includes('linear-gradient'))
       );
-      expect(underlineShape).toBeDefined();
+      expect(hasUnderline).toBe(true);
 
       // Verify warning styling
       const enhancedWarning = result.enhancedObjects.find((o) => o.id === 't2') as TextObject;
@@ -386,6 +388,136 @@ Totals    \\sum f_i = 20    \\sum (f_i * x_i) = 1540`,
       const code = 'graph TD\nA["Already Quoted (text)"] --> B["Another One"]';
       const sanitized = sanitizeMermaidCode(code);
       expect(sanitized).toBe(code);
+    });
+  });
+
+  describe('enhanceIndividualTextWithAI & Online Presentation Styles', () => {
+    it('enhances heading with modern online presentation styling (category tag pill & gradient underline)', async () => {
+      const headingObj: TextObject = {
+        id: 'heading-1',
+        type: 'text',
+        content: 'Standard Deviation',
+        x: 80,
+        y: 60,
+        width: 800,
+        height: 50,
+        fontSize: 36,
+        color: '#ffffff',
+        locked: false,
+        visible: true,
+        layerId: 'objects',
+      };
+
+      const result = await enhanceIndividualTextWithAI({
+        textObj: headingObj,
+        canvasWidth: 1920,
+        canvasHeight: 1080,
+        backgroundColor: '#142d22',
+        slideTitle: 'Statistics',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.enhancedObject).toBeDefined();
+      expect(result.enhancedObject.isMarkdown).toBe(true);
+
+      // Verify Online Presentation Heading Styling:
+      // 1. Tag pill with border & background
+      expect(result.enhancedObject.content).toContain('display:inline-block');
+      expect(result.enhancedObject.content).toContain('border-radius: 12px');
+      // 2. High-contrast title
+      expect(result.enhancedObject.content).toContain('# 🚩 Standard Deviation');
+      // 3. Full-width gradient accent line
+      expect(result.enhancedObject.content).toContain('linear-gradient(90deg, #facc15 0%, #38bdf8 55%, transparent 100%)');
+    });
+
+    it('enhances table text directly preserving exact formulas and row counts', async () => {
+      const tableObj: TextObject = {
+        id: 'table-1',
+        type: 'text',
+        content: `Score (x_i)    Frequency (f_i)    Product (f_i * x_i)
+60    2    60 * 2 = 120
+70    5    70 * 5 = 350
+Totals    \\sum f_i = 20    \\sum (f_i * x_i) = 1540`,
+        x: 80,
+        y: 200,
+        width: 900,
+        height: 250,
+        fontSize: 28,
+        color: '#ffffff',
+        locked: false,
+        visible: true,
+        layerId: 'objects',
+      };
+
+      const result = await enhanceIndividualTextWithAI({
+        textObj: tableObj,
+        backgroundColor: '#142d22',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.enhancedObject.content).toContain('| Score ($x_i$) | Frequency ($f_i$) | Product ($f_i \\cdot x_i$) |');
+      expect(result.enhancedObject.content).toContain('| 60 | 2 | $60 \\cdot 2 = 120$ |');
+      expect(result.enhancedObject.content).toContain('| **Totals** | $\\sum f_i = 20$ | $\\sum (f_i \\cdot x_i) = 1540$ |');
+    });
+  });
+
+  describe('enhanceSlideContentWithAI (Parallel Multi-Element Processing)', () => {
+    it('processes all text elements in parallel with progress updates and zero overlap', async () => {
+      const slidePage: Page = {
+        id: 'page-ai-test',
+        title: 'Statistics Lesson',
+        width: 1920,
+        height: 1080,
+        background: { type: 'color', color: '#142d22' },
+        layers: [{ id: 'objects', name: 'Objects', visible: true, locked: false }],
+        objects: [
+          {
+            id: 'h-1',
+            type: 'text',
+            content: 'Standard Deviation and Variance',
+            x: 80,
+            y: 50,
+            fontSize: 36,
+            color: '#ffffff',
+            locked: false,
+            visible: true,
+            layerId: 'objects',
+          } as TextObject,
+          {
+            id: 'sub-1',
+            type: 'text',
+            content: 'Key formulas and step-by-step calculations for grouped data',
+            x: 80,
+            y: 120,
+            fontSize: 28,
+            color: '#ffffff',
+            locked: false,
+            visible: true,
+            layerId: 'objects',
+          } as TextObject,
+        ],
+      };
+
+      const progressSteps: string[] = [];
+      const result = await enhanceSlideContentWithAI({
+        page: slidePage,
+        onStepProgress: (step) => {
+          progressSteps.push(step.statusText);
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.steps.length).toBeGreaterThan(0);
+      expect(progressSteps.length).toBeGreaterThan(0);
+
+      const enhancedHeading = result.enhancedObjects.find((o) => o.id === 'h-1') as TextObject;
+      const enhancedSub = result.enhancedObjects.find((o) => o.id === 'sub-1') as TextObject;
+
+      expect(enhancedHeading).toBeDefined();
+      expect(enhancedSub).toBeDefined();
+
+      // Zero overlap check
+      expect(enhancedSub.y).toBeGreaterThan(enhancedHeading.y + (enhancedHeading.height || 40));
     });
   });
 });

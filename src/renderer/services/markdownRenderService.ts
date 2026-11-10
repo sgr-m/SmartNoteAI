@@ -330,7 +330,14 @@ export function markdownToHtml(rawMarkdown: string): string {
       continue;
     }
 
-    // 10. Standard Paragraph
+    // 10. Direct HTML / Presentation components (e.g. <div style="...">, <span style="...">)
+    if (/^\s*<(div|span|section|article|header|table|hr|blockquote)\b/i.test(trimmed)) {
+      flushList();
+      htmlParts.push(renderInlineMarkdownAndLatex(rawLine));
+      continue;
+    }
+
+    // 11. Standard Paragraph
     flushList();
     htmlParts.push(`<p style="margin: 5px 0; line-height: 1.45;">${renderInlineMarkdownAndLatex(rawLine)}</p>`);
   }

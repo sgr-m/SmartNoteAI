@@ -48,7 +48,7 @@ import {
 import { measureMarkdownSize } from '../services/markdownRenderService';
 import { createImageObject, sanitizeSvg } from '../services/documentImportService';
 import { isTypingOrInputFocused } from '../utils/keyboardUtils';
-import { enhanceSlideContent } from '../services/boardEnhanceService';
+import { enhanceSlideContent, enhanceSlideContentWithAI } from '../services/boardEnhanceService';
 import { v4 as uuidv4 } from 'uuid';
 import { useAppContext } from '../context/AppContext';
 import './Shell.css';
@@ -217,63 +217,91 @@ export function Shell(): React.ReactElement {
     const page = docState.lesson?.pages[pageIndex];
     if (!page) return;
 
-    const previousObjects = [...page.objects];
-    const previousBackground = page.background ? { ...page.background } : undefined;
-    const enhanceRes = enhanceSlideContent(page);
-    if (!enhanceRes.success) {
-      setToastMessage(enhanceRes.message);
+    if (!page.objects || page.objects.length === 0) {
+      setToastMessage('No content on the current slide to enhance. Add or drag text onto the board first!');
       return;
     }
 
+    const previousObjects = [...page.objects];
+    const previousBackground = page.background ? { ...page.background } : undefined;
+
     setIsAiEnhancing(true);
+    setAiEnhanceStepText('✨ Connecting to AI Presentation Designer...');
 
-    // Progressive Generation Execution with live visual feedback
-    for (const step of enhanceRes.steps) {
-      setAiEnhanceStepText(step.statusText);
-      if (step.newBackground) {
-        docDispatch({ type: 'SET_PAGE_BACKGROUND', pageIndex, background: step.newBackground });
-      }
-      docDispatch({
-        type: 'REORDER_OBJECTS',
-        pageIndex,
-        objects: step.objects,
+    try {
+      const enhanceRes = await enhanceSlideContentWithAI({
+        page,
+        onStepProgress: (step) => {
+          setAiEnhanceStepText(step.statusText);
+          if (step.newBackground) {
+            docDispatch({ type: 'SET_PAGE_BACKGROUND', pageIndex, background: step.newBackground });
+          }
+          docDispatch({
+            type: 'REORDER_OBJECTS',
+            pageIndex,
+            objects: step.objects,
+          });
+        },
       });
-      // Brief pause so the user visually sees each step of AI generation live
-      await new Promise((r) => setTimeout(r, 320));
+
+      if (!enhanceRes.success) {
+        setToastMessage(enhanceRes.message);
+        setIsAiEnhancing(false);
+        setAiEnhanceStepText('');
+        return;
+      }
+
+      // Progressive Generation execution with smooth step animation
+      for (const step of enhanceRes.steps) {
+        setAiEnhanceStepText(step.statusText);
+        if (step.newBackground) {
+          docDispatch({ type: 'SET_PAGE_BACKGROUND', pageIndex, background: step.newBackground });
+        }
+        docDispatch({
+          type: 'REORDER_OBJECTS',
+          pageIndex,
+          objects: step.objects,
+        });
+        await new Promise((r) => setTimeout(r, 220));
+      }
+
+      // Register a single unified command in commandSystem for seamless Ctrl+Z Undo
+      commandSystem.execute({
+        id: uuidv4(),
+        description: 'AI Board Enhancement & Non-Overlapping Alignment',
+        execute() {
+          if (enhanceRes.newBackground) {
+            docDispatch({ type: 'SET_PAGE_BACKGROUND', pageIndex, background: enhanceRes.newBackground });
+          }
+          docDispatch({
+            type: 'REORDER_OBJECTS',
+            pageIndex,
+            objects: enhanceRes.enhancedObjects,
+          });
+        },
+        undo() {
+          if (previousBackground) {
+            docDispatch({ type: 'SET_PAGE_BACKGROUND', pageIndex, background: previousBackground });
+          }
+          docDispatch({
+            type: 'REORDER_OBJECTS',
+            pageIndex,
+            objects: previousObjects,
+          });
+        },
+      });
+
+      setAiEnhanceStepText('🎉 Slide Beautifully Enhanced & Aligned!');
+      setToastMessage(enhanceRes.message);
+    } catch (err) {
+      console.error('AI Enhance Slide error:', err);
+      setToastMessage('Failed to enhance slide. Please try again.');
+    } finally {
+      setTimeout(() => {
+        setIsAiEnhancing(false);
+        setAiEnhanceStepText('');
+      }, 1200);
     }
-
-    // Register a single unified command in commandSystem for seamless Ctrl+Z Undo
-    commandSystem.execute({
-      id: uuidv4(),
-      description: 'AI Board Enhancement & Non-Overlapping Alignment',
-      execute() {
-        if (enhanceRes.newBackground) {
-          docDispatch({ type: 'SET_PAGE_BACKGROUND', pageIndex, background: enhanceRes.newBackground });
-        }
-        docDispatch({
-          type: 'REORDER_OBJECTS',
-          pageIndex,
-          objects: enhanceRes.enhancedObjects,
-        });
-      },
-      undo() {
-        if (previousBackground) {
-          docDispatch({ type: 'SET_PAGE_BACKGROUND', pageIndex, background: previousBackground });
-        }
-        docDispatch({
-          type: 'REORDER_OBJECTS',
-          pageIndex,
-          objects: previousObjects,
-        });
-      },
-    });
-
-    setAiEnhanceStepText('🎉 Slide Beautifully Enhanced & Aligned!');
-    setToastMessage(enhanceRes.message);
-    setTimeout(() => {
-      setIsAiEnhancing(false);
-      setAiEnhanceStepText('');
-    }, 1200);
   }, [docState.currentPageIndex, docState.lesson, docDispatch, commandSystem, setToastMessage]);
 
   // Window event listener for 1-Click AI Enhance
