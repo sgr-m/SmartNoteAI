@@ -97,6 +97,9 @@
     "files": [
       "dist/**/*",
       "assets/**/*",
+      "!assets/MapsData/**/*",
+      "!assets/Screenshots/**/*",
+      "!assets/**/.gitkeep",
       "node_modules/**/*"
     ],
     "extraResources": [
