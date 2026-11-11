@@ -128,6 +128,17 @@ describe('Document Import Subsystem (Section 11)', () => {
 
   describe('PDF Processing and Local Worker Setup (Section 11.1)', () => {
     it('parses PDF document locally without remote CDN dependencies', async () => {
+      if (typeof (Promise as any).withResolvers !== 'function') {
+        (Promise as any).withResolvers = function withResolvers<T>() {
+          let resolve!: (value: T | PromiseLike<T>) => void;
+          let reject!: (reason?: unknown) => void;
+          const promise = new Promise<T>((res, rej) => {
+            resolve = res;
+            reject = rej;
+          });
+          return { promise, resolve, reject };
+        };
+      }
       const pdfjsLib = await import('pdfjs-dist');
       const pdfjsWorker: any = await import('pdfjs-dist/build/pdf.worker.min.mjs');
       (globalThis as any).pdfjsWorker = pdfjsWorker;
