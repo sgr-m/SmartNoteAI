@@ -4,6 +4,13 @@ import subjectTools from '../assets/images/subject-tools.png';
 import focusTool from '../assets/images/focus-tool.png';
 import notesLatex from '../assets/images/notes-latex.png';
 import resourceLibrary from '../assets/images/resource-library.png';
+import aiTeachingAssistant from '../assets/images/ai-teaching-assistant.jpg';
+import educationalWebBrowser from '../assets/images/educational-web-browser.png';
+import subjectMath from '../assets/images/subject-platform-mathematics.jpg';
+import subjectPhysics from '../assets/images/subject-platform-physics.jpg';
+import subjectCs from '../assets/images/subject-platform-cs.jpg';
+import subjectGeography from '../assets/images/subject-platform-geography.jpg';
+import geographyResourceCentre from '../assets/images/geography-resource-centre.jpg';
 
 export interface GalleryItem {
   id: string;
@@ -17,6 +24,83 @@ export interface GalleryItem {
 }
 
 export const galleryItems: GalleryItem[] = [
+  {
+    id: 'ai-teaching-assistant',
+    title: 'AI Teaching Assistant: Drag & Drop Cards, KaTeX & Vector Diagrams',
+    category: 'AI Studio',
+    description:
+      'Docked AI co-teacher generating Mermaid flowcharts, KaTeX equations, symbol tables, and Web Search results with Drag & + Insert buttons.',
+    src: aiTeachingAssistant,
+    alt: 'SmartNoteAI Teaching Assistant panel beside whiteboard canvas displaying photon formula and symbol table',
+    resolution: '1024 × 579',
+    fitMode: 'cover',
+  },
+  {
+    id: 'educational-web-browser',
+    title: 'Integrated Multi-Tab Educational Web Browser & Area Capture',
+    category: 'In-App Browser',
+    description:
+      'Built-in multi-tab browser with 1-click Google, Google Images, DuckDuckGo, Bing, Wikipedia, PhET Sims, and Capture Area / Capture Full tools.',
+    src: educationalWebBrowser,
+    alt: 'SmartNoteAI Educational Web Browser modal showing quick search portals, tabs, Capture Area and Capture Full buttons',
+    resolution: '1024 × 651',
+    fitMode: 'contain',
+  },
+  {
+    id: 'geography-resource-centre',
+    title: 'Geography Resource Centre (Official Survey of India Standard)',
+    category: 'Geography & Maps',
+    description:
+      'Official Survey of India 2026 India Political Map (28 States & 8 UTs), 780+ Districts Atlas, 1:50,000 Toposheets, 3D Globe, GIS Lab & Offline Sync.',
+    src: geographyResourceCentre,
+    alt: 'SmartNoteAI Geography Resource Centre displaying Survey of India standard Political Map of India, World Atlas, Topographical Maps, and 3D Globe',
+    resolution: '1024 × 673',
+    fitMode: 'contain',
+  },
+  {
+    id: 'subject-platform-math',
+    title: 'Subject Teaching Platform: Mathematics Instruments & Graphing',
+    category: 'Mathematics',
+    description:
+      'Scientific Calculator, Calibrated Ruler, 180° Protractor, Geometric Compass, Set Squares, 2D/3D Coordinate Planes, Function Plotter & 3D Solids.',
+    src: subjectMath,
+    alt: 'SmartNoteAI Subject Teaching Platform Mathematics tab showing instruments and graphing modules',
+    resolution: '962 × 1012',
+    fitMode: 'contain',
+  },
+  {
+    id: 'subject-platform-physics',
+    title: 'Subject Teaching Platform: Physics Circuits & Force Vectors',
+    category: 'Physics',
+    description:
+      'DC Power Supply, Resistors, Rheostat, Capacitor, Inductor, Switches, Meters, Series/Parallel Circuit Builders, Force Vectors & Resultants.',
+    src: subjectPhysics,
+    alt: 'SmartNoteAI Subject Teaching Platform Physics tab showing electrical components and mechanics diagrams',
+    resolution: '977 × 1023',
+    fitMode: 'contain',
+  },
+  {
+    id: 'subject-platform-cs',
+    title: 'Subject Teaching Platform: Computer Science & Architecture',
+    category: 'Computer Science',
+    description:
+      'Syntax-Highlighted Code Blocks, Pseudocode, Flowcharts, Trace Tables, Call Stack, Memory Pointers, Linked Lists, BSTs, Sorting, ER Diagrams & CPU.',
+    src: subjectCs,
+    alt: 'SmartNoteAI Subject Teaching Platform Computer Science tab showing code, data structures, and architecture tools',
+    resolution: '956 × 1015',
+    fitMode: 'contain',
+  },
+  {
+    id: 'subject-platform-geography',
+    title: 'Subject Teaching Platform: Geography Maps, Toposheets & Globe',
+    category: 'Geography',
+    description:
+      'One-click access to Survey of India Official Political Maps, 1:50,000 Topographical Viewer, Conventional Symbols Panel, 3D Earth Lab & Outline Maps.',
+    src: subjectGeography,
+    alt: 'SmartNoteAI Subject Teaching Platform Geography tab showing Survey of India resources and 3D globe tools',
+    resolution: '949 × 1016',
+    fitMode: 'contain',
+  },
   {
     id: 'whiteboard-home',
     title: 'Interactive Whiteboard: Advanced STEM & Math Derivations',

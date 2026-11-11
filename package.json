@@ -110,6 +110,7 @@
       "assets/**/*",
       "!assets/MapsData/**/*",
       "!assets/Screenshots/**/*",
+      "!assets/video/**/*",
       "!assets/**/.gitkeep",
       "node_modules/**/*"
     ],

@@ -24,6 +24,24 @@ export const faqItems: FAQItem[] = [
       'SmartNoteAI is fully supported on 64-bit editions of Windows 10 (version 1809 or later) and Windows 11. It is optimized for standard PCs, laptops, and touch-enabled convertible 2-in-1 devices.',
   },
   {
+    id: 'ai-features',
+    question: 'How do AI Generation, Drag & Drop, AI Enhance, and Ask AI work?',
+    answer:
+      'Open the docked AI Teaching Assistant to generate lesson notes, worked math problems, KaTeX equations, practice questions, Web Search insights, and Mermaid vector diagrams. Responses split into draggable cards (SECTION, EXPLANATION, FORMULA, PRACTICE, VECTOR DIAGRAM) you can drag straight onto the board or insert in one click. You can also click "Enhance" on any textbox or the full slide for instant presentation formatting, or click "Ask AI" on any selected canvas textbox to explain or solve it live.',
+  },
+  {
+    id: 'ai-providers-offline',
+    question: 'Which AI models are supported and can AI run completely offline?',
+    answer:
+      'SmartNoteAI supports Google Gemini, OpenAI, DeepSeek AI, Groq Cloud, Kimi (Moonshot AI), and any custom OpenAI-compatible endpoint—plus automatic detection of local Ollama models so you can run 100% offline AI right on your classroom PC with zero cloud fees or API limits.',
+  },
+  {
+    id: 'integrated-browser-geography',
+    question: 'What is included in the Integrated Browser and Geography Resource Centre?',
+    answer:
+      'The built-in Educational Web Browser offers multi-tab browsing, 1-click portals (Google, Google Images, DuckDuckGo, Bing, Wikipedia, PhET Sims), plus Capture Area and Capture Full buttons to bring diagrams directly onto your canvas. The Geography Resource Centre adheres strictly to official Survey of India cartographic standards, providing the 2026 Political Map of India (28 States & 8 UTs), State Maps, 780+ Districts Atlas, World & Major Rivers Maps, 1:50,000 Toposheets, an Interactive 3D Earth & Globe Lab, GIS Thematic Lab, Outline Worksheets, and One-Click Offline Sync.',
+  },
+  {
     id: 'offline-capability',
     question: 'Does SmartNoteAI require an internet connection?',
     answer:

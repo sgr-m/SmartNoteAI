@@ -28,11 +28,11 @@ export const Footer: React.FC = () => {
           <div className="footer-col">
             <h5>Product</h5>
             <ul>
-              <li><a href="#features">Features</a></li>
-              <li><a href="#community-stats">Live Impact &amp; Metrics</a></li>
+              <li><a href="#ai-studio">AI Teaching Studio</a></li>
+              <li><a href="#features">Features &amp; Browser</a></li>
+              <li><a href="#subjects">Subject Platform</a></li>
+              <li><a href="#geography">Survey of India Atlas</a></li>
               <li><a href="#gallery">Application Tour</a></li>
-              <li><a href="#getting-started">Installation Guide</a></li>
-              <li><a href="#requirements">System Requirements</a></li>
               <li><a href="https://github.com/sgr-m/SmartNoteAI/releases" target="_blank" rel="noopener noreferrer">Releases &amp; Checksums</a></li>
             </ul>
           </div>

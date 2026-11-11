@@ -4,7 +4,10 @@ import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { CommunityStats } from './components/CommunityStats';
 import { TrustStrip } from './components/TrustStrip';
+import { AIShowcase } from './components/AIShowcase';
 import { FeatureShowcase } from './components/FeatureShowcase';
+import { SubjectPlatformShowcase } from './components/SubjectPlatformShowcase';
+import { GeographyCentreShowcase } from './components/GeographyCentreShowcase';
 import { Gallery } from './components/Gallery';
 import { GettingStarted } from './components/GettingStarted';
 import { Requirements } from './components/Requirements';
@@ -23,7 +26,10 @@ export const App: React.FC = () => {
           <Hero />
           <CommunityStats />
           <TrustStrip />
+          <AIShowcase />
           <FeatureShowcase />
+          <SubjectPlatformShowcase />
+          <GeographyCentreShowcase />
           <Gallery />
           <GettingStarted />
           <Requirements />

@@ -12,7 +12,7 @@ export const Hero: React.FC = () => {
         <div className="hero-content">
           <div className="hero-badge-pill">
             <span className="dot" aria-hidden="true"></span>
-            <span>Windows 10 & 11 (64-bit) &bull; Official Release v0.1.0</span>
+            <span>Windows 10 &amp; 11 (64-bit) &bull; Official Release v2.1.0</span>
           </div>
 
           <h1 className="hero-title">
@@ -21,8 +21,7 @@ export const Hero: React.FC = () => {
           </h1>
 
           <p className="hero-description">
-            An open-source digital whiteboard built for teaching, mathematics, computer science, and STEM. 
-            Write naturally, explain complex concepts, annotate your desktop, and create lessons—all from your Windows PC.
+            An open-source AI-powered digital whiteboard built for teaching mathematics, science, computer science, and geography. Generate notes &amp; diagrams with drag-and-drop AI cards, browse PhET &amp; web diagrams inline, use official Survey of India maps, and render KaTeX formulas—right from your Windows PC.
           </p>
 
           <div className="hero-cta-group">
@@ -106,7 +105,7 @@ export const Hero: React.FC = () => {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
               </svg>
-              SmartNoteAI.Setup.0.1.0.exe (~103.8 MB)
+              SmartNoteAI.Setup.2.1.0.exe (Windows x64)
             </span>
             <span>&bull;</span>
             <span className="hero-meta-item">
@@ -154,8 +153,8 @@ export const Hero: React.FC = () => {
               </svg>
             </div>
             <div className="tag-text">
-              <h4>XP-Pen &amp; Wacom Digitizers Active</h4>
-              <p>Hardware pressure curve &bull; 100% Offline KaTeX math rendering</p>
+              <h4>AI Studio &amp; Stylus Digitizers Active</h4>
+              <p>AI Drag &amp; Drop &bull; Survey of India Atlas &bull; Offline KaTeX</p>
             </div>
           </div>
         </div>

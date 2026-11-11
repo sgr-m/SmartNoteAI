@@ -105,6 +105,7 @@ export const FeatureShowcase: React.FC = () => {
                   width="1200"
                   height="675"
                   loading="lazy"
+                  style={{ objectFit: feat.fitMode || 'cover' }}
                 />
               </div>
             </div>

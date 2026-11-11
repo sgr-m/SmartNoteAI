@@ -25,9 +25,9 @@ To support development via any UPI-supported app (PhonePe, Google Pay, Paytm, BH
 
 ## 🌐 PayPal (International)
 
-For international contributors wishing to support through PayPal:
+For international contributors wishing to support through PayPal, Venmo, or major Debit/Credit cards (USD):
 
-- **PayPal Donation Link**: [`PAYPAL_DONATION_URL`](PAYPAL_DONATION_URL)
+- **Official PayPal Checkout**: [**Donate via PayPal on SmartNoteAI Website**](https://sgr-m.github.io/SmartNoteAI/#donate) (`https://sgr-m.github.io/SmartNoteAI/#donate`)
 
 ---
 

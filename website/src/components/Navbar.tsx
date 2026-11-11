@@ -22,16 +22,16 @@ export const Navbar: React.FC = () => {
           <a href="#" className="brand-logo" aria-label="SmartNoteAI Home">
             <img src={logoImg} alt="SmartNoteAI Logo" width="38" height="38" />
             <span className="brand-name">SmartNoteAI</span>
-            <span className="brand-badge">v0.1.0</span>
+            <span className="brand-badge">v2.1.0</span>
           </a>
 
           <ul className="nav-links">
+            <li><a href="#ai-studio" className="nav-link">AI Studio</a></li>
             <li><a href="#features" className="nav-link">Features</a></li>
-            <li><a href="#community-stats" className="nav-link">Impact</a></li>
-            <li><a href="#gallery" className="nav-link">Showcase</a></li>
+            <li><a href="#subjects" className="nav-link">Subjects</a></li>
+            <li><a href="#geography" className="nav-link">Geography</a></li>
+            <li><a href="#gallery" className="nav-link">Gallery</a></li>
             <li><a href="#getting-started" className="nav-link">Get Started</a></li>
-            <li><a href="#requirements" className="nav-link">Requirements</a></li>
-            <li><a href="#open-source" className="nav-link">Open Source</a></li>
             <li><a href="#donate" className="nav-link">Donate</a></li>
             <li><a href="#faq" className="nav-link">FAQ</a></li>
           </ul>
@@ -72,12 +72,12 @@ export const Navbar: React.FC = () => {
 
       {mobileMenuOpen && (
         <div className="mobile-drawer" role="dialog" aria-modal="true" aria-label="Mobile Navigation">
-          <a href="#features" onClick={() => setMobileMenuOpen(false)}>Features</a>
-          <a href="#community-stats" onClick={() => setMobileMenuOpen(false)}>Live Metrics &amp; Impact</a>
-          <a href="#gallery" onClick={() => setMobileMenuOpen(false)}>Showcase</a>
+          <a href="#ai-studio" onClick={() => setMobileMenuOpen(false)}>AI Studio &amp; Demo Video</a>
+          <a href="#features" onClick={() => setMobileMenuOpen(false)}>Core Features &amp; Browser</a>
+          <a href="#subjects" onClick={() => setMobileMenuOpen(false)}>Subject Teaching Platform</a>
+          <a href="#geography" onClick={() => setMobileMenuOpen(false)}>Geography Resource Centre</a>
+          <a href="#gallery" onClick={() => setMobileMenuOpen(false)}>Showcase Gallery</a>
           <a href="#getting-started" onClick={() => setMobileMenuOpen(false)}>Get Started</a>
-          <a href="#requirements" onClick={() => setMobileMenuOpen(false)}>System Requirements</a>
-          <a href="#open-source" onClick={() => setMobileMenuOpen(false)}>Open Source</a>
           <a href="#donate" onClick={() => setMobileMenuOpen(false)}>Voluntary Support</a>
           <a href="#faq" onClick={() => setMobileMenuOpen(false)}>FAQ</a>
           <a

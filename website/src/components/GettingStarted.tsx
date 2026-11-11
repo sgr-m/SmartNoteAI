@@ -17,7 +17,7 @@ export const GettingStarted: React.FC = () => {
             <div className="step-number">01</div>
             <h4>Download Official Installer</h4>
             <p>
-              Download the official Windows installer (<code>SmartNoteAI.Setup.0.1.0.exe</code>, ~103.8 MB) directly from our verified GitHub Releases page.
+              Download the official Windows installer (<code>SmartNoteAI.Setup.2.1.0.exe</code>) directly from our verified GitHub Releases page.
             </p>
             <div style={{ marginTop: 'auto' }}>
               <a
