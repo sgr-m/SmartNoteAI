@@ -180,72 +180,189 @@ export function isPureLatexFormula(text: string): boolean {
   return false;
 }
 
+const PROTECTED_TEXT_CMDS = new Set([
+  'text',
+  'textrm',
+  'textbf',
+  'textit',
+  'textsf',
+  'texttt',
+  'textnormal',
+  'mathrm',
+  'mathbf',
+  'mathit',
+  'mathsf',
+  'mathtt',
+  'operatorname',
+  'mbox',
+  'hbox',
+  'ce',
+  'pu',
+  'url',
+]);
+
+const LATEX_TOKEN_PREFIX = '\uE000LTXG';
+const LATEX_TOKEN_SUFFIX = '\uE001';
+
+function hasBalancedBraces(str: string): boolean {
+  let depth = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (ch === '\\' && i + 1 < str.length) {
+      i++;
+      continue;
+    }
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth < 0) return false;
+    }
+  }
+  return depth === 0;
+}
+
+/**
+ * Temporarily masks brace-delimited text/unit/operator commands (e.g. \text{ W/m}, \mathrm{m/s})
+ * so regex fraction/operator formatters never inject \frac or \sec inside text mode or break braces.
+ */
+function withProtectedLatexTextGroups(text: string, transform: (masked: string) => string): string {
+  const tokens: string[] = [];
+  let out = '';
+  let i = 0;
+
+  while (i < text.length) {
+    if (text[i] === '\\') {
+      const cmdMatch = text.slice(i + 1).match(/^([a-zA-Z]+)\s*\{/);
+      if (cmdMatch && PROTECTED_TEXT_CMDS.has(cmdMatch[1])) {
+        const braceStart = i + 1 + cmdMatch[0].length - 1;
+        let depth = 0;
+        let j = braceStart;
+        while (j < text.length) {
+          if (text[j] === '\\' && j + 1 < text.length) {
+            j += 2;
+            continue;
+          }
+          if (text[j] === '{') depth++;
+          else if (text[j] === '}') {
+            depth--;
+            if (depth === 0) break;
+          }
+          j++;
+        }
+        if (depth === 0 && j < text.length) {
+          const fullSegment = text.slice(i, j + 1);
+          const idx = tokens.length;
+          tokens.push(fullSegment);
+          out += `${LATEX_TOKEN_PREFIX}${idx}${LATEX_TOKEN_SUFFIX}`;
+          i = j + 1;
+          continue;
+        }
+      }
+    }
+    out += text[i];
+    i++;
+  }
+
+  let transformed = transform(out);
+  for (let idx = tokens.length - 1; idx >= 0; idx--) {
+    transformed = transformed.split(`${LATEX_TOKEN_PREFIX}${idx}${LATEX_TOKEN_SUFFIX}`).join(tokens[idx]);
+  }
+  return transformed;
+}
+
+const FRACTION_OPERAND_PATTERN = String.raw`(?:\uE000LTXG\d+\uE001|(?:[a-zA-Z0-9\\^_]|\{[^{}]*\}))`;
+
 /**
  * Automatically converts natural fraction inputs (e.g. "1/2", "3/4", "a/b", "(\pi \theta / 360)")
  * into standard vertical LaTeX fractions: \frac{numerator}{denominator} ("a upon b").
+ * Preserves text/unit groups like \text{ W/m}^2 and brace-balanced exponents like x^{1/2}.
  */
 export function autoFormatLatexFractions(text: string): string {
   if (!text || !text.includes('/')) return text;
 
-  let result = text;
+  return withProtectedLatexTextGroups(text, (masked) => {
+    let result = masked;
 
-  // 1. Parenthesized fraction: e.g. (\pi \theta / 360) -> \left(\frac{\pi \theta}{360}\right)
-  result = result.replace(/\(\s*([^()\/]+?)\s*\/\s*([^()\/]+?)\s*\)/g, (_match, num, den) => {
-    return `\\left(\\frac{${num.trim()}}{${den.trim()}}\\right)`;
+    // 1. Parenthesized fraction: e.g. (\pi \theta / 360) -> \left(\frac{\pi \theta}{360}\right)
+    result = result.replace(/\(\s*([^()\/]+?)\s*\/\s*([^()\/]+?)\s*\)/g, (match, num, den) => {
+      if (!hasBalancedBraces(num) || !hasBalancedBraces(den)) return match;
+      return `\\left(\\frac{${num.trim()}}{${den.trim()}}\\right)`;
+    });
+
+    // 2. Parenthesized numerator and denominator: e.g. (a + b) / (c + d) -> \frac{a + b}{c + d}
+    result = result.replace(/\(\s*([^()]+?)\s*\)\s*\/\s*\(\s*([^()]+?)\s*\)/g, (match, num, den) => {
+      if (!hasBalancedBraces(num) || !hasBalancedBraces(den)) return match;
+      return `\\frac{${num.trim()}}{${den.trim()}}`;
+    });
+
+    // 3. Parenthesized numerator: e.g. (a + b) / 2 -> \frac{a + b}{2}
+    result = result.replace(
+      new RegExp(`\\(\\s*([^()]+?)\\s*\\)\\s*\\/\\s*(${FRACTION_OPERAND_PATTERN}+)`, 'g'),
+      (match, num, den) => {
+        if (!hasBalancedBraces(num) || !hasBalancedBraces(den)) return match;
+        return `\\frac{${num.trim()}}{${den.trim()}}`;
+      }
+    );
+
+    // 4. Parenthesized denominator: e.g. 1 / (x + 1) -> \frac{1}{x + 1}
+    result = result.replace(
+      new RegExp(`(${FRACTION_OPERAND_PATTERN}+)\\s*\\/\\s*\\(\\s*([^()]+?)\\s*\\)`, 'g'),
+      (match, num, den) => {
+        if (!hasBalancedBraces(num) || !hasBalancedBraces(den)) return match;
+        return `\\frac{${num.trim()}}{${den.trim()}}`;
+      }
+    );
+
+    // 5. Standard term fractions: e.g. 1/2, 3/4, a/b, 1/12, \theta/2, x^{1/2}
+    result = result.replace(
+      new RegExp(`(^|[\\s+\\-=*(\\[,{])(${FRACTION_OPERAND_PATTERN}+)\\s*\\/\\s*(${FRACTION_OPERAND_PATTERN}+)(?=[\\s+\\-=*)\\],}]|$)`, 'g'),
+      (match, prefix, num, den) => {
+        if (num.startsWith('\\frac') || den.startsWith('\\frac')) return match;
+        if (!hasBalancedBraces(num) || !hasBalancedBraces(den)) return match;
+        return `${prefix}\\frac{${num.trim()}}{${den.trim()}}`;
+      }
+    );
+
+    return result;
   });
-
-  // 2. Parenthesized numerator and denominator: e.g. (a + b) / (c + d) -> \frac{a + b}{c + d}
-  result = result.replace(/\(\s*([^()]+?)\s*\)\s*\/\s*\(\s*([^()]+?)\s*\)/g, (_match, num, den) => {
-    return `\\frac{${num.trim()}}{${den.trim()}}`;
-  });
-
-  // 3. Parenthesized numerator: e.g. (a + b) / 2 -> \frac{a + b}{2}
-  result = result.replace(/\(\s*([^()]+?)\s*\)\s*\/\s*([a-zA-Z0-9\\_^{}]+)/g, (_match, num, den) => {
-    return `\\frac{${num.trim()}}{${den.trim()}}`;
-  });
-
-  // 4. Parenthesized denominator: e.g. 1 / (x + 1) -> \frac{1}{x + 1}
-  result = result.replace(/([a-zA-Z0-9\\_^{}]+)\s*\/\s*\(\s*([^()]+?)\s*\)/g, (_match, num, den) => {
-    return `\\frac{${num.trim()}}{${den.trim()}}`;
-  });
-
-  // 5. Standard term fractions: e.g. 1/2, 3/4, a/b, x/y, 1/12, \theta/2
-  result = result.replace(
-    /(^|[\s+\-=*(\[,])([a-zA-Z0-9\\^_{}]+)\s*\/\s*([a-zA-Z0-9\\^_{}]+)(?=[\s+\-=*)\],]|$)/g,
-    (_match, prefix, num, den) => {
-      if (num.startsWith('\\frac') || den.startsWith('\\frac')) return _match;
-      return `${prefix}\\frac{${num.trim()}}{${den.trim()}}`;
-    }
-  );
-
-  return result;
 }
 
 /**
  * Auto-formats common math functions (sin, cos, tan, log, etc.) into upright LaTeX operators
+ * while preserving literal text inside \text{...}, \mathrm{...}, etc.
  */
 export function autoFormatMathOperators(text: string): string {
   if (!text) return text;
-  return text.replace(
-    /(^|[\s+\-=*(/])(?<!\\)(sin|cos|tan|cot|sec|csc|log|ln|lim|arcsin|arccos|arctan)(?=[ \^_(\\]|$)/g,
-    '$1\\$2'
+  return withProtectedLatexTextGroups(text, (masked) =>
+    masked.replace(
+      /(^|[\s+\-=*(/])(?<!\\)(sin|cos|tan|cot|sec|csc|log|ln|lim|arcsin|arccos|arctan)(?=[ \^_(\\]|$)/g,
+      '$1\\$2'
+    )
   );
+}
+
+/**
+ * Strip surrounding LaTeX delimiters ($$...$$, $...$, \[...\], \(...\)) without rewriting internals
+ */
+export function stripLatexDelimiters(text: string): string {
+  let cleaned = text.trim();
+  if (cleaned.startsWith('$$') && cleaned.endsWith('$$') && cleaned.length >= 4) {
+    cleaned = cleaned.slice(2, -2).trim();
+  } else if (cleaned.startsWith('$') && cleaned.endsWith('$') && cleaned.length >= 2) {
+    cleaned = cleaned.slice(1, -1).trim();
+  } else if (cleaned.startsWith('\\[') && cleaned.endsWith('\\]') && cleaned.length >= 4) {
+    cleaned = cleaned.slice(2, -2).trim();
+  } else if (cleaned.startsWith('\\(') && cleaned.endsWith('\\)') && cleaned.length >= 4) {
+    cleaned = cleaned.slice(2, -2).trim();
+  }
+  return cleaned;
 }
 
 /**
  * Clean surrounding delimiters ($...$, $$...$$, etc.) for KaTeX input and normalize fractions
  */
 export function cleanLatexExpression(text: string): string {
-  let cleaned = text.trim();
-  if (cleaned.startsWith('$$') && cleaned.endsWith('$$')) {
-    cleaned = cleaned.slice(2, -2).trim();
-  } else if (cleaned.startsWith('$') && cleaned.endsWith('$')) {
-    cleaned = cleaned.slice(1, -1).trim();
-  } else if (cleaned.startsWith('\\[') && cleaned.endsWith('\\]')) {
-    cleaned = cleaned.slice(2, -2).trim();
-  } else if (cleaned.startsWith('\\(') && cleaned.endsWith('\\)')) {
-    cleaned = cleaned.slice(2, -2).trim();
-  }
+  let cleaned = stripLatexDelimiters(text);
 
   // Pre-process slash fractions and operators into proper vertical LaTeX fractions
   cleaned = autoFormatLatexFractions(cleaned);
@@ -270,8 +387,8 @@ export function renderLatexHtml(
     return { html: '', success: true };
   }
 
+  const expr = cleanLatexExpression(rawText);
   try {
-    const expr = cleanLatexExpression(rawText);
     const html = katex.renderToString(expr, {
       displayMode,
       output: 'html', // Render strictly HTML to eliminate duplicate unstyled MathML text!
@@ -281,7 +398,24 @@ export function renderLatexHtml(
     return { html, success: true };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    // If KaTeX threw an error and text is mixed prose/markdown with inline $...$,
+
+    // Fallback 1: If auto-formatting introduced an issue, try raw delimiter-stripped expression directly in KaTeX
+    const rawStripped = stripLatexDelimiters(rawText);
+    if (rawStripped && rawStripped !== expr) {
+      try {
+        const rawHtml = katex.renderToString(rawStripped, {
+          displayMode,
+          output: 'html',
+          throwOnError: true,
+          strict: false,
+        });
+        return { html: rawHtml, success: true };
+      } catch {
+        // continue to prose/non-throwing fallback
+      }
+    }
+
+    // Fallback 2: If KaTeX threw an error and text is mixed prose/markdown with inline $...$,
     // gracefully render via markdownToHtml so words and inline $math$ render seamlessly!
     if (!isPureLatexFormula(rawText) && (rawText.includes('$') || isMarkdownSyntax(rawText))) {
       try {
@@ -291,9 +425,10 @@ export function renderLatexHtml(
         }
       } catch {}
     }
-    // Fallback without throwing, but neutralize error styling so it never displays in bright red!
+
+    // Fallback 3: Render without throwing, neutralizing error styling so it never displays in bright red
     try {
-      let fallbackHtml = katex.renderToString(cleanLatexExpression(rawText), {
+      let fallbackHtml = katex.renderToString(expr, {
         displayMode,
         output: 'html',
         throwOnError: false,

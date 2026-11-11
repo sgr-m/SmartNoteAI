@@ -634,5 +634,16 @@
   user-select: none;
 }
 
+.quick-font-size-stepper input[type='number']::-webkit-inner-spin-button,
+.quick-font-size-stepper input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.quick-font-size-stepper input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 
 

@@ -158,7 +158,11 @@ export function normalizeMermaidSvg(
   customColor?: string
 ): { svg: string; width: number; height: number } {
   let svg = (rawSvg || '')
-    .replace(/<rect[^>]*class="[^"]*background[^"]*"[^>]*\/?>/gi, '')
+    // Remove both self-closing (<rect class="background".../>) and paired (<rect class="background"...></rect>) tags cleanly
+    .replace(/<rect\b[^>]*\bclass\s*=\s*["'][^"']*\bbackground\b[^"']*["'][^>]*?(?:\/>|>\s*<\/rect>)/gi, '')
+    // Ensure HTML void tags / named entities inside Mermaid SVG remain valid strict XML for <img src="data:image/svg+xml">
+    .replace(/<(br|hr)\b([^>]*?)(?<!\/)>/gi, '<$1$2/>')
+    .replace(/&nbsp;/gi, '&#160;')
     .replace(/fill="#(0b1120|0f172a|000000|163626)"/gi, 'fill="none"')
     .replace(/background-color:\s*#[0-9a-fA-F]+/gi, 'background-color: transparent')
     .replace(/style="([^"]*)"/gi, (_m, styleContent: string) => {
@@ -176,8 +180,8 @@ export function normalizeMermaidSvg(
   if (openTagMatch) {
     let openTag = openTagMatch[0];
     const vbMatch = openTag.match(/\bviewBox="([^"]+)"/i);
-    const wAttrMatch = openTag.match(/\bwidth="([\d.]+)(?:px)?"/i);
-    const hAttrMatch = openTag.match(/\bheight="([\d.]+)(?:px)?"/i);
+    const wAttrMatch = openTag.match(/(?:^|\s)width="([\d.]+)(?:px)?"/i);
+    const hAttrMatch = openTag.match(/(?:^|\s)height="([\d.]+)(?:px)?"/i);
 
     let parsedW = 0;
     let parsedH = 0;
@@ -191,25 +195,55 @@ export function normalizeMermaidSvg(
     if (!parsedW && wAttrMatch) parsedW = Math.ceil(parseFloat(wAttrMatch[1]));
     if (!parsedH && hAttrMatch) parsedH = Math.ceil(parseFloat(hAttrMatch[1]));
 
+    if (!/\bxmlns\s*=/i.test(openTag)) {
+      openTag = openTag.replace(/<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+    }
+
     if (parsedW > 0 && parsedH > 0) {
       width = parsedW;
       height = parsedH;
-      if (/\bwidth="[^"]*"/i.test(openTag)) {
-        openTag = openTag.replace(/\bwidth="[^"]*"/i, `width="${width}"`);
+      if (/(?:^|\s)width="[^"]*"/i.test(openTag)) {
+        openTag = openTag.replace(/(^|\s)width="[^"]*"/i, `$1width="${width}"`);
       } else {
         openTag = openTag.replace(/<svg\b/i, `<svg width="${width}"`);
       }
-      if (/\bheight="[^"]*"/i.test(openTag)) {
-        openTag = openTag.replace(/\bheight="[^"]*"/i, `height="${height}"`);
+      if (/(?:^|\s)height="[^"]*"/i.test(openTag)) {
+        openTag = openTag.replace(/(^|\s)height="[^"]*"/i, `$1height="${height}"`);
       } else {
         openTag = openTag.replace(/<svg\b/i, `<svg height="${height}"`);
       }
-      svg = openTag + svg.slice(openTagMatch[0].length);
     }
+    svg = openTag + svg.slice(openTagMatch[0].length);
   }
 
   if (customColor) {
     svg = svg.replace(/#3b82f6/gi, customColor).replace(/#60a5fa/gi, customColor);
+  }
+
+  // Final XML integrity verification / repair so <img> never fails with XML parsererror when placed on canvas
+  if (typeof DOMParser !== 'undefined' && typeof XMLSerializer !== 'undefined' && /<svg\b/i.test(svg)) {
+    try {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(svg, 'image/svg+xml');
+      const hasXmlError = Boolean(xmlDoc.querySelector('parsererror'));
+      const leftoverBg = xmlDoc.querySelectorAll('rect.background, rect[class*="background"]');
+      if (hasXmlError) {
+        const htmlDoc = parser.parseFromString(svg, 'text/html');
+        const svgEl = htmlDoc.querySelector('svg');
+        if (svgEl) {
+          svgEl.querySelectorAll('rect.background, rect[class*="background"]').forEach((r) => r.remove());
+          svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+          svgEl.setAttribute('width', String(width));
+          svgEl.setAttribute('height', String(height));
+          svg = new XMLSerializer().serializeToString(svgEl);
+        }
+      } else if (leftoverBg.length > 0) {
+        leftoverBg.forEach((r) => r.remove());
+        svg = new XMLSerializer().serializeToString(xmlDoc.documentElement);
+      }
+    } catch {
+      // ignore DOMParser errors in minimal test environments
+    }
   }
 
   return { svg, width, height };
@@ -1467,6 +1501,10 @@ export async function renderDiagramToSvg(
  * Converts raw SVG code into an encoded data URL for <img> or Whiteboard ImageObject insertion
  */
 export function diagramSvgToDataUrl(svg: string): string {
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  let cleanSvg = (svg || '').trim();
+  if (cleanSvg && /<svg\b/i.test(cleanSvg) && !/<svg\b[^>]*\bxmlns\s*=/i.test(cleanSvg)) {
+    cleanSvg = cleanSvg.replace(/<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+  }
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(cleanSvg)}`;
 }
 

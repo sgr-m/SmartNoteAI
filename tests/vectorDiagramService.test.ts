@@ -163,5 +163,32 @@ describe('Vector Diagram Subsystem', () => {
     expect(clean).toContain('A["Sunlight (Photons)"]');
     expect(clean).toContain('E["AC Electricity (Home Use)"]');
   });
+
+  it('strips paired </rect> background tags without leaving orphan closing tags that break board <img> SVG loading', () => {
+    const rawMermaidV12Svg = `<svg id="mermaid-render-2" width="552" xmlns="http://www.w3.org/2000/svg" class="flowchart" height="173.2" viewBox="4 4 552 173.2"><g class="root"><g class="nodes"><g class="node" transform="translate(80,90)"><rect class="basic label-container" x="-70" y="-25" width="140" height="50"></rect><g class="label" transform="translate(0,-12)"><rect></rect><g><rect class="background" style="stroke: none"></rect><text y="-10"><tspan>Solar Irradiance</tspan></text></g></g></g></g></g></svg>`;
+    const { svg, width, height } = normalizeMermaidSvg(rawMermaidV12Svg);
+
+    expect(width).toBe(552);
+    expect(height).toBe(174);
+    expect(svg).not.toContain('class="background"');
+    // Crucial regression guard: paired <rect class="background"...></rect> must not leave an orphan </rect>
+    const openRects = (svg.match(/<rect\b/gi) || []).length;
+    const closeRects = (svg.match(/<\/rect>/gi) || []).length;
+    expect(closeRects).toBeLessThanOrEqual(openRects);
+    expect(openRects).toBe(2);
+    expect(closeRects).toBe(2);
+
+    const dataUrl = diagramSvgToDataUrl(svg);
+    expect(dataUrl.startsWith('data:image/svg+xml;charset=utf-8,')).toBe(true);
+    expect(decodeURIComponent(dataUrl)).toContain('xmlns="http://www.w3.org/2000/svg"');
+  });
+
+  it('normalizes bare <br> and &nbsp; inside Mermaid SVGs into XML-safe tags', () => {
+    const rawSvg = `<svg viewBox="0 0 200 100"><foreignObject width="120" height="40"><div xmlns="http://www.w3.org/1999/xhtml">Line 1<br>Line&nbsp;2</div></foreignObject></svg>`;
+    const { svg } = normalizeMermaidSvg(rawSvg);
+    expect(svg).toContain('xmlns="http://www.w3.org/2000/svg"');
+    expect(svg).toContain('<br/>');
+    expect(svg).not.toContain('&nbsp;');
+  });
 });
 

@@ -170,6 +170,26 @@ describe('latexService', () => {
       expect(svgUrl).toContain('katex-html');
     }
   });
+
+  it('preserves slashes and operators inside \\text{...}/\\mathrm{...} and brace-balanced exponents without breaking KaTeX', () => {
+    const solarFormula = '$$P_{\\text{output}} = 1000 \\text{ W/m}^2 \\times 0.20 = 200 \\text{ W/m}^2$$';
+    const cleaned = cleanLatexDelimiters(solarFormula);
+    expect(cleaned).toBe('P_{\\text{output}} = 1000 \\text{ W/m}^2 \\times 0.20 = 200 \\text{ W/m}^2');
+
+    const rendered = renderLatexHtml(solarFormula, true);
+    expect(rendered.success).toBe(true);
+    expect(rendered.error).toBeUndefined();
+    expect(rendered.html).toContain('katex');
+    expect(rendered.html).not.toContain('katex-error');
+
+    const unitFormula = '10 \\text{ m/sec} + (\\text{km/h}) + \\mathrm{W/m}^2 + x^{1/2}';
+    expect(autoFormatLatexFractions(autoFormatMathOperators(unitFormula))).toBe(
+      '10 \\text{ m/sec} + (\\text{km/h}) + \\mathrm{W/m}^2 + x^{\\frac{1}{2}}'
+    );
+    const renderedUnits = renderLatexHtml(unitFormula, true);
+    expect(renderedUnits.success).toBe(true);
+    expect(renderedUnits.html).not.toContain('katex-error');
+  });
 });
 
 describe('fontService', () => {
