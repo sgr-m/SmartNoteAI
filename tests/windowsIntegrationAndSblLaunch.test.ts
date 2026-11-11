@@ -106,10 +106,10 @@ describe('Windows Integration, Icon Stamping, and .sbl File Opening', () => {
       expect(nsh).toContain('SHChangeNotify');
     });
 
-    it('uses bundled app-builder-bin rcedit in scripts/afterPack.js without silent skip', () => {
+    it('uses bundled node_modules/rcedit binary in scripts/afterPack.js without silent skip', () => {
       const afterPack = fs.readFileSync(path.join(ROOT, 'scripts', 'afterPack.js'), 'utf8');
-      expect(afterPack).toContain("require('app-builder-bin')");
-      expect(afterPack).toContain("['rcedit', '--args'");
+      expect(afterPack).toContain('node_modules/rcedit/bin/rcedit-x64.exe');
+      expect(afterPack).toContain('--set-icon');
       expect(afterPack).toContain('throw new Error');
     });
 

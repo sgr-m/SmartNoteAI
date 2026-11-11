@@ -18,17 +18,12 @@ exports.default = async function (context) {
     throw new Error(`[afterPack] Icon not found at ${iconPath}`);
   }
 
-  // Primary: use app-builder-bin bundled in node_modules (guaranteed available in CI and local builds)
-  let appBuilderPath = null;
-  try {
-    appBuilderPath = require('app-builder-bin').appBuilderPath;
-  } catch {
-    // ignore if package unavailable
-  }
+  // Primary: use bundled rcedit-x64.exe from the rcedit devDependency (zero network/winCodeSign downloads in CI)
+  const localRceditExe = path.resolve(context.packager.projectDir, 'node_modules/rcedit/bin/rcedit-x64.exe');
+  let rceditPath = fs.existsSync(localRceditExe) ? localRceditExe : null;
 
-  // Fallback: locate rcedit-x64.exe from local electron-builder cache
-  let rceditPath = null;
-  if (!appBuilderPath || !fs.existsSync(appBuilderPath)) {
+  // Fallback: locate rcedit-x64.exe from local electron-builder winCodeSign cache
+  if (!rceditPath) {
     const localAppData = process.env.LOCALAPPDATA || path.join(process.env.USERPROFILE || '', 'AppData/Local');
     const winCodeSignDir = path.join(localAppData, 'electron-builder/Cache/winCodeSign');
 
@@ -44,13 +39,12 @@ exports.default = async function (context) {
     }
   }
 
-  if ((!appBuilderPath || !fs.existsSync(appBuilderPath)) && !rceditPath) {
-    throw new Error('[afterPack] Neither app-builder-bin nor rcedit-x64.exe found; cannot stamp Windows executable icon.');
+  if (!rceditPath) {
+    throw new Error('[afterPack] rcedit-x64.exe not found in node_modules/rcedit or electron-builder cache; cannot stamp Windows executable icon.');
   }
 
   const version = context.packager.appInfo.version || '2.1.0';
-  const runnerLabel = appBuilderPath && fs.existsSync(appBuilderPath) ? 'app-builder rcedit' : 'rcedit-x64';
-  console.log(`[afterPack] Applying SmartNoteAI icon and metadata to ${exeName} using ${runnerLabel}...`);
+  console.log(`[afterPack] Applying SmartNoteAI icon and metadata to ${exeName} using ${path.basename(rceditPath)}...`);
 
   const rceditArgs = [
     exePath,
@@ -65,17 +59,11 @@ exports.default = async function (context) {
     '--set-product-version', `${version}.0`,
   ];
 
-  const execTarget = appBuilderPath && fs.existsSync(appBuilderPath) ? appBuilderPath : rceditPath;
-  const execArgs =
-    appBuilderPath && fs.existsSync(appBuilderPath)
-      ? ['rcedit', '--args', JSON.stringify(rceditArgs)]
-      : rceditArgs;
-
   // Try with up to 5 retries and a delay to overcome any momentary OneDrive/antivirus lock
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {
       await new Promise((resolve, reject) => {
-        execFile(execTarget, execArgs, (err, stdout, stderr) => {
+        execFile(rceditPath, rceditArgs, (err, stdout, stderr) => {
           if (err) return reject(new Error(stderr || err.message));
           resolve(stdout);
         });
