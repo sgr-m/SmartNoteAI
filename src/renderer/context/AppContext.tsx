@@ -460,18 +460,59 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
     return () => unsub();
   }, [saveLesson]);
 
+  const openLessonFromPath = useCallback(async (filePath: string): Promise<boolean> => {
+    if (!filePath || !window.electronAPI) return false;
+    try {
+      const json = await window.electronAPI.invoke('file:readText', filePath) as string;
+      const lesson = deserializeLesson(json);
+      setCrashRecoveryDraft(null);
+      docDispatch({ type: 'LOAD_LESSON', lesson });
+      docDispatch({ type: 'SET_CLEAN', savedPath: filePath });
+      commandSystem.clear();
+      window.electronAPI
+        .invoke('db:upsertLesson', {
+          id: lesson.meta.id,
+          title: lesson.meta.title,
+          file_path: filePath,
+          page_count: lesson.pages.length,
+        })
+        .catch(() => {});
+      setToastMessage(`Opened lesson: ${lesson.meta?.title || filePath.split(/[\\/]/).pop() || filePath}`);
+      return true;
+    } catch (err) {
+      console.error('Failed to open .sbl lesson:', err);
+      setToastMessage(`Failed to open lesson file: ${err instanceof Error ? err.message : 'Invalid .sbl file'}`);
+      return false;
+    }
+  }, [commandSystem]);
+
+  // Open .sbl file passed via Windows file association, command-line args, or second-instance
+  useEffect(() => {
+    if (!window.electronAPI) return;
+    const unsub = window.electronAPI.on('app:open-file', (filePath) => {
+      if (typeof filePath === 'string' && filePath.trim()) {
+        openLessonFromPath(filePath);
+      }
+    });
+    window.electronAPI
+      .invoke('app:consumePendingOpenFile')
+      .then((filePath) => {
+        if (typeof filePath === 'string' && filePath.trim()) {
+          openLessonFromPath(filePath);
+        }
+      })
+      .catch(() => {});
+    return () => unsub();
+  }, [openLessonFromPath]);
+
   const openLesson = useCallback(async () => {
     const files = await window.electronAPI.invoke('file:openDialog', {
       title: 'Open Lesson',
       filters: [{ name: 'SmartNoteAI Lesson', extensions: ['sbl'] }],
     }) as string[] | null;
     if (!files || files.length === 0) return;
-    const json = await window.electronAPI.invoke('file:readText', files[0]) as string;
-    const lesson = deserializeLesson(json);
-    docDispatch({ type: 'LOAD_LESSON', lesson });
-    docDispatch({ type: 'SET_CLEAN', savedPath: files[0] });
-    commandSystem.clear();
-  }, [commandSystem]);
+    await openLessonFromPath(files[0]);
+  }, [openLessonFromPath]);
 
   const newLesson = useCallback(() => {
     // TODO: prompt to save if dirty

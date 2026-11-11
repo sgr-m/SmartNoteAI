@@ -56,6 +56,7 @@ const ALLOWED_INVOKE = new Set([
   'app:quit',
   'app:setDirty',
   'app:confirm-close',
+  'app:consumePendingOpenFile',
   'updater:check',
   'updater:download',
   'updater:install',
@@ -112,6 +113,7 @@ const ALLOWED_LISTEN = new Set([
   'desktop:resetMode',
   'window:setPresentationMode',
   'app:request-save-and-close',
+  'app:open-file',
   'browser:open-in-new-tab',
 ]);
 

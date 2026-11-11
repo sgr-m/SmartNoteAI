@@ -52,6 +52,7 @@ import { detectTextFormatMode } from '../services/formatDetectionService';
 import { createImageObject, sanitizeSvg } from '../services/documentImportService';
 import { isTypingOrInputFocused } from '../utils/keyboardUtils';
 import { enhanceSlideContent, enhanceSlideContentWithAI } from '../services/boardEnhanceService';
+import { deserializeLesson } from '../store/documentStore';
 import { v4 as uuidv4 } from 'uuid';
 import { useAppContext } from '../context/AppContext';
 import './Shell.css';
@@ -838,14 +839,19 @@ export function Shell(): React.ReactElement {
     if (name.endsWith('.sbl')) {
       try {
         const text = await firstFile.text();
-        const lesson = JSON.parse(text);
-        if (lesson.id && lesson.pages) {
-          docDispatch({ type: 'LOAD_LESSON', lesson });
-          setToastMessage?.(`Opened lesson: ${lesson.meta?.title || firstFile.name}`);
-          return;
+        const lesson = deserializeLesson(text);
+        docDispatch({ type: 'LOAD_LESSON', lesson });
+        const nativePath = (firstFile as File & { path?: string }).path;
+        if (nativePath) {
+          docDispatch({ type: 'SET_CLEAN', savedPath: nativePath });
         }
+        commandSystem.clear();
+        setToastMessage?.(`Opened lesson: ${lesson.meta?.title || firstFile.name}`);
+        return;
       } catch (err) {
         console.error('Failed to open dropped .sbl lesson:', err);
+        setToastMessage?.('Failed to open .sbl lesson file.');
+        return;
       }
     }
 

@@ -18,12 +18,16 @@ import { SettingsService } from './services/SettingsService';
 import { FileService } from './services/FileService';
 import { UpdateService } from './services/UpdateService';
 import { CredentialService } from './services/CredentialService';
+import { extractSblFilePathFromArgv, normalizeSblCandidate } from './utils/fileLaunchUtils';
 
 // ─── Single Instance Lock ────────────────────────────────────────────────────
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
   app.quit();
+} else if (process.platform === 'win32') {
+  // Windows App User Model ID ensures pinned shortcuts and taskbar group to SmartNoteAI
+  app.setAppUserModelId('com.smartnoteai.app');
 }
 
 // ─── Dev vs Production Mode ────────────────────────────────────────────────
@@ -35,12 +39,36 @@ let db: DatabaseService | null = null;
 let settings: SettingsService | null = null;
 let updateService: UpdateService | null = null;
 let credentialService: CredentialService | null = null;
+let pendingOpenFilePath: string | null = extractSblFilePathFromArgv(process.argv);
+let isRendererReadyForFiles = false;
 
-app.on('second-instance', () => {
+function queueOrDispatchOpenFile(filePath: string | null): void {
+  if (!filePath) return;
+  pendingOpenFilePath = filePath;
+  if (isRendererReadyForFiles && mainWindow && !mainWindow.isDestroyed()) {
+    const nextFile = pendingOpenFilePath;
+    pendingOpenFilePath = null;
+    mainWindow.webContents.send('app:open-file', nextFile);
+  }
+}
+
+app.on('open-file', (event, filePath) => {
+  event.preventDefault();
+  const normalized = normalizeSblCandidate(filePath);
+  if (normalized && fs.existsSync(normalized)) {
+    queueOrDispatchOpenFile(normalized);
+  }
+});
+
+app.on('second-instance', (_event, commandLine, workingDirectory) => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
+  }
+  const filePath = extractSblFilePathFromArgv(commandLine, undefined, workingDirectory);
+  if (filePath) {
+    queueOrDispatchOpenFile(filePath);
   }
 });
 
@@ -149,6 +177,10 @@ app.on('second-instance', () => {
     if (typeof appIcon !== 'string' && appIcon) {
       win.setIcon(appIcon);
     }
+
+    win.webContents.on('did-start-loading', () => {
+      isRendererReadyForFiles = false;
+    });
 
     win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
       if (level >= 2) {
@@ -262,6 +294,7 @@ app.on('second-instance', () => {
 
   // ─── App Lifecycle ──────────────────────────────────────────────────────────
   app.whenReady().then(async () => {
+    if (!gotTheLock) return;
     // Windows App User Model ID ensures pinned shortcuts and taskbar group to SmartNoteAI
     app.setAppUserModelId('com.smartnoteai.app');
 
@@ -276,8 +309,21 @@ app.on('second-instance', () => {
     updateService = new UpdateService(() => mainWindow);
     credentialService = new CredentialService();
 
-    // Register IPC handlers with direct mainWindow accessor
-    setupIpcHandlers({ db, settings, fileService, updateService, credentialService, getMainWindow: () => mainWindow });
+    // Register IPC handlers with direct mainWindow and launch-file accessor
+    setupIpcHandlers({
+      db,
+      settings,
+      fileService,
+      updateService,
+      credentialService,
+      getMainWindow: () => mainWindow,
+      consumePendingOpenFile: () => {
+        isRendererReadyForFiles = true;
+        const nextFile = pendingOpenFilePath;
+        pendingOpenFilePath = null;
+        return nextFile;
+      },
+    });
 
     mainWindow = await createMainWindow();
 

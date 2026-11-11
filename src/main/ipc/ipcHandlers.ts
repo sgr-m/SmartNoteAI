@@ -136,6 +136,7 @@ interface Services {
   updateService?: UpdateService;
   credentialService?: CredentialService;
   getMainWindow?: () => BrowserWindow | null;
+  consumePendingOpenFile?: () => string | null;
 }
 
 export function setupIpcHandlers(services: Services): void {
@@ -455,6 +456,10 @@ export function setupIpcHandlers(services: Services): void {
       win.close();
     }
     return true;
+  });
+
+  ipcMain.handle('app:consumePendingOpenFile', async () => {
+    return services.consumePendingOpenFile?.() ?? null;
   });
 
   ipcMain.handle('app:quit', async () => {

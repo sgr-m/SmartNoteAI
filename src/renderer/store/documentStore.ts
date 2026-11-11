@@ -422,9 +422,10 @@ export function serializeLesson(lesson: LessonDocument): string {
 }
 
 export function deserializeLesson(json: string): LessonDocument {
-  const data = JSON.parse(json) as LessonDocument;
+  const cleanJson = typeof json === 'string' ? json.replace(/^\uFEFF/, '') : '';
+  const data = JSON.parse(cleanJson) as LessonDocument;
   // Validate basic structure
-  if (!data.meta?.id || !Array.isArray(data.pages)) {
+  if (!data?.meta?.id || !Array.isArray(data.pages)) {
     throw new Error('Invalid lesson file: missing meta.id or pages array');
   }
   return data;

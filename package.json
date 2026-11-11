@@ -64,6 +64,15 @@
     "appId": "com.smartnoteai.app",
     "productName": "SmartNoteAI",
     "afterPack": "scripts/afterPack.js",
+    "fileAssociations": [
+      {
+        "ext": "sbl",
+        "name": "SmartNoteAI.Lesson",
+        "description": "SmartNoteAI Lesson File",
+        "mimeType": "application/vnd.smartnoteai.lesson",
+        "role": "Editor"
+      }
+    ],
     "publish": [
       {
         "provider": "github",
@@ -92,7 +101,8 @@
       "installerIcon": "assets/icons/icon.ico",
       "uninstallerIcon": "assets/icons/icon.ico",
       "installerHeaderIcon": "assets/icons/icon.ico",
-      "shortcutName": "SmartNoteAI"
+      "shortcutName": "SmartNoteAI",
+      "include": "build/installer.nsh"
     },
     "files": [
       "dist/**/*",
