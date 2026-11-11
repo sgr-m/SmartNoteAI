@@ -105,10 +105,6 @@ Engineered with strict adherence to **[Survey of India](https://surveyofindia.go
   - **4-Figure & 6-Figure National Grid Reference** demonstrator, **Scale & Measurement Lab** (`RF 1:50,000`, `2 cm = 1 km`, bearings & area in `km²` / hectares), and interactive **Conventional Signs & Symbols Panel**.
 - **🌐 Interactive 3D Earth & Globe Lab**:
   - Orthographic 3D spherical globe (plus unrolled flat projection) demonstrating Earth's **`23.44°` / `23.5°` axial tilt**, diurnal rotation, equinox/solstice presets, live **Solar Day/Night Terminator**, Tropics, Polar Circles, Prime Meridian graticule, and **IST (`82.5° E`)** time zone explorer.
-- **🛰️ GIS Thematic Lab, Atlas Explorer, Outline Maps & Offline Sync**:
-  - **GIS Thematic Lab**: Combine `ISRO/NRSC Bhuvan`, `CartoDEM` elevation, `WRIS` drainage, and `NDEM` flood layers with dual-map **Swipe & Side-by-Side Comparison** and coordinate inspection.
-  - **Atlas Explorer & Classroom Practice Maps**: Haversine great-circle geodesic distance measurement (`km`, `miles`, compass bearing) plus printable/drawable Survey of India blank **Outline Maps** (India blank, major rivers, state boundaries, state names & capitals).
-  - **Update All Maps (One-Click) & Offline Maps Ready**: Pre-cache essential maps locally for uninterrupted 100% offline teaching.
 
 ---
 
@@ -126,9 +122,9 @@ Engineered with strict adherence to **[Survey of India](https://surveyofindia.go
 
 ---
 
-### 3. STEM Subject Instruments (50 cm Ruler, 180° Protractor & Compass)
+### 3. STEM Subject Instruments 
 ![Classroom Subject Tools](assets/Screenshots/subject-tools.png)
-*Active mathematical instruments on canvas including a 50 cm metric ruler, 180° classroom protractor measuring 60° angles on an equilateral triangle, and dynamic compass arc ($r = 10.1\text{ cm}$).*
+*Active mathematical instruments on canvas including a metric ruler, 180° classroom protractor, and dynamic compass arc.*
 
 ---
 
