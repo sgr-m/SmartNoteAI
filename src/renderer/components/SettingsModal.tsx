@@ -59,35 +59,42 @@ export function SettingsModal({ onClose }: SettingsModalProps): React.ReactEleme
     }
   };
 
-  const handleSaveApiKey = async () => {
-    if (!aiKeyInput.trim()) return;
+  const handleSaveApiKey = async (): Promise<boolean> => {
+    const trimmed = aiKeyInput.trim();
+    if (!trimmed) return false;
     try {
-      const res = await aiProviderManager.saveApiKey(aiProvider, aiKeyInput.trim());
+      const res = await aiProviderManager.saveApiKey(aiProvider, trimmed);
       if (res.success) {
         setAiKeyInput('');
+        localStorage.removeItem(`smartboard_discovered_models_${aiProvider}`);
         setKeyFeedback({
           type: 'success',
           message: `API key encrypted and securely stored for ${aiProvider.toUpperCase()} via OS safeStorage.`,
         });
         if (aiProvider === 'openai') setHasKeyOpenAI(true);
         if (aiProvider === 'gemini') setHasKeyGemini(true);
+        return true;
       } else {
         setKeyFeedback({
           type: 'error',
           message: res.error || 'Failed to securely store API key.',
         });
+        return false;
       }
     } catch (err: any) {
       setKeyFeedback({
         type: 'error',
         message: err?.message || 'Error communicating with credential service.',
       });
+      return false;
     }
   };
 
   const handleDeleteApiKey = async () => {
     try {
       await aiProviderManager.deleteApiKey(aiProvider);
+      localStorage.removeItem(`smartboard_discovered_models_${aiProvider}`);
+      localStorage.removeItem(`smartboard_model_${aiProvider}`);
       if (aiProvider === 'openai') setHasKeyOpenAI(false);
       if (aiProvider === 'gemini') setHasKeyGemini(false);
       setKeyFeedback({
@@ -107,6 +114,13 @@ export function SettingsModal({ onClose }: SettingsModalProps): React.ReactEleme
     setTestingConn(true);
     setConnResult(null);
     try {
+      if (aiKeyInput.trim() && aiProvider !== 'ollama') {
+        const savedOk = await handleSaveApiKey();
+        if (!savedOk) {
+          setTestingConn(false);
+          return;
+        }
+      }
       const res = await aiProviderManager.testConnection(aiProvider);
       if (res.success) {
         if (aiProvider === 'ollama') {
@@ -132,7 +146,7 @@ export function SettingsModal({ onClose }: SettingsModalProps): React.ReactEleme
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setPenStyle({
       smoothing,
       pressureSensitive: pressureSensitivity,
@@ -140,11 +154,20 @@ export function SettingsModal({ onClose }: SettingsModalProps): React.ReactEleme
     // Apply theme
     document.documentElement.setAttribute('data-theme', theme);
 
-    // Save AI non-secret preferences
+    if (aiKeyInput.trim() && aiProvider !== 'ollama') {
+      await handleSaveApiKey();
+    }
+
+    // Save AI non-secret preferences & synchronize smartboard localStorage keys
     aiProviderManager.setActiveProvider(aiProvider);
     aiProviderManager.setSelectedModel(selectedModel, aiProvider);
     aiProviderManager.setCustomEndpoint(customEndpoint, aiProvider);
     aiProviderManager.setTimeoutMs(timeoutSec * 1000);
+
+    if (selectedModel.trim()) {
+      localStorage.setItem(`smartboard_model_${aiProvider}`, selectedModel.trim());
+      localStorage.setItem('smartboard_active_model_key', `${aiProvider}:${selectedModel.trim()}`);
+    }
 
     onClose();
   };

@@ -1,112 +1,108 @@
 /**
  * WebBrowserModal.tsx — In-App Educational Web Browser
- * Allows teachers to search Google, Google Images, Bing, DuckDuckGo, Wikipedia,
- * and copy/capture diagrams and images directly to the SmartBoard.
+ * Allows teachers to search Google, Google Images, Bing, DuckDuckGo, Wikipedia, PhET,
+ * browse across multiple tabs ("Open Link in New Tab" instead of spawning new windows),
+ * and capture either full pages or user-selected rectangular regions directly onto SmartNoteAI.
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import {
+  SEARCH_ENGINES,
+  SearchEngine,
+  BrowserTab,
+  RegionRect,
+  createBrowserTab,
+  resolveBrowserNavigationUrl,
+  deriveTabTitleFromUrl,
+  normalizeSelectionRect,
+  cropCapturedImageByViewportRegion,
+} from './browserUtils';
 import './WebBrowserModal.css';
 
 export interface WebBrowserModalProps {
   isOpen: boolean;
   onClose: () => void;
   onInsertImageToBoard: (dataUrl: string, title?: string) => void;
+  initialUrl?: string | null;
+  onClearInitialUrl?: () => void;
 }
 
-interface SearchEngine {
-  id: string;
-  name: string;
-  icon: string;
-  homeUrl: string;
-  searchUrl: (query: string) => string;
+interface WebviewTabPaneProps {
+  tab: BrowserTab;
+  isActive: boolean;
+  onUpdateTab: (tabId: string, patch: Partial<BrowserTab>) => void;
+  onOpenInNewTab: (url: string) => void;
+  registerWebview: (tabId: string, node: any | null) => void;
 }
 
-const SEARCH_ENGINES: SearchEngine[] = [
-  {
-    id: 'google',
-    name: 'Google',
-    icon: '🔍',
-    homeUrl: 'https://www.google.com',
-    searchUrl: (q) => `https://www.google.com/search?q=${encodeURIComponent(q)}`,
-  },
-  {
-    id: 'google-images',
-    name: 'Google Images',
-    icon: '🖼️',
-    homeUrl: 'https://www.google.com/imghp?hl=en',
-    searchUrl: (q) => `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(q)}`,
-  },
-  {
-    id: 'duckduckgo',
-    name: 'DuckDuckGo',
-    icon: '🦆',
-    homeUrl: 'https://duckduckgo.com',
-    searchUrl: (q) => `https://duckduckgo.com/?q=${encodeURIComponent(q)}`,
-  },
-  {
-    id: 'bing',
-    name: 'Bing',
-    icon: '🅱️',
-    homeUrl: 'https://www.bing.com',
-    searchUrl: (q) => `https://www.bing.com/search?q=${encodeURIComponent(q)}`,
-  },
-  {
-    id: 'wikipedia',
-    name: 'Wikipedia',
-    icon: '📖',
-    homeUrl: 'https://www.wikipedia.org',
-    searchUrl: (q) => `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(q)}`,
-  },
-  {
-    id: 'phet',
-    name: 'PhET Sims',
-    icon: '🔬',
-    homeUrl: 'https://phet.colorado.edu/en/simulations/filter?type=html',
-    searchUrl: (q) => `https://phet.colorado.edu/en/search?q=${encodeURIComponent(q)}`,
-  },
-];
+function WebviewTabPane({
+  tab,
+  isActive,
+  onUpdateTab,
+  onOpenInNewTab,
+  registerWebview,
+}: WebviewTabPaneProps): React.ReactElement {
+  const localRef = useRef<any>(null);
 
-export function WebBrowserModal({
-  isOpen,
-  onClose,
-  onInsertImageToBoard,
-}: WebBrowserModalProps): React.ReactElement | null {
-  const [activeEngine, setActiveEngine] = useState<SearchEngine>(SEARCH_ENGINES[0]);
-  const [urlInput, setUrlInput] = useState<string>('https://www.google.com');
-  const [currentUrl, setCurrentUrl] = useState<string>('https://www.google.com');
-  const [canGoBack, setCanGoBack] = useState<boolean>(false);
-  const [canGoForward, setCanGoForward] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isMaximized, setIsMaximized] = useState<boolean>(false);
-  const [copiedStatus, setCopiedStatus] = useState<string | null>(null);
+  const setRef = useCallback(
+    (node: any | null) => {
+      localRef.current = node;
+      registerWebview(tab.id, node);
+    },
+    [registerWebview, tab.id]
+  );
 
-  const webviewRef = useRef<any>(null);
-
-  // Sync navigation states from electron <webview>
   useEffect(() => {
-    const webview = webviewRef.current;
+    const webview = localRef.current;
     if (!webview) return;
 
-    const handleDidStartLoading = () => setIsLoading(true);
+    const handleDidStartLoading = () => {
+      onUpdateTab(tab.id, { isLoading: true });
+    };
+
     const handleDidStopLoading = () => {
-      setIsLoading(false);
       try {
-        setCanGoBack(webview.canGoBack());
-        setCanGoForward(webview.canGoForward());
-        const targetUrl = webview.getURL();
-        if (targetUrl) {
-          setCurrentUrl(targetUrl);
-          setUrlInput(targetUrl);
-        }
+        const nextUrl = webview.getURL?.() || tab.url;
+        const pageTitle = webview.getTitle?.() || '';
+        onUpdateTab(tab.id, {
+          isLoading: false,
+          canGoBack: Boolean(webview.canGoBack?.()),
+          canGoForward: Boolean(webview.canGoForward?.()),
+          url: nextUrl,
+          urlInput: nextUrl,
+          title: deriveTabTitleFromUrl(nextUrl, pageTitle),
+        });
       } catch {
-        // ignore
+        onUpdateTab(tab.id, { isLoading: false });
       }
     };
 
     const handleDidNavigate = (e: any) => {
       if (e?.url) {
-        setCurrentUrl(e.url);
-        setUrlInput(e.url);
+        onUpdateTab(tab.id, {
+          url: e.url,
+          urlInput: e.url,
+          canGoBack: Boolean(webview.canGoBack?.()),
+          canGoForward: Boolean(webview.canGoForward?.()),
+        });
+      }
+    };
+
+    const handleTitleUpdate = (e: any) => {
+      if (e?.title) {
+        onUpdateTab(tab.id, {
+          title: deriveTabTitleFromUrl(tab.url, e.title),
+        });
+      }
+    };
+
+    const handleNewWindow = (e: any) => {
+      if (typeof e?.preventDefault === 'function') {
+        e.preventDefault();
+      }
+      if (e?.url && e.url !== 'about:blank') {
+        onOpenInNewTab(e.url);
       }
     };
 
@@ -114,6 +110,8 @@ export function WebBrowserModal({
     webview.addEventListener('did-stop-loading', handleDidStopLoading);
     webview.addEventListener('did-navigate', handleDidNavigate);
     webview.addEventListener('did-navigate-in-page', handleDidNavigate);
+    webview.addEventListener('page-title-updated', handleTitleUpdate);
+    webview.addEventListener('new-window', handleNewWindow);
 
     return () => {
       try {
@@ -121,58 +119,227 @@ export function WebBrowserModal({
         webview.removeEventListener('did-stop-loading', handleDidStopLoading);
         webview.removeEventListener('did-navigate', handleDidNavigate);
         webview.removeEventListener('did-navigate-in-page', handleDidNavigate);
+        webview.removeEventListener('page-title-updated', handleTitleUpdate);
+        webview.removeEventListener('new-window', handleNewWindow);
       } catch {
-        // ignore
+        // ignore detached webview errors
       }
     };
-  }, [isOpen]);
+  }, [tab.id, onUpdateTab, onOpenInNewTab]);
 
-  const navigateTo = useCallback((destinationUrl: string) => {
-    let finalUrl = destinationUrl.trim();
-    if (!finalUrl) return;
+  return (
+    <div
+      className={`browser-tab-pane ${isActive ? 'active' : 'hidden'}`}
+      aria-hidden={!isActive}
+    >
+      {React.createElement('webview', {
+        ref: setRef,
+        src: tab.initialUrl,
+        className: 'browser-guest-webview',
+        allowpopups: 'true',
+        webpreferences: 'contextIsolation=false',
+      })}
+    </div>
+  );
+}
 
-    // Check if input looks like a URL
-    const hasProtocol = /^https?:\/\//i.test(finalUrl);
-    const looksLikeDomain = /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/.*)?$/i.test(finalUrl);
+export function WebBrowserModal({
+  isOpen,
+  onClose,
+  onInsertImageToBoard,
+  initialUrl,
+  onClearInitialUrl,
+}: WebBrowserModalProps): React.ReactElement | null {
+  const [tabs, setTabs] = useState<BrowserTab[]>(() => [
+    createBrowserTab(uuidv4(), undefined, SEARCH_ENGINES[0]),
+  ]);
+  const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id);
+  const [isMaximized, setIsMaximized] = useState<boolean>(false);
+  const [copiedStatus, setCopiedStatus] = useState<string | null>(null);
 
-    if (!hasProtocol && looksLikeDomain) {
-      finalUrl = `https://${finalUrl}`;
-    } else if (!hasProtocol) {
-      // Search query using active engine
-      finalUrl = activeEngine.searchUrl(finalUrl);
+  // Interactive area capture state
+  const [isRegionSelecting, setIsRegionSelecting] = useState<boolean>(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [selectionRect, setSelectionRect] = useState<RegionRect | null>(null);
+
+  const webviewMapRef = useRef<Map<string, any>>(new Map());
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const omniboxInputRef = useRef<HTMLInputElement | null>(null);
+  const lastOpenedRef = useRef<{ url: string; ts: number }>({ url: '', ts: 0 });
+
+  const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
+  const activeEngine = SEARCH_ENGINES.find((e) => e.id === activeTab?.engineId) || SEARCH_ENGINES[0];
+
+  const registerWebview = useCallback((tabId: string, node: any | null) => {
+    if (node) {
+      webviewMapRef.current.set(tabId, node);
+    } else {
+      webviewMapRef.current.delete(tabId);
+    }
+  }, []);
+
+  const updateTab = useCallback((tabId: string, patch: Partial<BrowserTab>) => {
+    setTabs((prev) =>
+      prev.map((tab) => (tab.id === tabId ? { ...tab, ...patch } : tab))
+    );
+  }, []);
+
+  const openUrlInNewTab = useCallback((rawUrl?: string, engine?: SearchEngine, focusOmnibox = false) => {
+    const cleanUrl = rawUrl?.trim();
+    if (cleanUrl) {
+      const now = Date.now();
+      if (lastOpenedRef.current.url === cleanUrl && now - lastOpenedRef.current.ts < 350) {
+        return;
+      }
+      lastOpenedRef.current = { url: cleanUrl, ts: now };
     }
 
-    setCurrentUrl(finalUrl);
-    setUrlInput(finalUrl);
+    const chosenEngine = engine || SEARCH_ENGINES[0];
+    const newTab = createBrowserTab(uuidv4(), cleanUrl, chosenEngine);
+    setTabs((prev) => [...prev, newTab]);
+    setActiveTabId(newTab.id);
+    setIsRegionSelecting(false);
+    setDragStart(null);
+    setSelectionRect(null);
 
-    const webview = webviewRef.current;
-    if (webview && typeof webview.loadURL === 'function') {
-      webview.loadURL(finalUrl);
+    if (focusOmnibox) {
+      setTimeout(() => {
+        omniboxInputRef.current?.focus();
+        omniboxInputRef.current?.select();
+      }, 40);
     }
-  }, [activeEngine]);
+  }, []);
 
-  const handleSelectEngine = (engine: SearchEngine) => {
-    setActiveEngine(engine);
-    navigateTo(engine.homeUrl);
+  const closeTab = useCallback(
+    (tabId: string) => {
+      setTabs((prev) => {
+        if (prev.length <= 1) return prev;
+        const idx = prev.findIndex((t) => t.id === tabId);
+        const filtered = prev.filter((t) => t.id !== tabId);
+        if (tabId === activeTabId && filtered.length > 0) {
+          const nextTab = filtered[Math.min(idx, filtered.length - 1)];
+          setActiveTabId(nextTab.id);
+        }
+        return filtered;
+      });
+    },
+    [activeTabId]
+  );
+
+  // Listen for Main process new-tab redirects (target="_blank", window.open, middle-click, "Open Link in New Tab")
+  useEffect(() => {
+    if (!isOpen) return;
+    const unsub = window.electronAPI?.on?.('browser:open-in-new-tab', (url: unknown) => {
+      if (typeof url === 'string' && url.trim() && url !== 'about:blank') {
+        openUrlInNewTab(url);
+      }
+    });
+    return () => {
+      unsub?.();
+    };
+  }, [isOpen, openUrlInNewTab]);
+
+  // Open an initial URL programmatically (e.g. "Open in Browser" from AI Chatbox)
+  useEffect(() => {
+    if (!isOpen || !initialUrl || !initialUrl.trim()) return;
+    const targetUrl = initialUrl.trim();
+    const existingHomeTab = tabs.length === 1 && tabs[0].url === SEARCH_ENGINES[0].homeUrl ? tabs[0] : null;
+    if (existingHomeTab) {
+      updateTab(existingHomeTab.id, {
+        url: targetUrl,
+        urlInput: targetUrl,
+        title: deriveTabTitleFromUrl(targetUrl, ''),
+      });
+      const wv = webviewMapRef.current.get(existingHomeTab.id);
+      if (wv && typeof wv.loadURL === 'function') {
+        wv.loadURL(targetUrl);
+      }
+    } else {
+      openUrlInNewTab(targetUrl);
+    }
+    onClearInitialUrl?.();
+  }, [isOpen, initialUrl, tabs, updateTab, openUrlInNewTab, onClearInitialUrl]);
+
+  // Keyboard shortcuts inside WebBrowserModal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        openUrlInNewTab(undefined, activeEngine, true);
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') {
+        if (tabs.length > 1 && activeTab) {
+          e.preventDefault();
+          closeTab(activeTab.id);
+        }
+        return;
+      }
+      if (e.key === 'Escape' && isRegionSelecting) {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsRegionSelecting(false);
+        setDragStart(null);
+        setSelectionRect(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, isRegionSelecting, tabs.length, activeTab, activeEngine, openUrlInNewTab, closeTab]);
+
+  const navigateTo = useCallback(
+    (destinationUrl: string, overrideEngine?: SearchEngine) => {
+      if (!activeTab) return;
+      const engine = overrideEngine || activeEngine;
+      const finalUrl = resolveBrowserNavigationUrl(destinationUrl, engine);
+
+      updateTab(activeTab.id, {
+        url: finalUrl,
+        urlInput: finalUrl,
+        engineId: engine.id,
+      });
+
+      const webview = webviewMapRef.current.get(activeTab.id);
+      if (webview && typeof webview.loadURL === 'function') {
+        webview.loadURL(finalUrl);
+      }
+    },
+    [activeTab, activeEngine, updateTab]
+  );
+
+  const handleSelectEngine = (e: React.MouseEvent, engine: SearchEngine) => {
+    if (e.ctrlKey || e.metaKey || e.button === 1) {
+      e.preventDefault();
+      openUrlInNewTab(engine.homeUrl, engine);
+      return;
+    }
+    navigateTo(engine.homeUrl, engine);
   };
 
   const handleGoBack = () => {
-    const webview = webviewRef.current;
+    if (!activeTab) return;
+    const webview = webviewMapRef.current.get(activeTab.id);
     if (webview && webview.canGoBack?.()) {
       webview.goBack();
     }
   };
 
   const handleGoForward = () => {
-    const webview = webviewRef.current;
+    if (!activeTab) return;
+    const webview = webviewMapRef.current.get(activeTab.id);
     if (webview && webview.canGoForward?.()) {
       webview.goForward();
     }
   };
 
   const handleReload = () => {
-    const webview = webviewRef.current;
-    if (webview && webview.reload?.()) {
+    if (!activeTab) return;
+    const webview = webviewMapRef.current.get(activeTab.id);
+    if (!webview) return;
+    if (activeTab.isLoading && typeof webview.stop === 'function') {
+      webview.stop();
+    } else if (typeof webview.reload === 'function') {
       webview.reload();
     }
   };
@@ -182,8 +349,13 @@ export function WebBrowserModal({
   };
 
   const handleCapturePageToBoard = async () => {
-    const webview = webviewRef.current;
+    if (!activeTab) return;
+    const webview = webviewMapRef.current.get(activeTab.id);
     if (!webview) return;
+
+    setIsRegionSelecting(false);
+    setDragStart(null);
+    setSelectionRect(null);
 
     try {
       setCopiedStatus('Capturing...');
@@ -195,7 +367,7 @@ export function WebBrowserModal({
       }
 
       if (dataUrl) {
-        onInsertImageToBoard(dataUrl, `Web Clip — ${activeEngine.name}`);
+        onInsertImageToBoard(dataUrl, `Web Clip — ${activeTab.title || activeEngine.name}`);
         setCopiedStatus('✓ Captured to Board!');
         setTimeout(() => setCopiedStatus(null), 2500);
       } else {
@@ -209,7 +381,101 @@ export function WebBrowserModal({
     }
   };
 
-  if (!isOpen) return null;
+  const handleToggleRegionCapture = () => {
+    if (isRegionSelecting) {
+      setIsRegionSelecting(false);
+      setDragStart(null);
+      setSelectionRect(null);
+      return;
+    }
+    setCopiedStatus(null);
+    setDragStart(null);
+    setSelectionRect(null);
+    setIsRegionSelecting(true);
+  };
+
+  const handleRegionPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isRegionSelecting || e.button !== 0) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const bounds = viewport.getBoundingClientRect();
+    const pt = { x: e.clientX - bounds.left, y: e.clientY - bounds.top };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore synthetic event capture failures
+    }
+    setDragStart(pt);
+    setSelectionRect({ x: Math.round(pt.x), y: Math.round(pt.y), width: 0, height: 0 });
+  };
+
+  const handleRegionPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isRegionSelecting || !dragStart) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const bounds = viewport.getBoundingClientRect();
+    const pt = { x: e.clientX - bounds.left, y: e.clientY - bounds.top };
+    setSelectionRect(normalizeSelectionRect(dragStart, pt, { width: bounds.width, height: bounds.height }));
+  };
+
+  const handleRegionPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isRegionSelecting || !dragStart || !activeTab) return;
+    const viewport = viewportRef.current;
+    const bounds = viewport?.getBoundingClientRect();
+    const endPt = bounds ? { x: e.clientX - bounds.left, y: e.clientY - bounds.top } : dragStart;
+    const finalRect = bounds
+      ? normalizeSelectionRect(dragStart, endPt, { width: bounds.width, height: bounds.height })
+      : selectionRect;
+
+    setDragStart(null);
+    setSelectionRect(null);
+    setIsRegionSelecting(false);
+
+    if (!finalRect || finalRect.width < 10 || finalRect.height < 10 || !bounds) {
+      return;
+    }
+
+    const webview = webviewMapRef.current.get(activeTab.id);
+    if (!webview || typeof webview.capturePage !== 'function') {
+      setCopiedStatus('Capture unavailable');
+      setTimeout(() => setCopiedStatus(null), 2000);
+      return;
+    }
+
+    try {
+      setCopiedStatus('Capturing area...');
+      // Allow two animation frames so overlay dims/borders disappear completely before screenshot
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      );
+
+      const image = await webview.capturePage();
+      const rawDataUrl = image?.toDataURL?.();
+      if (!rawDataUrl) {
+        setCopiedStatus('Capture failed');
+        setTimeout(() => setCopiedStatus(null), 2000);
+        return;
+      }
+
+      const croppedDataUrl = await cropCapturedImageByViewportRegion(
+        rawDataUrl,
+        finalRect,
+        { width: bounds.width, height: bounds.height }
+      );
+      onInsertImageToBoard(
+        croppedDataUrl,
+        `Web Area Clip — ${activeTab.title || activeEngine.name}`
+      );
+      setCopiedStatus('✓ Area Captured!');
+      setTimeout(() => setCopiedStatus(null), 2500);
+    } catch (err) {
+      console.error('Failed to capture browser region:', err);
+      setCopiedStatus('Error capturing area');
+      setTimeout(() => setCopiedStatus(null), 2000);
+    }
+  };
+
+  if (!isOpen || !activeTab) return null;
 
   return (
     <div className="web-browser-overlay" role="dialog" aria-modal="true" aria-label="Web Browser">
@@ -222,15 +488,18 @@ export function WebBrowserModal({
             <span className="web-browser-engine-badge">{activeEngine.name}</span>
           </div>
 
-          {/* Quick Engine Tabs */}
+          {/* Quick Engine Pills */}
           <div className="web-browser-engine-tabs">
             {SEARCH_ENGINES.map((eng) => (
               <button
                 key={eng.id}
                 type="button"
                 className={`engine-tab-btn ${activeEngine.id === eng.id ? 'active' : ''}`}
-                onClick={() => handleSelectEngine(eng)}
-                title={`Open ${eng.name}`}
+                onClick={(e) => handleSelectEngine(e, eng)}
+                onAuxClick={(e) => {
+                  if (e.button === 1) handleSelectEngine(e, eng);
+                }}
+                title={`Open ${eng.name} (Ctrl+Click to open in new tab)`}
               >
                 <span className="engine-tab-icon">{eng.icon}</span>
                 <span className="engine-tab-label">{eng.name}</span>
@@ -258,13 +527,71 @@ export function WebBrowserModal({
           </div>
         </div>
 
+        {/* Multi-Tab Strip */}
+        <div className="web-browser-tabs-bar" role="tablist" aria-label="Browser Tabs">
+          <div className="browser-tabs-list">
+            {tabs.map((tab) => {
+              const isTabActive = tab.id === activeTab.id;
+              const tabEngine = SEARCH_ENGINES.find((e) => e.id === tab.engineId);
+              return (
+                <div
+                  key={tab.id}
+                  role="tab"
+                  aria-selected={isTabActive}
+                  className={`browser-tab-item ${isTabActive ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveTabId(tab.id);
+                    setIsRegionSelecting(false);
+                    setSelectionRect(null);
+                  }}
+                  onAuxClick={(e) => {
+                    if (e.button === 1 && tabs.length > 1) {
+                      e.preventDefault();
+                      closeTab(tab.id);
+                    }
+                  }}
+                  title={tab.url}
+                >
+                  <span className="browser-tab-favicon">
+                    {tab.isLoading ? '⟳' : tabEngine?.icon || '🌐'}
+                  </span>
+                  <span className="browser-tab-title">{tab.title || 'New Tab'}</span>
+                  {tabs.length > 1 && (
+                    <button
+                      type="button"
+                      className="browser-tab-close"
+                      aria-label={`Close ${tab.title}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeTab(tab.id);
+                      }}
+                      title="Close Tab (Ctrl+W)"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            <button
+              type="button"
+              className="browser-new-tab-btn"
+              onClick={() => openUrlInNewTab(undefined, activeEngine, true)}
+              title="New Tab (Ctrl+T)"
+              aria-label="Open New Tab"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
         {/* Navigation & Address Bar */}
         <div className="web-browser-nav-bar">
           <button
             type="button"
             className="browser-nav-btn"
             onClick={handleGoBack}
-            disabled={!canGoBack}
+            disabled={!activeTab.canGoBack}
             title="Back"
           >
             ◀
@@ -273,7 +600,7 @@ export function WebBrowserModal({
             type="button"
             className="browser-nav-btn"
             onClick={handleGoForward}
-            disabled={!canGoForward}
+            disabled={!activeTab.canGoForward}
             title="Forward"
           >
             ▶
@@ -282,15 +609,15 @@ export function WebBrowserModal({
             type="button"
             className="browser-nav-btn"
             onClick={handleReload}
-            title={isLoading ? 'Stop' : 'Reload'}
+            title={activeTab.isLoading ? 'Stop' : 'Reload'}
           >
-            {isLoading ? '✕' : '⟳'}
+            {activeTab.isLoading ? '✕' : '⟳'}
           </button>
           <button
             type="button"
             className="browser-nav-btn"
             onClick={handleGoHome}
-            title="Homepage (Google)"
+            title={`Homepage (${activeEngine.name})`}
           >
             🏠
           </button>
@@ -300,49 +627,100 @@ export function WebBrowserModal({
             className="browser-omnibox-form"
             onSubmit={(e) => {
               e.preventDefault();
-              navigateTo(urlInput);
+              navigateTo(activeTab.urlInput);
             }}
           >
             <span className="omnibox-icon">{activeEngine.icon}</span>
             <input
+              ref={omniboxInputRef}
               type="text"
               className="browser-omnibox-input"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
+              value={activeTab.urlInput}
+              onChange={(e) => updateTab(activeTab.id, { urlInput: e.target.value })}
               placeholder="Search Google or enter website address (e.g. wikipedia.org)..."
             />
-            {isLoading && <span className="omnibox-spinner" />}
+            {activeTab.isLoading && <span className="omnibox-spinner" />}
           </form>
 
-          {/* Action: Capture / Paste to SmartBoard */}
+          {/* Action: Interactive Area Capture to SmartBoard */}
+          <button
+            type="button"
+            className={`browser-capture-btn area ${isRegionSelecting ? 'selecting' : ''}`}
+            onClick={handleToggleRegionCapture}
+            title="Select a rectangular portion of the webpage and insert onto whiteboard"
+          >
+            {isRegionSelecting ? '✕ Cancel Area' : '✂️ Capture Area'}
+          </button>
+
+          {/* Action: Full Page Capture to SmartBoard */}
           <button
             type="button"
             className="browser-capture-btn"
             onClick={handleCapturePageToBoard}
-            title="Capture current view and place directly onto active whiteboard slide"
+            title="Capture entire visible webpage and place onto active whiteboard slide"
           >
-            {copiedStatus ? copiedStatus : '📷 Capture to Board'}
+            {copiedStatus ? copiedStatus : '📷 Capture Full'}
           </button>
         </div>
 
         {/* Classroom Tip Banner */}
         <div className="web-browser-tip-banner">
-          <span>💡 <strong>Tip for Teachers:</strong> You can right-click any image in Google Images, choose <strong>"Copy Image"</strong>, and paste directly onto your whiteboard with <strong>Ctrl+V</strong>!</span>
+          <span>
+            💡 <strong>Tip:</strong> Right-click or middle-click any link to <strong>"Open Link in New Tab"</strong> • Click <strong>✂️ Capture Area</strong> to drag-select a specific diagram onto your board!
+          </span>
         </div>
 
         {/* Webview Content Surface */}
-        <div className="web-browser-viewport">
-          {/* Electron <webview> renders arbitrary web pages without iframe framing limitations */}
-          {React.createElement('webview', {
-            ref: webviewRef,
-            src: currentUrl,
-            className: 'browser-guest-webview',
-            allowpopups: 'true',
-            webpreferences: 'contextIsolation=false',
-          })}
+        <div className="web-browser-viewport" ref={viewportRef}>
+          {tabs.map((tab) => (
+            <WebviewTabPane
+              key={tab.id}
+              tab={tab}
+              isActive={tab.id === activeTab.id}
+              onUpdateTab={updateTab}
+              onOpenInNewTab={openUrlInNewTab}
+              registerWebview={registerWebview}
+            />
+          ))}
+
+          {/* Interactive Portion Screenshot Selection Overlay */}
+          {isRegionSelecting && (
+            <div
+              className="browser-region-overlay"
+              onPointerDown={handleRegionPointerDown}
+              onPointerMove={handleRegionPointerMove}
+              onPointerUp={handleRegionPointerUp}
+            >
+              <div className="browser-region-instruction" onPointerDown={(e) => e.stopPropagation()}>
+                <span>✂️ Drag across any portion of the page to capture onto your SmartBoard</span>
+                <button
+                  type="button"
+                  className="browser-region-cancel-btn"
+                  onClick={handleToggleRegionCapture}
+                >
+                  Cancel (Esc)
+                </button>
+              </div>
+
+              {selectionRect && selectionRect.width > 0 && selectionRect.height > 0 && (
+                <div
+                  className="browser-region-selection-box"
+                  style={{
+                    left: `${selectionRect.x}px`,
+                    top: `${selectionRect.y}px`,
+                    width: `${selectionRect.width}px`,
+                    height: `${selectionRect.height}px`,
+                  }}
+                >
+                  <span className="browser-region-dims">
+                    {selectionRect.width} × {selectionRect.height} px
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
-

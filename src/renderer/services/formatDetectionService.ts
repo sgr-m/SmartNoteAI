@@ -8,7 +8,7 @@
  * 3. Markdown: standard headings (#), lists (-), bold (**), tables (|), or plain text
  */
 
-import { isPureLatexFormula } from './latexService';
+import { isPureLatexFormula, isLatexSyntax } from './latexService';
 import { isMarkdownSyntax } from './markdownRenderService';
 
 export type TextFormatMode = 'html' | 'latex' | 'markdown';
@@ -67,7 +67,7 @@ export function detectTextFormatMode(
   if (explicitFlags?.isHtml) {
     return { isHtml: true, isLatex: false, isMarkdown: false };
   }
-  if (explicitFlags?.isLatex && isPureLatexFormula(trimmed)) {
+  if (explicitFlags?.isLatex && (isPureLatexFormula(trimmed) || isLatexSyntax(trimmed))) {
     return { isHtml: false, isLatex: true, isMarkdown: false };
   }
   if (explicitFlags?.isMarkdown) {
@@ -82,3 +82,4 @@ export function detectTextFormatMode(
   // 5. Default: Markdown format
   return { isHtml: false, isLatex: false, isMarkdown: true };
 }
+

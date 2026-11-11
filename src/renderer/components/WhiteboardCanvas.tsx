@@ -72,8 +72,9 @@ import {
   evaluateFlipFlopNextState,
   evaluateCounter,
 } from '../services/subjectModules/digitalLogicModule';
-import { isLatexSyntax, isPureLatexFormula } from '../services/latexService';
-import { isMarkdownSyntax } from '../services/markdownRenderService';
+import { isLatexSyntax, isPureLatexFormula, measureLatexSize } from '../services/latexService';
+import { isMarkdownSyntax, measureMarkdownSize } from '../services/markdownRenderService';
+import { measureHtmlSize } from '../services/htmlRenderService';
 import { isTypingOrInputFocused } from '../utils/keyboardUtils';
 import { isGeoShapeType, GeoAnnotationItem } from '../services/geography/types';
 import { getGeoMapTransform } from '../engine/geographyShapeRenderer';
@@ -2129,6 +2130,54 @@ export function WhiteboardCanvas(props?: WhiteboardCanvasProps): React.ReactElem
 
   // ─── Individual AI Text Enhancement ─────────────────────────────────────────
 
+  const updateSelectedTextFontSize = useCallback((t: TextObject, requestedSize: number) => {
+    const newSize = Math.max(10, Math.min(200, Math.round(requestedSize)));
+    const mode = detectTextFormatMode(t.content, {
+      isHtml: t.isHtml,
+      isLatex: t.isLatex,
+      isMarkdown: t.isMarkdown,
+    });
+
+    let nextWidth = t.width;
+    let nextHeight = t.height;
+    const maxW = Math.max(480, t.width || 900, 1760);
+
+    if (mode.isHtml) {
+      const measured = measureHtmlSize(
+        t.content,
+        newSize,
+        t.fontFamily || 'Inter, system-ui, -apple-system, sans-serif',
+        maxW
+      );
+      nextWidth = Math.max(160, Math.min(1800, measured.width));
+      nextHeight = Math.max(48, measured.height);
+    } else if (mode.isLatex) {
+      const measured = measureLatexSize(t.content, newSize);
+      nextWidth = Math.max(120, Math.min(1800, Math.round(measured.width + 24)));
+      nextHeight = Math.max(44, Math.round(measured.height + 16));
+    } else if (mode.isMarkdown) {
+      const measured = measureMarkdownSize(
+        t.content,
+        newSize,
+        t.fontFamily || 'Inter, system-ui, -apple-system, sans-serif',
+        maxW
+      );
+      nextWidth = Math.max(160, Math.min(1800, measured.width));
+      nextHeight = Math.max(44, measured.height);
+    }
+
+    const updated: TextObject = {
+      ...t,
+      fontSize: newSize,
+      ...(typeof nextWidth === 'number' ? { width: nextWidth } : {}),
+      ...(typeof nextHeight === 'number' ? { height: nextHeight } : {}),
+    };
+    docDispatch({ type: 'UPDATE_OBJECT', pageIndex: currentPageIndexRef.current, object: updated });
+    setSelectedObject(updated);
+    engineRef.current?.requestActiveRender();
+    engineRef.current?.requestCommittedRender();
+  }, [docDispatch]);
+
   const handleEnhanceSelectedText = async (textObj: TextObject) => {
     if (!textObj || isEnhancingSelectedText) return;
     setIsEnhancingSelectedText(true);
@@ -2564,12 +2613,7 @@ export function WhiteboardCanvas(props?: WhiteboardCanvasProps): React.ReactElem
               onClick={(e) => {
                 e.stopPropagation();
                 const t = selectedObject as TextObject;
-                const newSize = Math.max(12, (t.fontSize || 36) - 4);
-                const updated: TextObject = { ...t, fontSize: newSize };
-                docDispatch({ type: 'UPDATE_OBJECT', pageIndex: currentPageIndexRef.current, object: updated });
-                setSelectedObject(updated);
-                engineRef.current?.requestActiveRender();
-                engineRef.current?.requestCommittedRender();
+                updateSelectedTextFontSize(t, (t.fontSize || 36) - 4);
               }}
               title="Decrease font size (-4px)"
               style={{
@@ -2595,13 +2639,7 @@ export function WhiteboardCanvas(props?: WhiteboardCanvasProps): React.ReactElem
               onChange={(e) => {
                 const val = parseInt(e.target.value, 10);
                 if (!isNaN(val)) {
-                  const newSize = Math.max(10, Math.min(200, val));
-                  const t = selectedObject as TextObject;
-                  const updated: TextObject = { ...t, fontSize: newSize };
-                  docDispatch({ type: 'UPDATE_OBJECT', pageIndex: currentPageIndexRef.current, object: updated });
-                  setSelectedObject(updated);
-                  engineRef.current?.requestActiveRender();
-                  engineRef.current?.requestCommittedRender();
+                  updateSelectedTextFontSize(selectedObject as TextObject, val);
                 }
               }}
               onClick={(e) => e.stopPropagation()}
@@ -2626,12 +2664,7 @@ export function WhiteboardCanvas(props?: WhiteboardCanvasProps): React.ReactElem
               onClick={(e) => {
                 e.stopPropagation();
                 const t = selectedObject as TextObject;
-                const newSize = Math.min(200, (t.fontSize || 36) + 4);
-                const updated: TextObject = { ...t, fontSize: newSize };
-                docDispatch({ type: 'UPDATE_OBJECT', pageIndex: currentPageIndexRef.current, object: updated });
-                setSelectedObject(updated);
-                engineRef.current?.requestActiveRender();
-                engineRef.current?.requestCommittedRender();
+                updateSelectedTextFontSize(t, (t.fontSize || 36) + 4);
               }}
               title="Increase font size (+4px)"
               style={{

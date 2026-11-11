@@ -1,6 +1,6 @@
 {
   "name": "smartnoteai",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "SmartNoteAI — Intelligent Digital Whiteboard & Teaching Application",
   "main": "dist/main/main.js",
   "author": "SmartNoteAI Team",

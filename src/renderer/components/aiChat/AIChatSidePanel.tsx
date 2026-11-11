@@ -18,11 +18,33 @@ import { ModelSettingsDrawer } from './ModelSettingsDrawer';
 import {
   DiagramType,
   detectDiagramType,
+  isSupportedDiagramCode,
   renderDiagramToSvg,
 } from '../../services/vectorDiagramService';
 import { markdownToHtml } from '../../services/markdownRenderService';
+import {
+  GEMINI_CURATED_MODELS,
+  GEMINI_DEFAULT_MODEL,
+  GEMINI_LEGACY_PHANTOM_MODEL_IDS,
+  isSupportedGeminiChatModel,
+  normalizeGeminiModelId,
+  sortGeminiModels,
+} from '../../../shared/geminiModelUtils';
 import katex from 'katex';
 import './AIChatSidePanel.css';
+
+export interface WebImageItem {
+  title: string;
+  imageUrl: string;
+  thumbUrl: string;
+  pageUrl: string;
+  source: string;
+}
+
+export interface WebGroundingSource {
+  title: string;
+  url: string;
+}
 
 export interface ChatMessage {
   id: string;
@@ -33,15 +55,21 @@ export interface ChatMessage {
   provider?: string;
   isError?: boolean;
   errorMessage?: string;
+  webImages?: WebImageItem[];
+  webImageSearchUrl?: string;
+  groundingSources?: WebGroundingSource[];
 }
 
 export interface ContentSegment {
   id: string;
-  type: 'formula' | 'heading' | 'bullets' | 'table' | 'code' | 'paragraph' | 'diagram';
+  type: 'formula' | 'heading' | 'bullets' | 'table' | 'code' | 'paragraph' | 'diagram' | 'image';
   rawText: string;
   displayTitle: string;
   isFormula: boolean;
   diagramType?: DiagramType;
+  imageUrl?: string;
+  thumbUrl?: string;
+  pageUrl?: string;
 }
 
 export interface ChatSessionRecord {
@@ -56,6 +84,8 @@ export interface AIChatSidePanelProps {
   isOpen: boolean;
   onClose: () => void;
   onInsertToBoard: (content: string, title?: string, targetPos?: { x: number; y: number }, isFormulaHint?: boolean) => void;
+  onInsertImageUrlToBoard?: (url: string, title?: string, targetPos?: { x: number; y: number }) => void;
+  onOpenInBrowser?: (url: string) => void;
   onOpenVectorStudio?: (code: string) => void;
   onEnhanceBoard?: () => void;
   currentTopic?: string;
@@ -134,27 +164,39 @@ function useTypingPlaceholder(phrases: string[], typingSpeed = 55, pauseTime = 2
 }
 
 /**
- * Detects whether the user's message is a greeting or introductory query
- * so we can respond warmly instead of hallucinating random curriculum lessons.
+ * Detects whether the user's message is ONLY a standalone greeting or introductory query
+ * so real educational prompts starting with "hi explain..." or "help me solve..." are NEVER hijacked!
  */
 export function isGreetingOrChitchat(text: string): boolean {
-  const t = (text || '').trim().toLowerCase();
+  const t = (text || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!t) return false;
+  if (t === 'hi' || t === 'hello' || t === 'hey' || t === 'test' || t === 'help') {
+    return true;
+  }
   return (
-    /^(hi+|hello+|hey+|good\s*(morning|afternoon|evening)|howdy|greetings|hola|who are you|what can you do|help)\b/i.test(t) ||
-    t === 'hi' ||
-    t === 'hello' ||
-    t === 'hey' ||
-    t === 'test'
+    /^(?:hi+|hello+|hey+|howdy|greetings|hola)(?:\s+(?:there|ai|assistant|smartnoteai|bot|friend))?[!?.]*$/i.test(t) ||
+    /^good\s+(?:morning|afternoon|evening|night)(?:\s+(?:there|ai|assistant))?[!?.]*$/i.test(t) ||
+    /^(?:who\s+are\s+you|what\s+can\s+you\s+do|help\s+me)[?!.]*$/i.test(t)
   );
 }
 
-const DEFAULT_WELCOME_MESSAGE: ChatMessage = {
-  id: 'welcome',
-  role: 'assistant',
-  content:
-    `Welcome to **SmartNoteAI** Teaching Assistant!\n\nAsk me to generate lesson notes, step-by-step math derivations, classroom vector diagrams, or practice problems.\n\n• **Drag to Board**: Drag any formula, diagram, or explanation card directly onto your whiteboard.\n• **1-Click Insert**: Click **➕ Insert** to place content instantly on board.\n• **Vector Diagrams**: Ask for flowcharts (Mermaid), mathematical graphs (parabolas, sine waves), logic circuits, or geometry figures.\n• **Bottom Toolbar**: Switch models, start new chats, and access your full conversation history directly at the bottom!`,
-  timestamp: Date.now(),
-};
+/**
+ * Strips accidental leading "Welcome to SmartBoard / SmartNoteAI..." boilerplate
+ * from model responses to educational prompts so content starts directly.
+ */
+export function stripLeadingWelcomeBoilerplate(text: string): string {
+  if (!text) return '';
+  let out = text.trim();
+  const welcomeLineRe =
+    /^(?:#+\s*)?(?:hello!?\s*|hi!?\s*|welcome\s+(?:back\s+)?to\s+(?:\*{0,2})?(?:smartboard|smartnoteai)(?:\*{0,2})?(?:\s+teaching\s+assistant)?[!.:👋\s]*\n+)+/i;
+  out = out.replace(welcomeLineRe, '').trim();
+  // Also strip standalone opening sentence like "Welcome to SmartBoard! " on same line
+  out = out.replace(
+    /^(?:hello!?\s*)?welcome\s+to\s+(?:\*{0,2})?(?:smartboard|smartnoteai)(?:\s+teaching\s+assistant)?(?:\*{0,2})?[!.,:\s-]+/i,
+    ''
+  ).trim();
+  return out;
+}
 
 /**
  * On application startup, ensure the user starts with a fresh new chat,
@@ -196,10 +238,10 @@ function getInitialMessagesAndPreserveHistory(): ChatMessage[] {
 
     try {
       sessionStorage.setItem('smartnoteai_app_session_started', 'true');
-      localStorage.setItem('smartnoteai_chat_history', JSON.stringify([DEFAULT_WELCOME_MESSAGE]));
+      localStorage.setItem('smartnoteai_chat_history', JSON.stringify([]));
     } catch {}
 
-    return [DEFAULT_WELCOME_MESSAGE];
+    return [];
   }
 
   // App is already running in this session: load ongoing history
@@ -208,18 +250,120 @@ function getInitialMessagesAndPreserveHistory(): ChatMessage[] {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return parsed.filter((m: ChatMessage) => m && m.id !== 'welcome');
       }
     }
   } catch {}
 
-  return [DEFAULT_WELCOME_MESSAGE];
+  return [];
+}
+
+/**
+ * Extracts [IMAGE_SEARCH: ...] tags from AI output and returns cleaned markdown text + queries.
+ */
+export function extractImageSearchTags(text: string): { cleanedText: string; queries: string[] } {
+  const queries: string[] = [];
+  const cleanedText = (text || '')
+    .replace(/^\s*(?:[-*]\s*)?\[IMAGE_SEARCH\s*:\s*([^\]]+)\]\s*$/gim, (_, q: string) => {
+      const trimmed = q.trim();
+      if (trimmed) queries.push(trimmed);
+      return '';
+    })
+    .replace(/\[IMAGE_SEARCH\s*:\s*([^\]]+)\]/gi, (_, q: string) => {
+      const trimmed = q.trim();
+      if (trimmed) queries.push(trimmed);
+      return '';
+    })
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return { cleanedText, queries };
+}
+
+/**
+ * Determines whether the user's prompt benefits from fetching web educational images,
+ * and returns a clean search query when appropriate (or null).
+ */
+export function deriveWebImageQueryFromPrompt(prompt: string, isGreeting: boolean): string | null {
+  if (isGreeting || !prompt) return null;
+  const trimmed = prompt.trim();
+  if (!trimmed) return null;
+
+  const explicitImageAsk =
+    /\b(image|images|photo|photos|picture|pictures|pic|pics|diagram|illustration|search\s+web|find\s+on\s+(?:the\s+)?web|show\s+me)\b/i.test(
+      trimmed
+    );
+
+  // Strip conversational lead-ins & image-request filler words to isolate core topic
+  const stripped = trimmed
+    .replace(
+      /^(?:explain\s+or\s+derive\s*:|please\s+|can\s+you\s+|could\s+you\s+|tell\s+me\s+(?:about\s+)?|explain\s+|define\s+|describe\s+|show\s+me\s+|find\s+(?:me\s+)?|search\s+(?:for\s+)?|what\s+(?:is|are)\s+|how\s+does\s+)/gi,
+      ''
+    )
+    .replace(
+      /\b(?:(?:an?\s+)?(?:images?|photos?|pictures?|pics?|diagrams?|illustrations?)(?:\s+of)?|on\s+the\s+web|from\s+(?:the\s+)?internet)\b/gi,
+      ''
+    )
+    .replace(/^(?:an?\s+|the\s+|of\s+|for\s+|about\s+)/i, '')
+    .replace(/[?!.]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (explicitImageAsk && stripped.length >= 2) {
+    return stripped.slice(0, 80);
+  }
+
+  // Skip pure arithmetic / symbolic equations unless an image was explicitly requested
+  if (/^[\d\s+\-*/=^().x yz]+$/i.test(trimmed) || /\b(solve|factor|simplify|differentiate|integrate|derive)\b/i.test(trimmed)) {
+    return null;
+  }
+
+  const visualTopicKeywords =
+    /\b(photosynthesis|chloroplast|mitochondria|cell|mitosis|meiosis|dna|rna|neuron|heart|brain|lungs|kidney|digestive|skeleton|flower|leaf|volcano|earthquake|solar\s+system|planet|galaxy|atom|molecule|microscope|telescope|pyramid|glacier|water\s+cycle|carbon\s+cycle|nitrogen\s+cycle|ecosystem|food\s+web|plate\s+tectonics|magnet|prism|circuit|crystal)\b/i;
+
+  if (visualTopicKeywords.test(trimmed) && stripped.length >= 2) {
+    return stripped.slice(0, 80);
+  }
+
+  // Short noun-phrase queries (1-4 words, non-trivial) also benefit from reference visuals
+  const wordCount = stripped.split(/\s+/).filter(Boolean).length;
+  if (wordCount >= 1 && wordCount <= 4 && stripped.length >= 4 && !/^(help|test|why|when|where)$/i.test(stripped)) {
+    return stripped.slice(0, 80);
+  }
+
+  return null;
+}
+
+async function fetchWebImagesForQuery(
+  query: string,
+  limit = 4
+): Promise<{ images: WebImageItem[]; searchUrl: string }> {
+  const cleanQ = query.trim();
+  if (!cleanQ) return { images: [], searchUrl: '' };
+  const fallbackSearchUrl = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(cleanQ)}`;
+  try {
+    const invoke = (window as any)?.electronAPI?.invoke;
+    if (typeof invoke === 'function') {
+      const res = await invoke('net:searchEducationalImages', cleanQ, limit);
+      if (res && res.success) {
+        return {
+          images: Array.isArray(res.images) ? res.images : [],
+          searchUrl:
+            typeof res.searchUrl === 'string' && res.searchUrl ? res.searchUrl : fallbackSearchUrl,
+        };
+      }
+    }
+  } catch {
+    // Non-fatal fallback to searchUrl
+  }
+  return { images: [], searchUrl: fallbackSearchUrl };
 }
 
 export function AIChatSidePanel({
   isOpen,
   onClose,
   onInsertToBoard,
+  onInsertImageUrlToBoard,
+  onOpenInBrowser,
   onOpenVectorStudio,
   onEnhanceBoard,
   currentTopic = '',
@@ -230,6 +374,14 @@ export function AIChatSidePanel({
   onClearInitialQuery,
 }: AIChatSidePanelProps): React.ReactElement | null {
   const [messages, setMessages] = useState<ChatMessage[]>(getInitialMessagesAndPreserveHistory);
+  const [webSearchEnabled, setWebSearchEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('smartnoteai_web_search_enabled');
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -263,12 +415,24 @@ export function AIChatSidePanel({
   const [modelOptions, setModelOptions] = useState<ConnectedModelOption[]>([]);
   const [selectedModelKey, setSelectedModelKey] = useState<string>(() => {
     try {
+      const sanitizeGeminiKey = (candidateModel: string): string => {
+        const cleanId = normalizeGeminiModelId(candidateModel);
+        if (!cleanId || !isSupportedGeminiChatModel(cleanId) || GEMINI_LEGACY_PHANTOM_MODEL_IDS.has(cleanId.toLowerCase())) {
+          return `gemini:${GEMINI_DEFAULT_MODEL}`;
+        }
+        return `gemini:${cleanId}`;
+      };
       const savedActive = localStorage.getItem('smartboard_active_model_key');
-      if (savedActive) return savedActive;
+      if (savedActive) {
+        if (savedActive.startsWith('gemini:')) {
+          return sanitizeGeminiKey(savedActive.slice('gemini:'.length));
+        }
+        return savedActive;
+      }
       const savedGemini = localStorage.getItem('smartboard_model_gemini');
-      if (savedGemini) return `gemini:${savedGemini}`;
+      if (savedGemini) return sanitizeGeminiKey(savedGemini);
     } catch {}
-    return 'gemini:gemini-3.8-flash';
+    return `gemini:${GEMINI_DEFAULT_MODEL}`;
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -345,6 +509,7 @@ export function AIChatSidePanel({
     }
 
     // 2. Google Gemini Models
+    let discoveredGemini: Array<{ id: string; displayName?: string }> = [];
     try {
       let hasGeminiKey = false;
       if (electronAi?.getApiKey) {
@@ -352,11 +517,28 @@ export function AIChatSidePanel({
         if (key && key.trim().length > 0) hasGeminiKey = true;
       }
       if (hasGeminiKey) {
-        let discoveredGemini: Array<{ id: string; displayName?: string }> = [];
         const cachedRaw = localStorage.getItem('smartboard_discovered_models_gemini');
         if (cachedRaw) {
           try {
-            discoveredGemini = JSON.parse(cachedRaw);
+            const parsed = JSON.parse(cachedRaw);
+            if (Array.isArray(parsed)) {
+              const filtered = parsed
+                .map((m: any) => {
+                  const rawId = typeof m === 'string' ? m : (m?.id || m?.name || '');
+                  const cleanId = normalizeGeminiModelId(rawId);
+                  const disp = typeof m === 'object' && m?.displayName ? m.displayName : cleanId;
+                  return { id: cleanId, displayName: disp };
+                })
+                .filter((m) => isSupportedGeminiChatModel(m.id));
+              discoveredGemini = sortGeminiModels(filtered);
+              if (discoveredGemini.length !== parsed.length) {
+                if (discoveredGemini.length > 0) {
+                  localStorage.setItem('smartboard_discovered_models_gemini', JSON.stringify(discoveredGemini));
+                } else {
+                  localStorage.removeItem('smartboard_discovered_models_gemini');
+                }
+              }
+            }
           } catch {}
         }
 
@@ -365,26 +547,15 @@ export function AIChatSidePanel({
           try {
             const res = await electronAi.listModels('gemini', { timeoutMs: 8000 });
             const list = Array.isArray(res) ? res : (res?.models || []);
-            discoveredGemini = list
+            const mapped = list
               .map((m: any) => {
                 const rawId = typeof m === 'string' ? m : (m.id || m.name || '');
-                let cleanId = rawId;
-                const paren = cleanId.match(/\(([^)]+)\)$/);
-                if (paren && paren[1]) cleanId = paren[1].trim();
-                cleanId = cleanId.replace(/^models\//, '').trim();
+                const cleanId = normalizeGeminiModelId(rawId);
                 const disp = typeof m === 'object' && m.displayName ? m.displayName : cleanId;
                 return { id: cleanId, displayName: disp };
               })
-              .filter((m: any) => {
-                const lower = m.id.toLowerCase();
-                return (
-                  !lower.endsWith('-tts') &&
-                  !lower.includes('-image') &&
-                  !lower.includes('-transcribe') &&
-                  !lower.includes('embedding') &&
-                  !lower.includes('banana')
-                );
-              });
+              .filter((m: any) => isSupportedGeminiChatModel(m.id));
+            discoveredGemini = sortGeminiModels(mapped);
             if (discoveredGemini.length > 0) {
               localStorage.setItem('smartboard_discovered_models_gemini', JSON.stringify(discoveredGemini));
             }
@@ -393,60 +564,28 @@ export function AIChatSidePanel({
 
         if (discoveredGemini.length > 0) {
           for (const m of discoveredGemini) {
-            const isRec = m.id === 'gemini-3.5-flash';
+            const isRec = m.id === GEMINI_DEFAULT_MODEL;
             opts.push({
               key: `gemini:${m.id}`,
               provider: 'gemini',
               modelId: m.id,
-              displayName: `${m.displayName || m.id}${isRec ? ' (Fast & Stable — Recommended)' : ''}`,
+              displayName: `${m.displayName || m.id}${isRec ? ' (Recommended)' : ''}`,
               group: '✨ Google Gemini (Discovered Live)',
               installed: true,
             });
           }
         } else {
-          // Curated reliable high-speed defaults
-          opts.push(
-            {
-              key: 'gemini:gemini-3.5-flash-lite',
+          // Curated free-tier friendly defaults when live model discovery has not yet completed
+          for (const curated of GEMINI_CURATED_MODELS) {
+            opts.push({
+              key: `gemini:${curated.id}`,
               provider: 'gemini',
-              modelId: 'gemini-3.5-flash-lite',
-              displayName: 'Gemini 3.5 Flash-Lite (Fast & Reliable — Recommended)',
+              modelId: curated.id,
+              displayName: curated.name,
               group: '✨ Google Gemini (Cloud)',
               installed: true,
-            },
-            {
-              key: 'gemini:gemini-3.6-flash',
-              provider: 'gemini',
-              modelId: 'gemini-3.6-flash',
-              displayName: 'Gemini 3.6 Flash (Fast Response)',
-              group: '✨ Google Gemini (Cloud)',
-              installed: true,
-            },
-            {
-              key: 'gemini:gemini-3.8-flash',
-              provider: 'gemini',
-              modelId: 'gemini-3.8-flash',
-              displayName: 'Gemini 3.8 Flash (Preview)',
-              group: '✨ Google Gemini (Cloud)',
-              installed: true,
-            },
-            {
-              key: 'gemini:gemini-flash-latest',
-              provider: 'gemini',
-              modelId: 'gemini-flash-latest',
-              displayName: 'Gemini Flash Latest',
-              group: '✨ Google Gemini (Cloud)',
-              installed: true,
-            },
-            {
-              key: 'gemini:gemini-pro-latest',
-              provider: 'gemini',
-              modelId: 'gemini-pro-latest',
-              displayName: 'Gemini Pro Latest (Deep Multimodal Reasoning)',
-              group: '✨ Google Gemini (Cloud)',
-              installed: true,
-            }
-          );
+            });
+          }
         }
       }
     } catch {
@@ -563,16 +702,31 @@ export function AIChatSidePanel({
       installed: true,
     });
 
-    // 8. Also ensure any custom/saved models from localStorage exist in options
+    // 8. Also ensure valid custom/saved models from localStorage exist in options
+    const discoveredGeminiIds = new Set(discoveredGemini.map((m) => m.id.toLowerCase()));
+    const isValidSavedGeminiId = (modelId: string): boolean => {
+      const cleanId = normalizeGeminiModelId(modelId);
+      if (!cleanId || !isSupportedGeminiChatModel(cleanId)) return false;
+      if (GEMINI_LEGACY_PHANTOM_MODEL_IDS.has(cleanId.toLowerCase())) {
+        return discoveredGeminiIds.has(cleanId.toLowerCase());
+      }
+      return true;
+    };
+
     for (const prov of ['gemini', 'ollama', 'kimi', 'deepseek', 'groq', 'openai', 'custom'] as const) {
       try {
         const savedM = localStorage.getItem(`smartboard_model_${prov}`);
-        if (savedM && !opts.some((o) => o.modelId === savedM && o.provider === prov)) {
+        if (!savedM) continue;
+        if (prov === 'gemini' && !isValidSavedGeminiId(savedM)) {
+          continue;
+        }
+        const cleanM = prov === 'gemini' ? normalizeGeminiModelId(savedM) : savedM;
+        if (!opts.some((o) => o.modelId === cleanM && o.provider === prov)) {
           opts.push({
-            key: `${prov}:${savedM}`,
+            key: `${prov}:${cleanM}`,
             provider: prov as any,
-            modelId: savedM,
-            displayName: `${savedM} (${prov})`,
+            modelId: cleanM,
+            displayName: `${cleanM} (${prov})`,
             group: '✨ Saved & Custom Models',
             installed: true,
           });
@@ -582,26 +736,34 @@ export function AIChatSidePanel({
 
     setModelOptions(opts);
 
-    // Keep existing selected model if valid, else check saved custom models
+    // Keep existing selected model if valid, else pick best active or recommended option
     setSelectedModelKey((prev) => {
       // 1. Check saved active model key first if updated
       try {
         const savedActive = localStorage.getItem('smartboard_active_model_key');
         if (savedActive) {
-          const activeMatch = opts.find((o) => o.key === savedActive);
-          if (activeMatch) return activeMatch.key;
+          const isStaleGemini =
+            savedActive.startsWith('gemini:') && !isValidSavedGeminiId(savedActive.slice('gemini:'.length));
+          if (!isStaleGemini) {
+            const activeMatch = opts.find((o) => o.key === savedActive);
+            if (activeMatch) return activeMatch.key;
+          }
         }
       } catch {}
 
-      // 2. If currently selected model is still in opts, preserve it
-      const currentMatch = opts.find((o) => o.key === prev);
-      if (currentMatch) return currentMatch.key;
+      // 2. If currently selected model is still in opts (and not stale Gemini), preserve it
+      const prevStaleGemini = prev.startsWith('gemini:') && !isValidSavedGeminiId(prev.slice('gemini:'.length));
+      if (!prevStaleGemini) {
+        const currentMatch = opts.find((o) => o.key === prev);
+        if (currentMatch) return currentMatch.key;
+      }
 
       // 3. Fallback to saved per-provider models
       try {
         const savedGemini = localStorage.getItem('smartboard_model_gemini');
-        if (savedGemini) {
-          const geminiOpt = opts.find((o) => o.key === `gemini:${savedGemini}` || o.modelId === savedGemini);
+        if (savedGemini && isValidSavedGeminiId(savedGemini)) {
+          const cleanGemini = normalizeGeminiModelId(savedGemini);
+          const geminiOpt = opts.find((o) => o.key === `gemini:${cleanGemini}` || o.modelId === cleanGemini);
           if (geminiOpt) return geminiOpt.key;
         }
         const savedOllama = localStorage.getItem('smartboard_model_ollama');
@@ -611,8 +773,11 @@ export function AIChatSidePanel({
         }
       } catch {}
 
-      // 4. Prefer installed local or gemini model over fallback
-      const preferred = opts.find((o) => o.key !== 'offline:default') || opts[0];
+      // 4. Prefer installed local or Flash Gemini model over offline fallback
+      const preferred =
+        opts.find((o) => o.key === `gemini:${GEMINI_DEFAULT_MODEL}`) ||
+        opts.find((o) => o.key !== 'offline:default') ||
+        opts[0];
       return preferred ? preferred.key : 'offline:default';
     });
   }, []);
@@ -727,60 +892,78 @@ export function AIChatSidePanel({
 
     let systemPrompt = '';
     if (isGreeting) {
-      systemPrompt = `You are SmartNoteAI Teaching Assistant, an intelligent pedagogical AI assistant built for interactive whiteboard instruction, students, and classroom learning.
-The user greeted you (e.g. saying "${rawText}").
-Reply warmly, politely, and professionally as SmartNoteAI Teaching Assistant. Introduce yourself briefly, highlight 3-4 key capabilities across diverse subjects (math derivations, science flowcharts, programming code, historical timelines, and classroom quizzes ready to drag onto the smartboard), and warmly ask what topic or lesson they would like to teach or explore today. Keep your response friendly, welcoming, and concise. Do NOT invent random lecture topics or quadratic formulas.`;
+      systemPrompt = `You are SmartNoteAI Teaching Assistant, a concise AI assistant built for interactive whiteboard instruction.
+The user greeted you (saying "${rawText}").
+Reply briefly and warmly in 2-3 sentences asking what topic or lesson they would like to teach today. Do NOT output long welcome banners or invent random lecture topics.`;
     } else {
+      const webImageRule = webSearchEnabled
+        ? `\n- Web Image Lookup: When the topic benefits from real-world educational photos, biological/anatomical illustrations, maps, historical artifacts, or when the user asks for images/pictures, include ONE tag on its own line at the end: [IMAGE_SEARCH: concise 2-5 word search query]. Do NOT invent fake image URLs.`
+        : '';
       systemPrompt = `You are SmartNoteAI Teaching Assistant, an intelligent pedagogical assistant built for interactive classroom whiteboard instruction.
 The app name is SmartNoteAI.
 ${topicLine}${subjectLine}User Query: "${rawText}"
 
+CRITICAL RESPONSE START RULE:
+- NEVER start with "Welcome to SmartBoard", "Welcome to SmartNoteAI", "Hello! Welcome...", or conversational filler. Start DIRECTLY with the requested educational content.
+
 CORE PEDAGOGICAL PHILOSOPHY:
 Be dynamic, subject-adaptive, and deeply relevant to the user's specific query.
-Do NOT force a rigid cookie-cutter template across all subjects. Instead, determine the academic discipline and select 2 to 4 of the most appropriate pedagogical components suited for this specific topic and student learning needs.
-Format your response into clean modular segments separated by '---' on its own line so each element (formula, diagram, code block, table, or question) can be dragged individually onto the smartboard canvas.
+Select 2 to 4 of the most appropriate pedagogical components suited for this topic, separated by '---' on its own line so each element (heading, explanation, formula, diagram, table, code, or practice question) can be dragged individually onto the whiteboard.
 
-SUBJECT-ADAPTIVE CONTENT TOOLBOX (Intelligently select what makes sense for this topic):
-1. Mathematics, Physics & Quantitative Sciences:
-   - Provide step-by-step worked solutions or proofs.
-   - Write primary formulas as display equations on their own lines using $$...$$, and inline symbols using $...$.
-   - When a coordinate plot or geometry figure aids understanding, provide executable code:
-     * Function plots (parabolas, trig, quadratics): \`\`\`graph { "type": "graph", "expressions": ["..."], "xRange": [-5, 5], "yRange": [-5, 10], "axes": true, "grid": true } \`\`\`
-     * 2D Geometry (angles, triangles, circles): \`\`\`geometry { "type": "geometry", "title": "...", "shapes": [...] } \`\`\`
-2. Natural Sciences (Biology, Chemistry, Environmental Science):
-   - Clear breakdown of biological processes, mechanisms, cellular structures, or chemical reactions.
-   - When a visual diagram helps, provide a scientific flowchart, cycle, or breakdown in \`\`\`mermaid flowchart TD/LR ... \`\`\`.
-   - Balanced chemical equations or reaction steps.
-3. History, Geography & Social Sciences:
-   - Historical timelines, sequence of events, or causes-and-effects (\`\`\`mermaid timeline ... \`\`\` or structured chronology).
-   - Geographic context, maps, regional significance, or key historical figures.
-   - Primary document quotes and critical discussion questions.
-4. Computer Science, Programming & IT:
-   - Clean, syntax-highlighted code blocks (\`\`\`python, \`\`\`javascript, \`\`\`cpp, etc.).
-   - Algorithm logic, flowchart (\`\`\`mermaid flowchart TD ... \`\`\`), or digital logic circuits (\`\`\`circuit { "type": "circuit", ... } \`\`\`).
-5. Literature, Languages & Humanities:
-   - Thematic analysis, character motivations, literary devices, and textual quotes.
-   - Comparative tables (| Element | Meaning | Example |).
-   - Socratic questions for classroom debate.
+SUPPORTED SMARTBOARD VECTOR DIAGRAMS (use ONLY valid syntax below inside fenced blocks):
+1. Mathematics & Physics:
+   - Display formulas on their own lines using $$...$$ and inline symbols using $...$.
+   - Function plots: \`\`\`graph\n{ "type": "graph", "expressions": ["x^2 - 4"], "xRange": [-5, 5], "yRange": [-6, 10], "axes": true, "grid": true }\n\`\`\`
+   - 2D Geometry: \`\`\`geometry\n{ "type": "geometry", "title": "...", "shapes": [{ "kind": "triangle", "points": [[0,0],[4,0],[1.5,3]], "labels": ["A","B","C"] }] }\n\`\`\`
+   - Data charts: \`\`\`chart\n{ "type": "chart", "chartType": "bar", "title": "...", "labels": ["A","B"], "values": [10,20] }\n\`\`\`
+2. Natural Sciences, History & Computer Science Flowcharts / Timelines:
+   - Mermaid flowcharts: \`\`\`mermaid\nflowchart TD\n  A["Step 1 (Details)"] --> B["Step 2"]\n\`\`\`
+     CRITICAL MERMAID RULE: Always enclose node labels containing spaces, parentheses, colons, math, or punctuation in double quotes inside brackets, e.g. A["Sea Level (1013.25 mb)"] --> B["Troposphere"], and use --> arrows (not Unicode arrows).
+   - Timelines: \`\`\`mermaid\ntimeline\n  title Key Milestones\n  1900 : Discovery\n\`\`\`
+   - Digital logic circuits: \`\`\`circuit\n{ "type": "circuit", "title": "...", "gates": [{ "id": "G1", "type": "AND", "x": 180, "y": 100 }], "wires": [] }\n\`\`\`
 
 CRITICAL FORMATTING RULES:
-1. Address the user's actual question directly. Never generate placeholder topics or unrelated templates.
-2. NEVER include math formulas for non-mathematical subjects like history, literature, or general definitions.
-3. Keep distinct formulas, diagrams, tables, and questions separated by '---' on its own line so they can be dragged independently onto the whiteboard.
-4. Keep explanations concise, classroom-ready, and formatted in clean Markdown (### headings, **bold**, and bullet points).
-5. For mathematical expressions or variable definitions: ALWAYS keep variable names and explanations on the same line (e.g. "1. **First Term ($a$):** The initial value"). Write complete, fluent pedagogical sentences.`;
+1. Address the user's actual question directly with clean Markdown (### headings, **bold**, bullet points, or Markdown tables).
+2. NEVER emit CSS font-size rules if writing HTML snippets.
+3. NEVER include math formulas for non-mathematical subjects unless requested.
+4. Keep distinct formulas, diagrams, tables, and questions separated by '---' on its own line.
+5. Keep variable names and explanations on the same line (e.g. "1. **Amplitude ($A$):** Maximum displacement from equilibrium.").${webImageRule}`;
     }
+
+    const speculativeImageQuery = webSearchEnabled ? deriveWebImageQueryFromPrompt(rawText, isGreeting) : null;
+    const speculativeImagePromise = speculativeImageQuery
+      ? fetchWebImagesForQuery(speculativeImageQuery, 4)
+      : null;
 
     try {
       if (selectedModelKey === 'offline:default') {
         // Direct offline intelligent educational generator
-        const content = generateIntelligentEducationalResponse(rawText, currentTopic, currentSubject);
+        const rawOffline = generateIntelligentEducationalResponse(rawText, currentTopic, currentSubject);
+        const { cleanedText, queries } = extractImageSearchTags(rawOffline);
+        const content = isGreeting ? cleanedText : stripLeadingWelcomeBoilerplate(cleanedText);
+        let webImages: WebImageItem[] = [];
+        let webImageSearchUrl: string | undefined;
+        if (webSearchEnabled && !isGreeting) {
+          const explicitQ = queries[0];
+          const imageRes =
+            explicitQ && explicitQ.toLowerCase() !== (speculativeImageQuery || '').toLowerCase()
+              ? await fetchWebImagesForQuery(explicitQ, 4)
+              : speculativeImagePromise
+              ? await speculativeImagePromise
+              : null;
+          if (imageRes) {
+            webImages = imageRes.images;
+            webImageSearchUrl = imageRes.searchUrl;
+          }
+        }
         const assistantMsg: ChatMessage = {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
           content,
           timestamp: Date.now(),
           provider: 'Built-in Educational Engine',
+          webImages: webImages.length > 0 ? webImages : undefined,
+          webImageSearchUrl,
         };
         setMessages((prev) => [...prev, assistantMsg]);
 
@@ -818,15 +1001,41 @@ CRITICAL FORMATTING RULES:
           temperature: 0.5,
           timeoutMs: provider === 'ollama' ? 180000 : 60000,
           signal: controller.signal,
+          enableWebSearch: webSearchEnabled && !isGreeting,
         });
 
         if (res.success && res.text?.trim()) {
+          const { cleanedText, queries } = extractImageSearchTags(res.text.trim());
+          const finalContent = isGreeting ? cleanedText : stripLeadingWelcomeBoilerplate(cleanedText);
+          let webImages: WebImageItem[] = [];
+          let webImageSearchUrl: string | undefined;
+
+          if (webSearchEnabled && !isGreeting) {
+            const explicitQ = queries[0];
+            const imageRes =
+              explicitQ && explicitQ.toLowerCase() !== (speculativeImageQuery || '').toLowerCase()
+                ? await fetchWebImagesForQuery(explicitQ, 4)
+                : speculativeImagePromise
+                ? await speculativeImagePromise
+                : null;
+            if (imageRes) {
+              webImages = imageRes.images;
+              webImageSearchUrl = imageRes.searchUrl;
+            }
+          }
+
           const assistantMsg: ChatMessage = {
             id: `assistant-${Date.now()}`,
             role: 'assistant',
-            content: res.text.trim(),
+            content: finalContent || res.text.trim(),
             timestamp: Date.now(),
-            provider: `${provider.toUpperCase()} (${model})`,
+            provider: `${provider.toUpperCase()} (${res.model || model})`,
+            webImages: webImages.length > 0 ? webImages : undefined,
+            webImageSearchUrl,
+            groundingSources:
+              Array.isArray(res.groundingSources) && res.groundingSources.length > 0
+                ? res.groundingSources
+                : undefined,
           };
           setMessages((prev) => [...prev, assistantMsg]);
 
@@ -912,15 +1121,18 @@ CRITICAL FORMATTING RULES:
     setIsLoading(false);
   };
 
+  const toggleWebSearch = () => {
+    setWebSearchEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('smartnoteai_web_search_enabled', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const handleClearHistory = () => {
-    setMessages([
-      {
-        id: 'welcome',
-        role: 'assistant',
-        content: `Chat history cleared!\n\nAsk me any question or choose a prompt chip below to generate lesson content.`,
-        timestamp: Date.now(),
-      },
-    ]);
+    setMessages([]);
     try {
       localStorage.removeItem('smartnoteai_chat_history');
     } catch {}
@@ -948,14 +1160,7 @@ CRITICAL FORMATTING RULES:
       });
     }
 
-    setMessages([
-      {
-        id: 'welcome',
-        role: 'assistant',
-        content: `Started a fresh lesson session with **SmartNoteAI**!\n\nAsk any question or choose a prompt chip below to generate lesson content.`,
-        timestamp: Date.now(),
-      },
-    ]);
+    setMessages([]);
     setShowHistoryDrawer(false);
   };
 
@@ -1206,6 +1411,14 @@ CRITICAL FORMATTING RULES:
 
       {/* ─── Messages Scroll Area ─── */}
       <div className="ai-chat-messages-container">
+        {messages.length === 0 && !isLoading && (
+          <div className="ai-chat-empty-state">
+            <div className="ai-chat-empty-title">SmartNoteAI Teaching Assistant</div>
+            <div className="ai-chat-empty-sub">
+              Ask any concept, derivation, vector diagram, chart, or visual topic — drag cards or web images straight onto your whiteboard.
+            </div>
+          </div>
+        )}
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -1257,12 +1470,67 @@ CRITICAL FORMATTING RULES:
                   insertedId={insertedId}
                   onCopy={(text) => handleCopy(msg.id, text)}
                   onInsert={(text, title, isFormula) => handleInsert(msg.id, text, title, isFormula)}
+                  onInsertImageUrlToBoard={onInsertImageUrlToBoard}
+                  onOpenInBrowser={onOpenInBrowser}
                   onOpenVectorStudio={onOpenVectorStudio}
                 />
               ) : (
                 /* Simple Markdown/Text (User or Welcome) */
                 <div className="ai-bubble-content">
                   <RenderedAIContent content={msg.content} />
+                </div>
+              )}
+
+              {/* Web Images fetched for visual topics / image requests */}
+              {!msg.isError &&
+                msg.role === 'assistant' &&
+                ((msg.webImages && msg.webImages.length > 0) || msg.webImageSearchUrl) && (
+                  <div className="chat-web-images-section">
+                    <div className="chat-web-images-header">
+                      <span>🖼️ Web Images (Drag to Board or Open in Browser)</span>
+                      {msg.webImageSearchUrl && onOpenInBrowser && (
+                        <button
+                          type="button"
+                          className="chat-grounding-source-btn"
+                          onClick={() => onOpenInBrowser(msg.webImageSearchUrl!)}
+                          title="Open image search results in built-in SmartNoteAI browser"
+                        >
+                          🌐 Browse All
+                        </button>
+                      )}
+                    </div>
+                    {msg.webImages && msg.webImages.length > 0 && (
+                      <div className="chat-web-images-grid">
+                        {msg.webImages.map((img, idx) => (
+                          <WebImageCard
+                            key={`${msg.id}-img-${idx}`}
+                            imageUrl={img.imageUrl}
+                            thumbUrl={img.thumbUrl}
+                            pageUrl={img.pageUrl}
+                            title={img.title}
+                            onInsertImageUrlToBoard={onInsertImageUrlToBoard}
+                            onOpenInBrowser={onOpenInBrowser}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {/* Web Grounding Sources (Gemini Google Search) */}
+              {!msg.isError && msg.groundingSources && msg.groundingSources.length > 0 && (
+                <div className="chat-grounding-sources">
+                  {msg.groundingSources.map((src, idx) => (
+                    <button
+                      key={`${msg.id}-src-${idx}`}
+                      type="button"
+                      className="chat-grounding-source-btn"
+                      onClick={() => onOpenInBrowser?.(src.url)}
+                      title={src.url}
+                    >
+                      🔗 {src.title}
+                    </button>
+                  ))}
                 </div>
               )}
 
@@ -1425,6 +1693,22 @@ CRITICAL FORMATTING RULES:
                 {savedSessions.length > 0 && (
                   <span className="card-history-badge">{savedSessions.length}</span>
                 )}
+              </button>
+
+              {/* Web Search & Image Lookup Toggle */}
+              <button
+                type="button"
+                className={`card-toolbar-btn web-search-toggle ${webSearchEnabled ? 'active' : ''}`}
+                onClick={toggleWebSearch}
+                title={
+                  webSearchEnabled
+                    ? 'Web Search & Educational Images enabled (click to disable)'
+                    : 'Enable Web Search & Educational Images'
+                }
+                aria-pressed={webSearchEnabled}
+              >
+                <span>🌐</span>
+                <span className="btn-label">Web</span>
               </button>
             </div>
 
@@ -1679,17 +1963,18 @@ export function parseMessageSegments(content: string): ContentSegment[] {
         const isTiming = firstLine.includes('timing') || firstLine.includes('wavedrom');
         const isGeom = firstLine.includes('geometry') || firstLine.includes('jsxgraph');
         const isTikz = firstLine.includes('tikz');
-        const isJsonDiagram =
-          inner.startsWith('{') &&
-          (inner.includes('"type": "graph"') ||
-            inner.includes('"type":"graph"') ||
-            inner.includes('"type": "geometry"') ||
-            inner.includes('"type":"geometry"') ||
-            inner.includes('"type": "circuit"') ||
-            inner.includes('"type":"circuit"') ||
-            inner.includes('"signal"'));
+        const isChart = firstLine.includes('chart');
 
-        if (isMermaid || isGraph || isCircuit || isTiming || isGeom || isTikz || isJsonDiagram) {
+        if (
+          isMermaid ||
+          isGraph ||
+          isCircuit ||
+          isTiming ||
+          isGeom ||
+          isTikz ||
+          isChart ||
+          isSupportedDiagramCode(inner)
+        ) {
           const diagType = detectDiagramType(inner);
           segments.push({
             id,
@@ -1712,20 +1997,36 @@ export function parseMessageSegments(content: string): ContentSegment[] {
         continue;
       }
 
-      // Check if it's an un-fenced vector diagram code (e.g. JSON graph spec or raw Mermaid)
-      const isRawDiagram =
-        (trimmed.startsWith('{') &&
-          (trimmed.includes('"type": "graph"') ||
-            trimmed.includes('"type":"graph"') ||
-            trimmed.includes('"type": "geometry"') ||
-            trimmed.includes('"type":"geometry"') ||
-            trimmed.includes('"type": "circuit"') ||
-            trimmed.includes('"type":"circuit"') ||
-            trimmed.includes('"signal"'))) ||
-        trimmed.startsWith('graph TD') ||
-        trimmed.startsWith('graph LR') ||
-        trimmed.startsWith('sequenceDiagram') ||
-        trimmed.startsWith('\\begin{tikzpicture}');
+      // Check if it's an explicit markdown image link ![alt](https://...) on its own line
+      const imgMdMatch = trimmed.match(/^!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)$/i);
+      if (imgMdMatch) {
+        segments.push({
+          id,
+          type: 'image',
+          rawText: imgMdMatch[2],
+          displayTitle: imgMdMatch[1]?.trim() || 'Web Image',
+          isFormula: false,
+          imageUrl: imgMdMatch[2],
+        });
+        continue;
+      }
+
+      // Check if it's a bare direct image URL
+      if (/^https?:\/\/\S+\.(?:png|jpe?g|webp|gif|svg)(?:\?\S*)?$/i.test(trimmed)) {
+        const fileNameTitle = decodeURIComponent(trimmed.split('/').pop()?.split('?')[0] || 'Web Image');
+        segments.push({
+          id,
+          type: 'image',
+          rawText: trimmed,
+          displayTitle: fileNameTitle.slice(0, 36),
+          isFormula: false,
+          imageUrl: trimmed,
+        });
+        continue;
+      }
+
+      // Check if it's an un-fenced vector diagram code (e.g. JSON graph/geometry/circuit/chart spec, Mermaid, or TikZ)
+      const isRawDiagram = isSupportedDiagramCode(trimmed);
 
       if (isRawDiagram) {
         const diagType = detectDiagramType(trimmed);
@@ -1824,12 +2125,134 @@ export function parseMessageSegments(content: string): ContentSegment[] {
  * Renders each modular segment as an interactive card with its own
  * [⠿ Drag], [➕ Insert], [✏️ Edit Code], and [📋 Copy] controls.
  */
+function WebImageThumbnail({
+  imageUrl,
+  thumbUrl,
+  title,
+}: {
+  imageUrl: string;
+  thumbUrl?: string;
+  title: string;
+}): React.ReactElement {
+  const [src, setSrc] = useState<string>(thumbUrl || imageUrl);
+  const [fallbackTried, setFallbackTried] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const handleImgError = async () => {
+    if (fallbackTried) {
+      setFailed(true);
+      return;
+    }
+    setFallbackTried(true);
+    try {
+      const invoke = (window as any)?.electronAPI?.invoke;
+      if (typeof invoke === 'function') {
+        const res = await invoke('net:fetchImageAsDataUrl', imageUrl);
+        if (res?.success && res.dataUrl) {
+          setSrc(res.dataUrl);
+          return;
+        }
+      }
+    } catch {}
+    setFailed(true);
+  };
+
+  if (failed) {
+    return (
+      <div className="chat-web-image-thumb-wrap">
+        <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>🌐 Open link or drop to load</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="chat-web-image-thumb-wrap">
+      <img
+        src={src}
+        alt={title}
+        className="chat-web-image-thumb"
+        referrerPolicy="no-referrer"
+        draggable={false}
+        onError={handleImgError}
+      />
+    </div>
+  );
+}
+
+function WebImageCard({
+  imageUrl,
+  thumbUrl,
+  pageUrl,
+  title,
+  onInsertImageUrlToBoard,
+  onOpenInBrowser,
+}: {
+  imageUrl: string;
+  thumbUrl?: string;
+  pageUrl?: string;
+  title: string;
+  onInsertImageUrlToBoard?: (url: string, title?: string, targetPos?: { x: number; y: number }) => void;
+  onOpenInBrowser?: (url: string) => void;
+}): React.ReactElement {
+  const targetOpenUrl = pageUrl || imageUrl;
+  return (
+    <div
+      className="chat-web-image-card"
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', imageUrl);
+        e.dataTransfer.setData('text/uri-list', imageUrl);
+        e.dataTransfer.setData(
+          'application/x-smartboard-image',
+          JSON.stringify({ imageUrl, title, pageUrl: targetOpenUrl })
+        );
+      }}
+      title="Drag onto SmartBoard canvas to download and place image"
+    >
+      <WebImageThumbnail imageUrl={imageUrl} thumbUrl={thumbUrl} title={title} />
+      <div className="chat-web-image-meta">
+        <div className="chat-web-image-title" title={title}>
+          {title}
+        </div>
+        <button
+          type="button"
+          className="chat-web-image-url"
+          onClick={() => onOpenInBrowser?.(targetOpenUrl)}
+          title={`Open in built-in browser: ${targetOpenUrl}`}
+        >
+          {imageUrl}
+        </button>
+        <div className="chat-web-image-actions">
+          <button
+            type="button"
+            className="segment-action-btn seg-insert-btn"
+            onClick={() => onInsertImageUrlToBoard?.(imageUrl, title)}
+            title="Download image from URL and place onto SmartBoard"
+          >
+            ➕ Board
+          </button>
+          <button
+            type="button"
+            className="segment-action-btn seg-edit-btn"
+            onClick={() => onOpenInBrowser?.(targetOpenUrl)}
+            title="Open image link in integrated SmartNoteAI browser"
+          >
+            🌐 Browser
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SegmentedMessageContent({
   content,
   copiedId,
   insertedId,
   onCopy,
   onInsert,
+  onInsertImageUrlToBoard,
+  onOpenInBrowser,
   onOpenVectorStudio,
 }: {
   content: string;
@@ -1837,6 +2260,8 @@ function SegmentedMessageContent({
   insertedId: string | null;
   onCopy: (text: string) => void;
   onInsert: (text: string, title?: string, isFormula?: boolean) => void;
+  onInsertImageUrlToBoard?: (url: string, title?: string, targetPos?: { x: number; y: number }) => void;
+  onOpenInBrowser?: (url: string) => void;
   onOpenVectorStudio?: (code: string) => void;
 }): React.ReactElement {
   const segments = useMemo(() => parseMessageSegments(content), [content]);
@@ -1850,6 +2275,7 @@ function SegmentedMessageContent({
         >
           <div className="segment-card-topbar">
             <div className="segment-card-type-tag">
+              {seg.type === 'image' && <span className="seg-tag-diagram">🖼️ WEB IMAGE</span>}
               {seg.type === 'diagram' && <span className="seg-tag-diagram">📐 VECTOR DIAGRAM</span>}
               {seg.isFormula && <span className="seg-tag-math">∑ FORMULA</span>}
               {seg.type === 'heading' && <span className="seg-tag-heading">📌 SECTION</span>}
@@ -1864,6 +2290,19 @@ function SegmentedMessageContent({
                 className="segment-action-btn seg-drag-btn"
                 draggable
                 onDragStart={(e) => {
+                  if (seg.type === 'image' && seg.imageUrl) {
+                    e.dataTransfer.setData('text/plain', seg.imageUrl);
+                    e.dataTransfer.setData('text/uri-list', seg.imageUrl);
+                    e.dataTransfer.setData(
+                      'application/x-smartboard-image',
+                      JSON.stringify({
+                        imageUrl: seg.imageUrl,
+                        title: seg.displayTitle,
+                        pageUrl: seg.pageUrl || seg.imageUrl,
+                      })
+                    );
+                    return;
+                  }
                   e.dataTransfer.setData('text/plain', seg.rawText);
                   e.dataTransfer.setData(
                     'application/x-smartboard-chat',
@@ -1876,23 +2315,49 @@ function SegmentedMessageContent({
                   );
                 }}
                 title={
-                  seg.type === 'diagram'
+                  seg.type === 'image'
+                    ? 'Drag this image directly onto the SmartBoard'
+                    : seg.type === 'diagram'
                     ? 'Drag this vector diagram directly onto the SmartBoard'
                     : seg.isFormula
                     ? 'Drag just this math formula onto the board'
                     : 'Drag this segment to board'
                 }
               >
-                {seg.type === 'diagram' ? '⠿ Drag Diagram' : '⠿ Drag'}
+                {seg.type === 'image'
+                  ? '⠿ Drag Image'
+                  : seg.type === 'diagram'
+                  ? '⠿ Drag Diagram'
+                  : '⠿ Drag'}
               </button>
 
               <button
                 className="segment-action-btn seg-insert-btn"
-                onClick={() => onInsert(seg.rawText, seg.displayTitle, seg.isFormula)}
-                title="1-Click insert this segment to board"
+                onClick={() => {
+                  if (seg.type === 'image' && seg.imageUrl && onInsertImageUrlToBoard) {
+                    onInsertImageUrlToBoard(seg.imageUrl, seg.displayTitle);
+                    return;
+                  }
+                  onInsert(seg.rawText, seg.displayTitle, seg.isFormula);
+                }}
+                title={
+                  seg.type === 'image'
+                    ? 'Download image and place onto SmartBoard'
+                    : '1-Click insert this segment to board'
+                }
               >
                 {insertedId === seg.id ? '✓' : '➕ Insert'}
               </button>
+
+              {seg.type === 'image' && seg.imageUrl && onOpenInBrowser && (
+                <button
+                  className="segment-action-btn seg-edit-btn"
+                  onClick={() => onOpenInBrowser(seg.pageUrl || seg.imageUrl!)}
+                  title="Open image link in integrated SmartNoteAI browser"
+                >
+                  🌐 Browser
+                </button>
+              )}
 
               {seg.type === 'diagram' && onOpenVectorStudio && (
                 <button
@@ -1915,7 +2380,23 @@ function SegmentedMessageContent({
           </div>
 
           <div className="segment-card-body">
-            {seg.type === 'diagram' ? (
+            {seg.type === 'image' && seg.imageUrl ? (
+              <div>
+                <WebImageThumbnail
+                  imageUrl={seg.imageUrl}
+                  thumbUrl={seg.thumbUrl}
+                  title={seg.displayTitle}
+                />
+                <button
+                  type="button"
+                  className="chat-web-image-url"
+                  onClick={() => onOpenInBrowser?.(seg.pageUrl || seg.imageUrl!)}
+                  style={{ marginTop: 6 }}
+                >
+                  {seg.imageUrl}
+                </button>
+              </div>
+            ) : seg.type === 'diagram' ? (
               <LiveDiagramPreview code={seg.rawText} diagramType={seg.diagramType} onOpenVectorStudio={onOpenVectorStudio} />
             ) : (
               <RenderedAIContent content={seg.rawText} />
@@ -1933,17 +2414,9 @@ function SegmentedMessageContent({
 function generateIntelligentEducationalResponse(prompt: string, topic?: string, subject?: string): string {
   const p = prompt.toLowerCase();
 
-  // If greeting or chitchat, respond with friendly, pedagogical introduction without random topics
+  // If greeting or chitchat, respond concisely without boilerplate banner
   if (isGreetingOrChitchat(prompt)) {
-    return (
-      `### Hello! Welcome to SmartNoteAI Teaching Assistant 👋\n\n` +
-      `I'm ready to assist your classroom! Here are some key things you can ask me to generate:\n\n` +
-      `• **Explain Concepts**: Ask for clear, structured explanations on any subject.\n` +
-      `• **Math & Physics**: Request step-by-step derivations, equations, and solutions with drag-and-drop formulas.\n` +
-      `• **Vector Diagrams**: Ask for flowcharts (Mermaid), 2D geometry figures, parabola graphs, or logic circuits.\n` +
-      `• **Classroom Practice**: Generate quick quizzes and discussion questions for students.\n\n` +
-      `What topic or concept would you like to explore today?`
-    );
+    return `Hi! Tell me any topic, derivation, flowchart, chart, or visual concept you'd like to teach today.`;
   }
 
   const rawQuery = prompt.replace(/^(what is|explain|define|tell me about|how to)\s*/i, '').trim();

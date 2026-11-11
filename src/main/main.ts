@@ -9,7 +9,7 @@
  * - Separate BrowserWindows for overlay/annotation (future milestone)
  */
 
-import { app, BrowserWindow, ipcMain, shell, dialog, Menu, nativeTheme, screen, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, Menu, nativeTheme, screen, nativeImage, clipboard } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { setupIpcHandlers, getIsDocumentDirty, getIsForceQuitting, setIsForceQuitting } from './ipc/ipcHandlers';
@@ -293,11 +293,43 @@ app.on('second-instance', () => {
       }
     });
 
-    // Enable right-click context menu inside <webview> for image copying and navigation
+    // Enable new-tab interception and right-click context menu inside <webview>
     app.on('web-contents-created', (_event, contents) => {
       if (contents.getType() === 'webview') {
+        // Intercept target="_blank", window.open, middle-click, and Ctrl+click -> open as tab in WebBrowserModal
+        contents.setWindowOpenHandler(({ url }) => {
+          if (url && url !== 'about:blank') {
+            mainWindow?.webContents.send('browser:open-in-new-tab', url);
+          }
+          return { action: 'deny' };
+        });
+
         contents.on('context-menu', (_e, params) => {
           const menuItems: Electron.MenuItemConstructorOptions[] = [];
+
+          if (params.linkURL) {
+            menuItems.push(
+              {
+                label: 'Open Link in New Tab',
+                click: () => {
+                  mainWindow?.webContents.send('browser:open-in-new-tab', params.linkURL);
+                },
+              },
+              {
+                label: 'Open Link in Current Tab',
+                click: () => {
+                  contents.loadURL(params.linkURL);
+                },
+              },
+              {
+                label: 'Copy Link Address',
+                click: () => {
+                  clipboard.writeText(params.linkURL);
+                },
+              },
+              { type: 'separator' }
+            );
+          }
 
           if (params.hasImageContents) {
             menuItems.push(
@@ -309,7 +341,7 @@ app.on('second-instance', () => {
                 label: 'Copy Image Address',
                 click: () => {
                   if (params.srcURL) {
-                    require('electron').clipboard.writeText(params.srcURL);
+                    clipboard.writeText(params.srcURL);
                   }
                 },
               },

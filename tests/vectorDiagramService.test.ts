@@ -17,6 +17,7 @@ import {
   renderTimingSvg,
   diagramSvgToDataUrl,
   sanitizeMermaidCode,
+  normalizeMermaidSvg,
 } from '../src/renderer/services/vectorDiagramService';
 
 describe('Vector Diagram Subsystem', () => {
@@ -138,6 +139,29 @@ describe('Vector Diagram Subsystem', () => {
       expect(c).toBeGreaterThanOrEqual(0);
       expect(c).toBeLessThanOrEqual(600);
     });
+  });
+
+  it('normalizes Mermaid SVG dimensions from viewBox and strips opaque backgrounds cleanly', () => {
+    const rawSvg = `<svg id="mermaid-render-1" width="100%" xmlns="http://www.w3.org/2000/svg" class="flowchart" style="max-width: 168px; background: #0f172a; font-family: Inter;" viewBox="4 4 168 416.2"><rect class="background" width="100%" height="100%" fill="#0f172a"/><g class="node"><rect width="120" height="40" fill="#1e293b" style="fill: #1e293b; stroke: #3b82f6;"/></g></svg>`;
+    const { svg, width, height } = normalizeMermaidSvg(rawSvg, '#22c55e');
+    expect(width).toBe(168);
+    expect(height).toBe(417);
+    expect(svg).toMatch(/<svg[^>]*width="168"/);
+    expect(svg).toMatch(/<svg[^>]*height="417"/);
+    expect(svg).not.toContain('width="100%"');
+    expect(svg).not.toContain('class="background"');
+    expect(svg).toContain('font-family: Inter;');
+    expect(svg).not.toContain('max-width: 168px');
+    // Preserves non-background node styling and applies custom color
+    expect(svg).toContain('style="fill: #1e293b; stroke: #22c55e;"');
+  });
+
+  it('sanitizes Solar PV flowchart with parentheses cleanly without altering quoted labels', () => {
+    const pvCode = `flowchart TD\n  A["Sunlight (Photons)"] --> B["Silicon PV Cell"]\n  B --> C["DC Electricity"]\n  C --> D["Inverter"]\n  D --> E["AC Electricity (Home Use)"]`;
+    expect(detectDiagramType(pvCode)).toBe('mermaid');
+    const clean = sanitizeMermaidCode(pvCode);
+    expect(clean).toContain('A["Sunlight (Photons)"]');
+    expect(clean).toContain('E["AC Electricity (Home Use)"]');
   });
 });
 

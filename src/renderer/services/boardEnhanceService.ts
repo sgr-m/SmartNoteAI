@@ -17,7 +17,7 @@ import { CanvasObject, TextObject, ShapeObject, Page, PageBackground } from '../
 import { aiProviderManager, AIProviderManager } from './aiPresentation/aiProviderManager';
 import { measureMarkdownSize } from './markdownRenderService';
 import { detectTextFormatMode } from './formatDetectionService';
-import { measureHtmlSize } from './htmlRenderService';
+import { measureHtmlSize, normalizeGeneratedHtml } from './htmlRenderService';
 import { measureLatexSize } from './latexService';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -47,6 +47,8 @@ export interface IndividualEnhanceOptions {
   slideTitle?: string;
   subject?: string;
   providerManager?: AIProviderManager;
+  elementIndex?: number;
+  totalElements?: number;
 }
 
 export interface SlideEnhanceOptions {
@@ -219,9 +221,35 @@ export function formatMarkdownTable(rawText: string): string {
 }
 
 /**
+ * Detects whether a string is a standalone mathematical equation or formula
+ */
+export function isMathFormulaText(text: string): boolean {
+  if (!text) return false;
+  const t = text.trim();
+  if ((t.startsWith('$$') && t.endsWith('$$')) || (t.startsWith('\\[') && t.endsWith('\\]'))) return true;
+  if (t.includes('\\frac') || t.includes('\\sum') || t.includes('\\Delta') || t.includes('\\sqrt') || t.includes('\\cdot') || t.includes('\\times')) {
+    const lines = t.split('\n').filter(Boolean);
+    // If short formula lines without conversational prose
+    if (lines.length <= 2 && !/\b(the|and|with|this|from|which|that|when|where)\b/i.test(t)) {
+      return true;
+    }
+  }
+  // Standalone single-line equations e.g. "Y = C + I", "\Delta Y = \Delta C + \Delta I", "E = mc^2", "\Delta C = MPC \times \Delta Y"
+  if (t.length < 90 && !t.includes('\n')) {
+    const hasEquals = t.includes('=');
+    const hasMathOperators = /[+\-*/^_\\()]/.test(t);
+    const words = t.split(/\s+/);
+    if (hasEquals && hasMathOperators && words.length <= 8 && !/^(let|when|where|if|by|to|for|since|note)\b/i.test(t)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Classifies text role based on position, length, and semantic content
  */
-export function classifyTextRole(text: string, currentFontSize: number, yPos: number, index: number): TextRole {
+export function classifyTextRole(text: string, currentFontSize: number, yPos: number, index: number = -1): TextRole {
   const t = text.trim();
   const lower = t.toLowerCase();
 
@@ -230,38 +258,37 @@ export function classifyTextRole(text: string, currentFontSize: number, yPos: nu
     return 'table';
   }
 
-  // 2. Warning / Important Note
-  if (/(important|warning|caution|remember|note|pitfall|pay attention|crucial):/i.test(lower)) {
+  // 2. Mathematical Formula / Equation
+  if (isMathFormulaText(t)) {
+    return 'definition-formula';
+  }
+
+  // 3. Warning / Important Note / Key Assumption
+  if (/(important|warning|caution|remember|note|pitfall|pay attention|crucial|key assumption):/i.test(lower)) {
     return 'note-warning';
   }
 
-  // 3. Solution / Result / Outcome
+  // 4. Solution / Result / Outcome
   if (/(solution|answer|result|qed|proven|final answer):/i.test(lower)) {
     return 'solution';
   }
 
-  // 4. Definition / Mathematical Formula
+  // 5. Title: Top element (index === 0 && yPos < 190), or starts with # Title, or explicit title keyword
+  const isTopCandidate = (index === 0 || index === -1) && yPos < 190;
+  const isCleanTitleShape = t.length < 75 && !t.includes('\n') && !/[.!?]$/.test(t) && !isMathFormulaText(t);
   if (
-    (t.startsWith('$$') && t.endsWith('$$')) ||
-    (t.startsWith('\\[') && t.endsWith('\\]')) ||
-    /(definition|theorem|formula|equation|law|axiom|rule|identity):/i.test(lower)
-  ) {
-    return 'definition-formula';
-  }
-
-  // 5. Title: top element, starts with # Title, or large font, or title keywords
-  if (
-    index === 0 ||
     /^#\s+/.test(t) ||
     lower.startsWith('title:') ||
-    (t.length < 90 && yPos < 260 && (
+    (isTopCandidate && isCleanTitleShape && (
       lower.includes('example') ||
+      lower.includes('overview') ||
+      lower.includes('derivation') ||
       lower.includes('calculation') ||
       lower.includes('introduction') ||
       lower.includes('lesson') ||
-      lower.includes('step-by-step') ||
+      lower.includes('method') ||
       lower.includes('standard deviation') ||
-      currentFontSize >= 32
+      currentFontSize >= 34
     ))
   ) {
     return 'title';
@@ -272,13 +299,15 @@ export function classifyTextRole(text: string, currentFontSize: number, yPos: nu
     /^#{2,4}\s+/.test(t) ||
     lower.startsWith('section:') ||
     lower.startsWith('topic:') ||
-    (index === 1 && yPos < 350) ||
-    (t.length < 160 && (
+    (t.length < 130 && !t.includes('\n') && (
+      lower.startsWith("step") ||
       lower.startsWith("let's") ||
       lower.startsWith("given:") ||
       lower.startsWith("consider:") ||
       lower.startsWith("problem:") ||
-      lower.startsWith("apply")
+      lower.startsWith("to derive") ||
+      lower.startsWith("when ") ||
+      lower.startsWith("by definition")
     ))
   ) {
     return 'subheading';
@@ -299,7 +328,7 @@ function enhanceTextBolding(content: string): string {
 
 /**
  * Strips artificial pill badges, headers ("FORMULA", "CORE FORMULA", "STATISTICAL FORMULA", etc.)
- * and explanatory text ("Where: ...") from formulas to ensure pure LaTeX rendering without cropping.
+ * and explanatory text ("Where: ...") from formulas to ensure pure LaTeX rendering in display format.
  */
 export function cleanFormulaContent(raw: string): string {
   if (!raw) return '';
@@ -313,15 +342,15 @@ export function cleanFormulaContent(raw: string): string {
   // 1. Remove HTML tags if wrapped in HTML
   cleaned = cleaned.replace(/<[^>]*>/g, '').trim();
 
-  // 2. Remove pill tags / headers like "CORE FORMULA", "STATISTICAL FORMULA", "FORMULA DERIVATION", "EQUATION OF TRANSFORMATION", "FORMULA", "EQUATION", "STEP X", etc.
+  // 2. Remove pill tags / headers like "CORE FORMULA", "STATISTICAL FORMULA", "FORMULA DERIVATION", etc.
   cleaned = cleaned.replace(/^(formula\s*derivation|statistical\s*formula|core\s*formula|equation\s*of\s*transformation|formula|equation|step\s*\d+):\s*/i, '');
   cleaned = cleaned.replace(/^(formula\s*derivation|statistical\s*formula|core\s*formula|equation\s*of\s*transformation|formula|equation)\b/i, '').trim();
 
-  // 3. Remove trailing "Where: ..." or "where: ..." explanatory notes attached to formula blocks
+  // 3. Remove trailing "Where: ..." or "where: ..." explanatory notes
   cleaned = cleaned.replace(/\n*Where:[\s\S]*$/i, '').trim();
   cleaned = cleaned.replace(/\n*where:[\s\S]*$/i, '').trim();
 
-  // 4. Strip surrounding $$ or \[ \] if present so we have clean formula
+  // 4. Strip surrounding $$ or \[ \] if present so we can standardize
   if ((cleaned.startsWith('$$') && cleaned.endsWith('$$')) || (cleaned.startsWith('\\[') && cleaned.endsWith('\\]'))) {
     cleaned = cleaned.slice(2, -2).trim();
   }
@@ -331,7 +360,8 @@ export function cleanFormulaContent(raw: string): string {
   cleaned = cleaned.replace(/\x08ar\{/g, '\\bar{');
   cleaned = cleaned.replace(/\x0cac\{/g, '\\frac{');
 
-  return cleaned;
+  // Wrap in display $$ ... $$ so KaTeX always renders it in display math mode
+  return `$$${cleaned}$$`;
 }
 
 /**
@@ -391,7 +421,7 @@ function buildEnhancePrompt(params: {
   subject?: string;
   role: TextRole;
 }): string {
-  const positionDesc = params.y < 220
+  const positionDesc = params.y < 200
     ? 'Top of slide (Primary Presentation Heading / Title)'
     : params.y < 450
     ? 'Upper-middle area (Subtitle, Problem Statement, or Lead Definition)'
@@ -399,53 +429,58 @@ function buildEnhancePrompt(params: {
     ? 'Center area (Core Content, Calculation Table, Derivation, or Formula)'
     : 'Bottom area (Summary, Note, or Practice Question)';
 
-  return `You are an expert Presentation Visual Designer and Classroom Pedagogical Specialist.
-Enhance this specific text element from an interactive classroom whiteboard slide (1920x1080 resolution) into an aesthetically stunning, modern presentation element inspired by Pitch, Gamma, Canva, and modern digital whiteboards.
+  return `You are an expert Presentation Visual Designer and Classroom Instructional Specialist designing interactive slides for teachers to teach students.
+Enhance this specific slide element into an aesthetically stunning, modern presentation element with high contrast and classroom clarity.
 
 ELEMENT CONTEXT:
 - Original Text:
 """
 ${params.content}
 """
-- Position on canvas: x=${params.x}, y=${params.y}, width=${params.width}, height=${params.height}
-- Contextual location: ${positionDesc}
+- Canvas coordinates: x=${params.x}, y=${params.y}, width=${params.width}, height=${params.height}
+- Slide area: ${positionDesc}
 - Canvas Background Color: ${params.bgColor} (${params.isDark ? 'Dark Chalkboard Theme' : 'Light Whiteboard Theme'})
 - Slide Topic: ${params.slideTitle || 'Classroom Lesson'} ${params.subject ? `(${params.subject})` : ''}
 - Classified Role: ${params.role}
 
-DESIGN & STYLING SPECIFICATIONS:
-1. IF HEADING / TITLE:
-   - Create an online presentation heading style with high visual impact.
-   - Include a category or topic pill tag:
-     <div style="display:inline-block; padding: 2px 10px; background: rgba(56,189,248,0.16); border: 1px solid #38bdf8; border-radius: 12px; font-size: 13px; color: #38bdf8; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">CATEGORY</div>
-   - Heading text with high-contrast color (${params.isDark ? '#f8fafc crisp chalk white' : '#0f172a deep navy'}).
-   - An elegant accent line or gradient underline covering screen width:
-     <div style="width: 100%; height: 3.5px; background: linear-gradient(90deg, #38bdf8 0%, #34d399 55%, transparent 100%); margin-top: 8px; border-radius: 2px;"></div>
-   - Format: HTML or Markdown with embedded styles.
+DESIGN & STYLING RULES:
+1. IF FORMULA / EQUATION (role: "definition-formula"):
+   - format MUST be "latex".
+   - Output ONLY the pure mathematical formula in LaTeX display format ($$...$$).
+   - NEVER add labels, pills, tags, or headers on top (NO 'CORE FORMULA', 'STATISTICAL FORMULA', 'FORMULA', etc.).
+   - Color MUST be pure chalk white (${params.isDark ? '#ffffff' : '#0f172a'}). NEVER yellow.
 
-2. IF TABULAR DATA / FREQUENCY TABLE:
+2. IF TABULAR DATA / FREQUENCY TABLE (role: "table"):
+   - format MUST be "markdown".
    - CRITICAL REQUIREMENT: PRESERVE ALL ORIGINAL ROWS, COLUMNS, NUMBERS, AND TOTALS EXACTLY! Do NOT drop rows, do NOT swap columns, and do NOT alter data values.
-   - Format as a clean, aligned Markdown table with KaTeX math symbols ($x_i$, $f_i$, $\sum f_i = 20$, $60 \cdot 2 = 120$).
+   - Format as a clean, aligned Markdown table with KaTeX math symbols ($x_i$, $f_i$, $\\sum f_i = 20$).
    - Bold headers and totals row (**Totals**).
 
-3. IF FORMULA / DERIVATION:
-   - CRITICAL: Output ONLY the pure mathematical formula in LaTeX.
-   - NEVER add labels, pills, tags, or headers on top of the formula (NO 'CORE FORMULA', 'STATISTICAL FORMULA', 'FORMULA', etc.).
-   - Use display KaTeX ($$...$$) or inline ($...$).
-   - Color MUST be pure chalk white (${params.isDark ? '#ffffff' : '#0f172a'}).
+3. IF HEADING / TITLE (role: "title"):
+   - format CAN be "html" or "markdown".
+   - Clean, commanding typography (JSON fontSize 36-40, fontWeight 700).
+   - Title color: ${params.isDark ? '#ffffff' : '#0f172a'}.
+   - Include an elegant subtle gradient underline or border.
+   - STRICTLY FORBIDDEN: Do NOT use red flag emojis or '# 🚩' tags. Do NOT use yellow headings.
 
-4. IF SUBTITLE / PROBLEM STATEMENT / EXPLANATION / BODY:
-   - Elevate typography, bold key terms, and add educational callout badges (∑ for math, 💡 for concepts).
-   - CRITICAL CONTRAST: NEVER make body text yellow! On dark chalkboard, body text MUST be crisp off-white (${params.isDark ? '#e2e8f0' : '#1e293b'}).
+4. IF SUBTITLE / BODY / EXPLANATION (role: "subheading" | "body" | "note-warning"):
+   - format CAN be "html" or "markdown".
+   - Crisp, high-contrast off-white text (${params.isDark ? '#e2e8f0' : '#1e293b'}). NEVER make body text yellow.
+   - Bold key conceptual terms with an accent color like sky blue (#38bdf8) or mint (#34d399).
+   - For callout notes or key assumptions: Wrap in a modern translucent card with a left accent border.
+
+5. CRITICAL HTML RULES (whenever format is "html"):
+   - NEVER put any CSS \`font-size\` property anywhere in HTML \`style="..."\` or \`<style>\` (NO \`font-size: ...px\`, \`pt\`, or \`rem\`). Font sizing MUST remain controlled solely via the board's JSON \`fontSize\` field so the teacher can resize dynamically with A-/A+.
+   - NEVER leave raw Markdown syntax inside HTML output (NO \`**bold**\`, \`*italic*\`, \`# headings\`, \`--\`, \`---\`, \`- bullets\`, or backticks). Convert everything into pure, well-formed HTML tags (\`<strong>\`, \`<em>\`, \`<code>\`, \`<hr/>\`, \`<div>\`, \`<span>\`).
 
 OUTPUT FORMAT:
 Return a valid JSON object strictly matching this schema:
 {
-  "content": "Enhanced Markdown, HTML, or LaTeX content string",
+  "format": "html" | "latex" | "markdown",
+  "content": "Enhanced HTML, LaTeX, or Markdown string",
   "fontSize": number,
   "color": "hex color string",
-  "fontWeight": number,
-  "isMarkdown": true
+  "fontWeight": number
 }`;
 }
 
@@ -458,39 +493,33 @@ function generateOnlinePresentationStyle(params: {
   isDark: boolean;
   palette: any;
   slideTitle?: string;
-}): { content: string; fontSize: number; color: string; fontWeight: number; isMarkdown: boolean } {
-  const { content, role, isDark, palette, slideTitle } = params;
+}): { content: string; fontSize: number; color: string; fontWeight: number; isMarkdown: boolean; isHtml?: boolean; isLatex?: boolean } {
+  const { content, role, isDark, palette } = params;
 
   switch (role) {
     case 'title': {
-      let cleanTitle = content.replace(/^#+\s*/, '').replace(/^[🚩📌💡🎯📐\s]+/, '').trim();
-      const categoryTag = (slideTitle || 'ACADEMIC LESSON').toUpperCase().slice(0, 24);
-      const tagBg = isDark ? 'rgba(56, 189, 248, 0.16)' : 'rgba(30, 64, 175, 0.12)';
-      const tagBorder = isDark ? '#38bdf8' : '#1e40af';
-      const tagColor = isDark ? '#38bdf8' : '#1e40af';
-      const gradEnd = isDark ? '#34d399' : '#0284c7';
-
-      const styled = `<div style="display:inline-block; padding: 2px 10px; background: ${tagBg}; border: 1px solid ${tagBorder}; border-radius: 12px; font-size: 13px; color: ${tagColor}; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">${categoryTag}</div>\n\n# 🚩 ${cleanTitle}\n<div style="width: 100%; height: 3.5px; background: linear-gradient(90deg, ${palette.underline} 0%, ${gradEnd} 55%, transparent 100%); margin-top: 8px; border-radius: 2px;"></div>`;
+      const cleanTitle = content.replace(/^#+\s*/, '').replace(/^[🚩📌💡🎯📐\s]+/, '').trim();
+      const gradEnd = isDark ? '#38bdf8' : '#0284c7';
+      const rawStyled = `<div style="font-family: 'Inter', system-ui, -apple-system, sans-serif;">\n  <div style="font-weight: 700; color: ${palette.title}; letter-spacing: -0.5px; line-height: 1.25;">${cleanTitle}</div>\n  <div style="width: 100%; height: 3px; background: linear-gradient(90deg, ${palette.underline} 0%, ${gradEnd} 60%, transparent 100%); margin-top: 10px; border-radius: 2px;"></div>\n</div>`;
+      const styled = normalizeGeneratedHtml(rawStyled);
 
       return {
         content: styled,
-        fontSize: 42,
+        fontSize: 40,
         color: palette.title,
         fontWeight: 700,
         isMarkdown: false,
+        isHtml: true,
       };
     }
 
     case 'subheading': {
-      let subContent = enhanceTextBolding(content);
-      if (/^(let's|given|consider|apply|find|calculate|note|observe)/i.test(subContent) && !/^([∑💡📝🔍]|\p{Emoji})/u.test(subContent)) {
-        subContent = `∑ ${subContent}`;
-      }
+      const subContent = enhanceTextBolding(content.replace(/^#+\s*/, '').replace(/^[🚩📌\s]+/, '').trim());
       return {
         content: subContent,
         fontSize: 26,
-        color: palette.subtitle,
-        fontWeight: 500,
+        color: palette.subheading, // '#38bdf8' on dark chalkboard
+        fontWeight: 600,
         isMarkdown: true,
       };
     }
@@ -509,27 +538,32 @@ function generateOnlinePresentationStyle(params: {
       const formulaContent = cleanFormulaContent(content);
       return {
         content: formulaContent,
-        fontSize: 36,
-        color: palette.definition, // '#ffffff' on dark, '#0f172a' on light
+        fontSize: 34,
+        color: palette.definition, // '#ffffff' pure chalk white, NEVER yellow!
         fontWeight: 600,
         isMarkdown: false,
+        isLatex: true,
       };
     }
 
     case 'note-warning': {
+      const cleanNote = content.replace(/^[🚩📌\s]+/, '').trim();
+      const rawStyled = `<div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; background: rgba(248, 113, 113, 0.08); border-left: 4px solid ${palette.warning}; border-radius: 6px; padding: 12px 18px; color: ${palette.warning}; line-height: 1.5;">${cleanNote}</div>`;
+      const styled = normalizeGeneratedHtml(rawStyled).replace(/<strong>([\s\S]*?)<\/strong>/g, '<strong style="color: #fca5a5;">$1</strong>');
       return {
-        content: enhanceTextBolding(content),
-        fontSize: 26,
+        content: styled,
+        fontSize: 22,
         color: palette.warning,
         fontWeight: 600,
-        isMarkdown: true,
+        isMarkdown: false,
+        isHtml: true,
       };
     }
 
     case 'solution': {
       return {
-        content: enhanceTextBolding(content),
-        fontSize: 28,
+        content: enhanceTextBolding(content.replace(/^[🚩📌\s]+/, '').trim()),
+        fontSize: 26,
         color: palette.solution,
         fontWeight: 600,
         isMarkdown: true,
@@ -539,9 +573,9 @@ function generateOnlinePresentationStyle(params: {
     case 'body':
     default: {
       return {
-        content: enhanceTextBolding(content),
-        fontSize: 26,
-        color: palette.body,
+        content: enhanceTextBolding(content.replace(/^[🚩📌\s]+/, '').trim()),
+        fontSize: 24,
+        color: palette.body, // '#e2e8f0' crisp chalk off-white, NEVER yellow!
         fontWeight: 400,
         isMarkdown: true,
       };
@@ -551,7 +585,7 @@ function generateOnlinePresentationStyle(params: {
 
 /**
  * Enhances an individual text placeholder using the connected AI model,
- * providing custom presentation styling (category tag, borders, underlines, colors).
+ * providing custom presentation styling (HTML/CSS, LaTeX, or Markdown).
  */
 export async function enhanceIndividualTextWithAI(
   options: IndividualEnhanceOptions
@@ -585,7 +619,8 @@ export async function enhanceIndividualTextWithAI(
         canvasBg: '#ffffff',
       };
 
-  const role = classifyTextRole(textObj.content, textObj.fontSize || 36, textObj.y, 0);
+  const elementIdx = options.elementIndex ?? -1;
+  const role = classifyTextRole(textObj.content, textObj.fontSize || 36, textObj.y, elementIdx);
 
   // 1. Try calling the connected AI Agent
   const prompt = buildEnhancePrompt({
@@ -602,16 +637,23 @@ export async function enhanceIndividualTextWithAI(
   });
 
   const manager = options.providerManager || aiProviderManager;
+  const activeProvider = manager.getActiveProvider();
+  const activeModel = manager.getSelectedModel(activeProvider);
   let aiResult: any = null;
 
   try {
     const res = await manager.generateStructuredJson<{
+      format?: 'html' | 'latex' | 'markdown';
       content: string;
       fontSize?: number;
       color?: string;
       fontWeight?: number;
+      isHtml?: boolean;
+      isLatex?: boolean;
       isMarkdown?: boolean;
     }>({
+      provider: activeProvider,
+      model: activeModel,
       prompt,
       systemPrompt: 'You are SmartNoteAI Visual Presentation Engine. Return only valid JSON for text styling.',
       temperature: 0.3,
@@ -640,30 +682,36 @@ export async function enhanceIndividualTextWithAI(
   const finalFontWeight = aiResult?.fontWeight || fallback.fontWeight;
 
   // Clean formulas from unwanted pill labels ("FORMULA", "CORE FORMULA", etc.)
-  const cleanContent = role === 'definition-formula' ? cleanFormulaContent(rawFinalContent) : rawFinalContent;
+  const isFormulaRole = role === 'definition-formula' || aiResult?.format === 'latex' || isMathFormulaText(rawFinalContent);
+  let cleanContent = isFormulaRole ? cleanFormulaContent(rawFinalContent) : rawFinalContent;
 
   // Automatically detect format mode (HTML, LaTeX math, or Markdown)
   const detectedMode = detectTextFormatMode(cleanContent, {
-    isHtml: aiResult?.isHtml,
-    isLatex: aiResult?.isLatex,
-    isMarkdown: aiResult?.isMarkdown,
+    isHtml: aiResult?.format === 'html' || aiResult?.isHtml || fallback.isHtml,
+    isLatex: isFormulaRole || aiResult?.format === 'latex' || aiResult?.isLatex || fallback.isLatex,
+    isMarkdown: aiResult?.format === 'markdown' || aiResult?.isMarkdown || fallback.isMarkdown,
   });
 
-  // Calculate measured dimensions so formulas and HTML never crop on canvas
+  // Ensure generated HTML contains ZERO fixed CSS font-size declarations and ZERO raw Markdown tokens (**, --, #, etc.)
+  if (detectedMode.isHtml) {
+    cleanContent = normalizeGeneratedHtml(cleanContent);
+  }
+
+  // Calculate measured dimensions so formulas and HTML have natural snug bounds without giant empty margins
   let finalWidth = textObj.width || 800;
   let finalHeight = textObj.height || 60;
   if (detectedMode.isLatex) {
     const measured = measureLatexSize(cleanContent, finalFontSize);
-    finalWidth = Math.max(finalWidth, measured.width);
-    finalHeight = Math.max(finalHeight, measured.height);
+    finalWidth = Math.round(measured.width + 24);
+    finalHeight = Math.round(measured.height + 16);
   } else if (detectedMode.isHtml) {
-    const measured = measureHtmlSize(cleanContent, finalFontSize, 'Inter, -apple-system, sans-serif', finalWidth);
-    finalWidth = Math.max(finalWidth, measured.width);
-    finalHeight = Math.max(finalHeight, measured.height);
+    const measured = measureHtmlSize(cleanContent, finalFontSize, 'Inter, -apple-system, sans-serif', 1760);
+    finalWidth = Math.min(1760, Math.max(textObj.width || 600, measured.width));
+    finalHeight = Math.max(48, measured.height);
   } else {
-    const measured = measureMarkdownSize(cleanContent, finalFontSize, textObj.fontFamily || 'Inter, -apple-system, sans-serif', Math.max(1200, finalWidth));
-    finalWidth = Math.max(finalWidth, measured.width);
-    finalHeight = Math.max(finalHeight, measured.height);
+    const measured = measureMarkdownSize(cleanContent, finalFontSize, textObj.fontFamily || 'Inter, -apple-system, sans-serif', 1760);
+    finalWidth = Math.min(1760, Math.max(textObj.width || 600, measured.width));
+    finalHeight = Math.max(44, measured.height);
   }
 
   const enhancedObject: TextObject = {
@@ -784,6 +832,8 @@ export async function enhanceSlideContentWithAI(
         backgroundColor: palette.canvasBg,
         slideTitle: page.title,
         providerManager: options.providerManager,
+        elementIndex: idx,
+        totalElements: sorted.length,
       });
 
       return res.enhancedObject;
@@ -799,30 +849,54 @@ export async function enhanceSlideContentWithAI(
   const reflowedObjects: CanvasObject[] = [];
   const decorativeUnderlines: ShapeObject[] = [];
 
-  for (const item of enhancedElements) {
+  for (let i = 0; i < enhancedElements.length; i++) {
+    const item = enhancedElements[i];
     const isTable = item.type === 'text' && isTableContent((item as TextObject).content);
+    const isLatex = item.type === 'text' && (item as TextObject).isLatex;
     const itemFontSize = (item as TextObject).fontSize || 28;
     if (item.type === 'stroke') {
       reflowedObjects.push(item);
       continue;
     }
 
-    const itemWidth = item.type === 'text' ? contentWidth : Math.min(contentWidth, (item as any).width || 800);
-    const itemHeight = estimateElementHeight(item, itemFontSize, itemWidth, isTable);
+    let itemWidth: number;
+    let itemHeight: number;
+    let itemX = startX;
+
+    if (isLatex) {
+      const tObj = item as TextObject;
+      const measured = measureLatexSize(tObj.content, tObj.fontSize || 34);
+      itemWidth = Math.min(contentWidth, Math.round(measured.width + 24));
+      itemHeight = Math.round(measured.height + 16);
+      // Center formulas nicely on chalkboard
+      itemX = Math.round(startX + (contentWidth - itemWidth) / 2);
+    } else if (item.type === 'text') {
+      itemWidth = contentWidth;
+      itemHeight = estimateElementHeight(item, itemFontSize, itemWidth, isTable);
+    } else {
+      itemWidth = Math.min(contentWidth, (item as any).width || 800);
+      itemHeight = (item as any).height || 300;
+    }
 
     const positionedItem: CanvasObject = {
       ...item,
-      x: startX,
+      x: itemX,
       y: currentY,
       ...(item.type === 'text' ? { width: itemWidth, height: itemHeight } : {}),
       ...(item.type === 'image' ? { width: Math.min(contentWidth, item.width), height: item.height } : {}),
     } as CanvasObject;
     reflowedObjects.push(positionedItem);
 
-    // If item is title without inline HTML line, add decorative underline
-    if (item.type === 'text' && ((item as TextObject).content.startsWith('# ') || (item as TextObject).content.includes('🚩')) && !(item as TextObject).content.includes('linear-gradient')) {
-      const titleLen = (item as TextObject).content.replace(/^#+\s*/, '').length;
-      const underlineW = Math.min(800, Math.max(220, titleLen * 22));
+    // Decorative underline: ONLY for the very first item if it is a title without inline gradient
+    if (
+      i === 0 &&
+      item.type === 'text' &&
+      !isLatex &&
+      !isTable &&
+      !(item as TextObject).content.includes('linear-gradient')
+    ) {
+      const titleLen = (item as TextObject).content.replace(/<[^>]*>/g, '').replace(/^#+\s*/, '').length;
+      const underlineW = Math.min(650, Math.max(200, titleLen * 20));
       decorativeUnderlines.push({
         id: `title-accent-${uuidv4().slice(0, 8)}`,
         type: 'shape',
@@ -833,8 +907,8 @@ export async function enhanceSlideContentWithAI(
         height: 0,
         strokeColor: palette.underline,
         fillColor: 'transparent',
-        strokeWidth: 3.5,
-        strokeOpacity: 0.95,
+        strokeWidth: 3,
+        strokeOpacity: 0.9,
         fillOpacity: 0,
         strokeStyle: 'solid',
         rotation: 0,
@@ -842,11 +916,12 @@ export async function enhanceSlideContentWithAI(
         visible: true,
         layerId: 'objects',
       });
-      currentY += 16;
+      currentY += 12;
     }
 
-    // Advance currentY with generous non-overlapping clearance
-    currentY += itemHeight + 36;
+    // Advance currentY with proper vertical clearance
+    const spacing = isLatex ? 28 : isTable ? 36 : 24;
+    currentY += itemHeight + spacing;
   }
 
   const allEnhanced = [...decorativeUnderlines, ...reflowedObjects];
@@ -995,11 +1070,16 @@ export function enhanceSlideContent(page: Page): EnhanceResult {
       slideTitle: page.title,
     });
 
-    const mode = detectTextFormatMode(styled.content);
+    const mode = detectTextFormatMode(styled.content, {
+      isHtml: styled.isHtml,
+      isLatex: styled.isLatex,
+      isMarkdown: styled.isMarkdown,
+    });
+    const finalStyledContent = mode.isHtml ? normalizeGeneratedHtml(styled.content) : styled.content;
 
     return {
       ...tObj,
-      content: styled.content,
+      content: finalStyledContent,
       fontSize: styled.fontSize,
       color: mode.isLatex ? palette.definition : styled.color,
       fontWeight: styled.fontWeight,

@@ -477,16 +477,14 @@ input[type="text"]:focus, input[type="number"]:focus, textarea:focus {
 .animate-spin  { animation: spin 1s linear infinite; }
 
 /* ─── Mermaid Error Overlay Suppression ─────────────────────────────────── */
-/* Prevents Mermaid.js from injecting ugly stray bomb error elements into body */
-#dmermaid,
-[id^="dmermaid"],
+/* Hides only actual Mermaid error overlays without hiding #dmermaid layout measurement containers */
 [id^="mermaid-render-"].error,
 .error-icon,
 svg.error-icon,
 [aria-roledescription="error"],
-body > svg[id^="d"],
-body > svg[id^="mermaid"],
-body > div[id^="dmermaid"] {
+svg:has(.error-icon),
+body > div[id*="mermaid"]:has([aria-roledescription="error"]),
+body > div[id*="mermaid"]:has(.error-icon) {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;

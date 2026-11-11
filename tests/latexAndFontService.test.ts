@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   isLatexSyntax,
+  isPureLatexFormula,
   cleanLatexDelimiters,
   renderLatexHtml,
   autoFormatLatexFractions,
@@ -10,6 +11,8 @@ import {
   getCachedLatexImage,
   clearLatexImageCache,
 } from '../src/renderer/services/latexService';
+import { detectTextFormatMode } from '../src/renderer/services/formatDetectionService';
+import { balanceChemicalEquation } from '../src/renderer/services/subjectModules/chemistryModule';
 
 import { getAvailableFonts, initializeWindowsFonts } from '../src/renderer/services/fontService';
 
@@ -138,6 +141,33 @@ describe('latexService', () => {
       expect(img24).not.toBe(img48);
     } finally {
       (globalThis as any).Image = originalImage;
+    }
+  });
+
+  it('recognizes balanced chemical equations using \\mathrm and \\longrightarrow as pure LaTeX for KaTeX rendering', () => {
+    const reactions = [
+      'CH4 + O2 -> CO2 + H2O',
+      'Al + HCl -> AlCl3 + H2',
+      'Na + H2O -> NaOH + H2',
+      'Fe + O2 -> Fe2O3',
+    ];
+
+    for (const raw of reactions) {
+      const balanced = balanceChemicalEquation(raw);
+      expect(isPureLatexFormula(balanced.latex)).toBe(true);
+
+      const modeAuto = detectTextFormatMode(balanced.latex);
+      expect(modeAuto).toEqual({ isHtml: false, isLatex: true, isMarkdown: false });
+
+      const modeExplicit = detectTextFormatMode(balanced.latex, { isLatex: true });
+      expect(modeExplicit).toEqual({ isHtml: false, isLatex: true, isMarkdown: false });
+
+      const rendered = renderLatexHtml(balanced.latex, true);
+      expect(rendered.success).toBe(true);
+      expect(rendered.html).toContain('katex');
+
+      const svgUrl = decodeURIComponent(latexToSvgDataUrl(balanced.latex, '#ffffff', 32, 480, 64));
+      expect(svgUrl).toContain('katex-html');
     }
   });
 });

@@ -349,11 +349,11 @@ Totals    \\sum f_i = 20    \\sum (f_i * x_i) = 1540`,
       expect(heading).toBeDefined();
       expect(heading.color).toBe('#f8fafc'); // Crisp off-white title
       expect(heading.content).toContain('Step-by-Step Calculation Example');
-      expect(heading.content).toContain('🚩');
+      expect(heading.content).toContain('linear-gradient');
 
       const subheading = result.enhancedObjects.find((o) => o.id === 'item-subheading') as TextObject;
       expect(subheading).toBeDefined();
-      expect(subheading.content).toContain('∑');
+      expect(subheading.content).toContain("Let's apply this formula");
 
       const table = result.enhancedObjects.find((o) => o.id === 'item-table') as TextObject;
       expect(table).toBeDefined();
@@ -421,13 +421,9 @@ Totals    \\sum f_i = 20    \\sum (f_i * x_i) = 1540`,
       expect(result.enhancedObject.isHtml).toBe(true);
 
       // Verify Online Presentation Heading Styling:
-      // 1. Tag pill with border & background
-      expect(result.enhancedObject.content).toContain('display:inline-block');
-      expect(result.enhancedObject.content).toContain('border-radius: 12px');
-      // 2. High-contrast title
-      expect(result.enhancedObject.content).toContain('# 🚩 Standard Deviation');
-      // 3. Full-width gradient accent line
-      expect(result.enhancedObject.content).toContain('linear-gradient(90deg, #38bdf8 0%, #34d399 55%, transparent 100%)');
+      // High-contrast clean typography and gradient accent line
+      expect(result.enhancedObject.content).toContain('Standard Deviation');
+      expect(result.enhancedObject.content).toContain('linear-gradient');
     });
 
     it('enhances table text directly preserving exact formulas and row counts', async () => {

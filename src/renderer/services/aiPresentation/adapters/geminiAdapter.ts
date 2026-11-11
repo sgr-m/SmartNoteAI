@@ -5,6 +5,15 @@
 
 import { AIModelInfo, AIProviderType } from '../../../../shared/aiPresentationTypes';
 import {
+  GEMINI_CURATED_MODELS as SHARED_GEMINI_CURATED_MODELS,
+  GEMINI_DEFAULT_MODEL as SHARED_GEMINI_DEFAULT_MODEL,
+  GeminiAttemptOutcome,
+  isSupportedGeminiChatModel,
+  normalizeGeminiModelId,
+  runGeminiGenerateWithFallback,
+  sortGeminiModels,
+} from '../../../../shared/geminiModelUtils';
+import {
   AIConnectionTestOptions,
   AIConnectionTestResult,
   AIListModelsOptions,
@@ -19,45 +28,15 @@ import {
 } from './providerAdapter';
 
 export const GEMINI_DEFAULT_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta';
-export const GEMINI_DEFAULT_MODEL = 'gemini-3.8-flash';
+export const GEMINI_DEFAULT_MODEL = SHARED_GEMINI_DEFAULT_MODEL;
 
-export const GEMINI_CURATED_MODELS: AIModelInfo[] = [
-  {
-    id: 'gemini-3.8-flash',
-    name: 'Gemini 3.8 Flash (Fast & Capable — Google Recommended)',
-    provider: 'gemini',
-    isLocal: false,
-    contextLength: 1048576,
-  },
-  {
-    id: 'gemini-flash-latest',
-    name: 'Gemini Flash Latest (Always Active Latest Flash)',
-    provider: 'gemini',
-    isLocal: false,
-    contextLength: 1048576,
-  },
-  {
-    id: 'gemini-pro-latest',
-    name: 'Gemini Pro Latest (Deep Multimodal Reasoning)',
-    provider: 'gemini',
-    isLocal: false,
-    contextLength: 2097152,
-  },
-  {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    provider: 'gemini',
-    isLocal: false,
-    contextLength: 1048576,
-  },
-  {
-    id: 'gemini-2.5-pro',
-    name: 'Gemini 2.5 Pro',
-    provider: 'gemini',
-    isLocal: false,
-    contextLength: 2097152,
-  },
-];
+export const GEMINI_CURATED_MODELS: AIModelInfo[] = SHARED_GEMINI_CURATED_MODELS.map((m) => ({
+  id: m.id,
+  name: m.name,
+  provider: 'gemini' as AIProviderType,
+  isLocal: false,
+  contextLength: m.contextWindow,
+}));
 
 export class GeminiAdapter implements AIProviderAdapter {
   readonly provider: AIProviderType = 'gemini';
@@ -70,8 +49,68 @@ export class GeminiAdapter implements AIProviderAdapter {
   }
 
   private cleanModelId(model: string): string {
-    const trimmed = model.trim();
-    return trimmed.startsWith('models/') ? trimmed.substring('models/'.length) : trimmed;
+    return normalizeGeminiModelId(model);
+  }
+
+  private async invokeGenerateContent(params: {
+    endpoint: string;
+    apiKey: string;
+    targetModel: string;
+    bodyPayload: Record<string, unknown>;
+    timeoutMs: number;
+    signal?: AbortSignal;
+  }): Promise<
+    GeminiAttemptOutcome<{
+      finishReason?: string;
+      usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
+    }>
+  > {
+    const { endpoint, apiKey, targetModel, bodyPayload, timeoutMs, signal } = params;
+    try {
+      const response = await fetchWithTimeout(
+        `${endpoint}/models/${encodeURIComponent(targetModel)}:generateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'x-goog-api-key': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(bodyPayload),
+        },
+        timeoutMs,
+        signal
+      );
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        return {
+          ok: false,
+          status: response.status,
+          error: `Google Gemini API returned status ${response.status}: ${errorBody || response.statusText}`,
+        };
+      }
+
+      const json = await response.json();
+      const candidate = json?.candidates?.[0];
+      const partText = candidate?.content?.parts?.map((p: { text?: string }) => p?.text || '').join('') || '';
+      return {
+        ok: true,
+        text: partText,
+        meta: {
+          finishReason: candidate?.finishReason,
+          usage: {
+            promptTokens: json?.usageMetadata?.promptTokenCount,
+            completionTokens: json?.usageMetadata?.candidatesTokenCount,
+            totalTokens: json?.usageMetadata?.totalTokenCount,
+          },
+        },
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        error: sanitizeErrorMessage(err, apiKey),
+      };
+    }
   }
 
   async testConnection(options?: AIConnectionTestOptions): Promise<AIConnectionTestResult> {
@@ -111,12 +150,16 @@ export class GeminiAdapter implements AIProviderAdapter {
       }
 
       const json = await response.json();
-      const modelList: string[] = Array.isArray(json?.models)
+      const rawModels: Array<{ name?: string; supportedGenerationMethods?: string[] }> = Array.isArray(json?.models)
         ? json.models
-            .map((m: { name?: string }) => m.name?.replace(/^models\//, '') || '')
-            .filter((name: string) => name.toLowerCase().includes('gemini'))
-            .slice(0, 10)
         : [];
+      const modelList: string[] = sortGeminiModels(
+        rawModels
+          .filter((m) => isSupportedGeminiChatModel(m.name || '', m.supportedGenerationMethods))
+          .map((m) => ({ id: this.cleanModelId(m.name || '') }))
+      )
+        .map((m) => m.id)
+        .slice(0, 20);
 
       return {
         success: true,
@@ -165,13 +208,11 @@ export class GeminiAdapter implements AIProviderAdapter {
       }
 
       const discovered: AIModelInfo[] = json.models
-        .filter((item: { name?: string; supportedGenerationMethods?: string[] }) => {
-          const name = (item.name || '').toLowerCase();
-          const methods = item.supportedGenerationMethods || [];
-          return name.includes('gemini') && methods.includes('generateContent');
-        })
+        .filter((item: { name?: string; supportedGenerationMethods?: string[] }) =>
+          isSupportedGeminiChatModel(item.name || '', item.supportedGenerationMethods)
+        )
         .map((item: { name: string; displayName?: string; inputTokenLimit?: number }) => {
-          const cleanId = item.name.replace(/^models\//, '');
+          const cleanId = this.cleanModelId(item.name);
           const known = GEMINI_CURATED_MODELS.find((m) => m.id === cleanId);
           return (
             known || {
@@ -184,7 +225,7 @@ export class GeminiAdapter implements AIProviderAdapter {
           );
         });
 
-      return discovered.length > 0 ? discovered : GEMINI_CURATED_MODELS;
+      return discovered.length > 0 ? sortGeminiModels(discovered) : GEMINI_CURATED_MODELS;
     } catch {
       return GEMINI_CURATED_MODELS;
     }
@@ -203,11 +244,7 @@ export class GeminiAdapter implements AIProviderAdapter {
     }
 
     const endpoint = this.resolveEndpoint(request.endpoint);
-    let rawModel = request.model?.trim() || this.defaultModel;
-    if (rawModel === 'gemini-1.5-flash' || rawModel === 'gemini-2.0-flash') {
-      rawModel = 'gemini-3.8-flash';
-    }
-    let cleanModel = this.cleanModelId(rawModel);
+    const timeoutMs = request.timeoutMs || 45000;
 
     const bodyPayload: Record<string, unknown> = {
       contents: [
@@ -228,88 +265,42 @@ export class GeminiAdapter implements AIProviderAdapter {
       };
     }
 
-    try {
-      let response = await fetchWithTimeout(
-        `${endpoint}/models/${cleanModel}:generateContent`,
-        {
-          method: 'POST',
-          headers: {
-            'x-goog-api-key': apiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(bodyPayload),
-        },
-        request.timeoutMs || 45000,
-        request.signal
-      );
+    const result = await runGeminiGenerateWithFallback<{
+      finishReason?: string;
+      usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
+    }>({
+      requestedModel: request.model || this.defaultModel,
+      enableWebSearch: false,
+      signal: request.signal,
+      invokeModel: (targetModel) =>
+        this.invokeGenerateContent({
+          endpoint,
+          apiKey,
+          targetModel,
+          bodyPayload,
+          timeoutMs,
+          signal: request.signal,
+        }),
+    });
 
-      // Auto-fallback if requested model is deprecated / 404
-      if (!response.ok && response.status === 404 && cleanModel !== 'gemini-3.8-flash') {
-        cleanModel = 'gemini-3.8-flash';
-        response = await fetchWithTimeout(
-          `${endpoint}/models/${cleanModel}:generateContent`,
-          {
-            method: 'POST',
-            headers: {
-              'x-goog-api-key': apiKey,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(bodyPayload),
-          },
-          request.timeoutMs || 45000,
-          request.signal
-        );
-      }
-
-      if (!response.ok && response.status === 404 && cleanModel !== 'gemini-flash-latest') {
-        cleanModel = 'gemini-flash-latest';
-        response = await fetchWithTimeout(
-          `${endpoint}/models/${cleanModel}:generateContent`,
-          {
-            method: 'POST',
-            headers: {
-              'x-goog-api-key': apiKey,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(bodyPayload),
-          },
-          request.timeoutMs || 45000,
-          request.signal
-        );
-      }
-
-      if (!response.ok) {
-        const errorBody = await response.text().catch(() => '');
-        throw new Error(
-          `Google Gemini API returned status ${response.status}: ${errorBody || response.statusText}`
-        );
-      }
-
-      const json = await response.json();
-      const candidate = json?.candidates?.[0];
-      const partText = candidate?.content?.parts?.[0]?.text || '';
-
-      return {
-        success: true,
-        text: partText,
-        model: cleanModel,
-        provider: this.provider,
-        finishReason: candidate?.finishReason,
-        usage: {
-          promptTokens: json?.usageMetadata?.promptTokenCount,
-          completionTokens: json?.usageMetadata?.candidatesTokenCount,
-          totalTokens: json?.usageMetadata?.totalTokenCount,
-        },
-      };
-    } catch (err) {
+    if (!result.ok) {
       return {
         success: false,
         text: '',
-        model: cleanModel,
+        model: result.model,
         provider: this.provider,
-        error: sanitizeErrorMessage(err, apiKey),
+        error: sanitizeErrorMessage(result.error, apiKey),
       };
     }
+
+    return {
+      success: true,
+      text: result.attempt.text || '',
+      model: result.model,
+      provider: this.provider,
+      finishReason: result.attempt.meta?.finishReason,
+      usage: result.attempt.meta?.usage,
+    };
   }
 
   async generateStructuredJson<T = unknown>(
@@ -328,8 +319,7 @@ export class GeminiAdapter implements AIProviderAdapter {
     }
 
     const endpoint = this.resolveEndpoint(request.endpoint);
-    const rawModel = request.model?.trim() || this.defaultModel;
-    const cleanModel = this.cleanModelId(rawModel);
+    const timeoutMs = request.timeoutMs || 45000;
 
     const baseSystemPrompt = request.systemPrompt ? `${request.systemPrompt}\n\n` : '';
     const strictJsonPrompt = `${baseSystemPrompt}IMPORTANT: You must output ONLY a valid JSON object. Do not include markdown code blocks or explanations outside the JSON payload.`;
@@ -351,61 +341,52 @@ export class GeminiAdapter implements AIProviderAdapter {
       },
     };
 
-    try {
-      const response = await fetchWithTimeout(
-        `${endpoint}/models/${cleanModel}:generateContent`,
-        {
-          method: 'POST',
-          headers: {
-            'x-goog-api-key': apiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(bodyPayload),
-        },
-        request.timeoutMs || 45000,
-        request.signal
-      );
+    const result = await runGeminiGenerateWithFallback({
+      requestedModel: request.model || this.defaultModel,
+      enableWebSearch: false,
+      signal: request.signal,
+      invokeModel: (targetModel) =>
+        this.invokeGenerateContent({
+          endpoint,
+          apiKey,
+          targetModel,
+          bodyPayload,
+          timeoutMs,
+          signal: request.signal,
+        }),
+    });
 
-      if (!response.ok) {
-        const errorBody = await response.text().catch(() => '');
-        throw new Error(
-          `Google Gemini API returned status ${response.status}: ${errorBody || response.statusText}`
-        );
-      }
-
-      const json = await response.json();
-      const candidate = json?.candidates?.[0];
-      const rawText = candidate?.content?.parts?.[0]?.text || '';
-
-      const extracted = extractJsonFromResponse<T>(rawText);
-      if (extracted.error || extracted.data === null) {
-        return {
-          success: false,
-          data: null,
-          rawText,
-          model: cleanModel,
-          provider: this.provider,
-          error: extracted.error || 'Failed to parse structured JSON from Google Gemini output.',
-        };
-      }
-
-      return {
-        success: true,
-        data: extracted.data,
-        rawText,
-        model: cleanModel,
-        provider: this.provider,
-      };
-    } catch (err) {
+    if (!result.ok) {
       return {
         success: false,
         data: null,
         rawText: '',
-        model: cleanModel,
+        model: result.model,
         provider: this.provider,
-        error: sanitizeErrorMessage(err, apiKey),
+        error: sanitizeErrorMessage(result.error, apiKey),
       };
     }
+
+    const rawText = result.attempt.text || '';
+    const extracted = extractJsonFromResponse<T>(rawText);
+    if (extracted.error || extracted.data === null) {
+      return {
+        success: false,
+        data: null,
+        rawText,
+        model: result.model,
+        provider: this.provider,
+        error: extracted.error || 'Failed to parse structured JSON from Google Gemini output.',
+      };
+    }
+
+    return {
+      success: true,
+      data: extracted.data,
+      rawText,
+      model: result.model,
+      provider: this.provider,
+    };
   }
 }
 

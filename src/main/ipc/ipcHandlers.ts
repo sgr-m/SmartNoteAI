@@ -11,6 +11,39 @@ import { SettingsService } from '../services/SettingsService';
 import { FileService } from '../services/FileService';
 import { UpdateService } from '../services/UpdateService';
 import { CredentialService } from '../services/CredentialService';
+import {
+  GEMINI_RECOMMENDED_FALLBACK_MODELS,
+  GeminiAttemptOutcome,
+  isSupportedGeminiChatModel,
+  normalizeGeminiModelId,
+  runGeminiGenerateWithFallback,
+  sortGeminiModels,
+} from '../../shared/geminiModelUtils';
+
+const GEMINI_DISCOVERY_CACHE_TTL_MS = 5 * 60 * 1000;
+const geminiDiscoveredModelsCache = new Map<string, { ids: string[]; expiresAt: number }>();
+
+function clearGeminiDiscoveredModelsCache(): void {
+  geminiDiscoveredModelsCache.clear();
+}
+
+function setGeminiDiscoveredModelsCache(endpoint: string, apiKey: string, ids: string[]): void {
+  if (!apiKey || ids.length === 0) return;
+  geminiDiscoveredModelsCache.set(`${endpoint}::${apiKey}`, {
+    ids,
+    expiresAt: Date.now() + GEMINI_DISCOVERY_CACHE_TTL_MS,
+  });
+}
+
+function getGeminiDiscoveredModelsCache(endpoint: string, apiKey: string): string[] | null {
+  const entry = geminiDiscoveredModelsCache.get(`${endpoint}::${apiKey}`);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    geminiDiscoveredModelsCache.delete(`${endpoint}::${apiKey}`);
+    return null;
+  }
+  return entry.ids;
+}
 
 // ─── Desktop Annotation Overlay Window ──────────────────────────────────────
 let annotationWindow: BrowserWindow | null = null;
@@ -607,9 +640,23 @@ export function setupIpcHandlers(services: Services): void {
       return { success: false, error: 'API key cannot be empty.' };
     }
     const cleanProvider = provider.trim().toLowerCase();
-    const validProviders = ['openai', 'gemini', 'ollama', 'custom-openai'];
+    const validProviders = [
+      'openai',
+      'gemini',
+      'ollama',
+      'custom-openai',
+      'kimi',
+      'moonshot',
+      'deepseek',
+      'groq',
+      'openrouter',
+      'custom',
+    ];
     if (!validProviders.includes(cleanProvider)) {
       return { success: false, error: `Unsupported AI provider: ${cleanProvider}` };
+    }
+    if (cleanProvider === 'gemini') {
+      clearGeminiDiscoveredModelsCache();
     }
     return services.credentialService.saveApiKey(cleanProvider, apiKey.trim());
   });
@@ -621,7 +668,11 @@ export function setupIpcHandlers(services: Services): void {
 
   ipcMain.handle('ai:deleteApiKey', async (_e, provider: unknown) => {
     if (!services.credentialService || typeof provider !== 'string') return false;
-    return services.credentialService.deleteApiKey(provider.trim().toLowerCase());
+    const cleanProvider = provider.trim().toLowerCase();
+    if (cleanProvider === 'gemini') {
+      clearGeminiDiscoveredModelsCache();
+    }
+    return services.credentialService.deleteApiKey(cleanProvider);
   });
 
   ipcMain.handle('ai:listConfiguredProviders', async () => {
@@ -643,7 +694,15 @@ export function setupIpcHandlers(services: Services): void {
     }
 
     const normProvider = provider.trim().toLowerCase();
-    const key = await services.credentialService.getApiKey(normProvider);
+    const opts = (options && typeof options === 'object' ? options : {}) as {
+      model?: string;
+      customEndpoint?: string;
+      timeoutMs?: number;
+      apiKey?: string;
+    };
+    const key =
+      (typeof opts.apiKey === 'string' && opts.apiKey.trim()) ||
+      (await services.credentialService.getApiKey(normProvider));
     if (!key && normProvider !== 'ollama') {
       return {
         success: false,
@@ -652,23 +711,20 @@ export function setupIpcHandlers(services: Services): void {
       };
     }
 
-    const opts = (options && typeof options === 'object' ? options : {}) as {
-      model?: string;
-      customEndpoint?: string;
-      timeoutMs?: number;
-    };
-
     return executeProviderConnectionTest(normProvider, key || '', opts);
   });
 
   ipcMain.handle('ai:listModels', async (_e, provider: unknown, options?: unknown) => {
     if (typeof provider !== 'string' || !provider.trim()) return [];
     const normProvider = provider.trim().toLowerCase();
-    const key = services.credentialService ? await services.credentialService.getApiKey(normProvider) : null;
     const opts = (options && typeof options === 'object' ? options : {}) as {
       customEndpoint?: string;
       timeoutMs?: number;
+      apiKey?: string;
     };
+    const key =
+      (typeof opts.apiKey === 'string' && opts.apiKey.trim()) ||
+      (services.credentialService ? await services.credentialService.getApiKey(normProvider) : null);
     return executeProviderListModels(normProvider, key || '', opts);
   });
 
@@ -685,6 +741,7 @@ export function setupIpcHandlers(services: Services): void {
       maxTokens?: number;
       customEndpoint?: string;
       timeoutMs?: number;
+      enableWebSearch?: boolean;
     };
     const normProvider = (req.provider || 'gemini').trim().toLowerCase();
     const key = services.credentialService ? await services.credentialService.getApiKey(normProvider) : null;
@@ -697,6 +754,16 @@ export function setupIpcHandlers(services: Services): void {
       };
     }
     return executeProviderGenerateText(normProvider, key || '', req);
+  });
+
+  ipcMain.handle('net:fetchImageAsDataUrl', async (_e, imageUrl: unknown) => {
+    return fetchRemoteImageAsDataUrl(imageUrl);
+  });
+
+  ipcMain.handle('net:searchEducationalImages', async (_e, query: unknown, limit?: unknown) => {
+    const q = typeof query === 'string' ? query : '';
+    const maxCount = typeof limit === 'number' && Number.isFinite(limit) ? Math.max(1, Math.min(8, Math.round(limit))) : 4;
+    return searchEducationalImagesOnWeb(q, maxCount);
   });
 
   ipcMain.handle('ai:generateStructuredJson', async (_e, request: unknown) => {
@@ -806,7 +873,7 @@ async function executeProviderConnectionTest(
       const timer = setTimeout(() => controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)), timeoutMs);
 
       try {
-        const res = await fetch(`${endpoint}/models?key=${apiKey}`, {
+        const res = await fetch(`${endpoint}/models?pageSize=200&key=${encodeURIComponent(apiKey)}`, {
           method: 'GET',
           headers: {
             'x-goog-api-key': apiKey,
@@ -822,23 +889,18 @@ async function executeProviderConnectionTest(
         }
 
         const json = (await res.json()) as any;
-        const models = Array.isArray(json?.models)
+        const rawModels: Array<{ name?: string; supportedGenerationMethods?: string[] }> = Array.isArray(json?.models)
           ? json.models
-              .map((m: { name?: string }) => m.name?.replace(/^models\//, '') || '')
-              .filter((name: string) => {
-                const lower = name.toLowerCase();
-                return (
-                  lower.includes('gemini') &&
-                  !lower.endsWith('-tts') &&
-                  !lower.includes('-image') &&
-                  !lower.includes('-transcribe') &&
-                  !lower.includes('embedding') &&
-                  !lower.includes('banana') &&
-                  !lower.includes('aqa')
-                );
-              })
-              .slice(0, 30)
-          : ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-pro-latest'];
+          : [];
+        const sortedIds = sortGeminiModels(
+          rawModels
+            .filter((m) => isSupportedGeminiChatModel(m.name || '', m.supportedGenerationMethods))
+            .map((m) => ({ id: normalizeGeminiModelId(m.name) }))
+        ).map((m) => m.id);
+        if (sortedIds.length > 0) {
+          setGeminiDiscoveredModelsCache(endpoint, apiKey, sortedIds);
+        }
+        const models = sortedIds.length > 0 ? sortedIds.slice(0, 30) : [...GEMINI_RECOMMENDED_FALLBACK_MODELS];
 
         return { success: true, latencyMs, models, provider: normProvider };
       } finally {
@@ -951,7 +1013,7 @@ async function executeProviderListModels(
     } else if (normProvider === 'gemini') {
       if (!apiKey) return [];
       const endpoint = resolveAIEndpoint('gemini', options?.customEndpoint);
-      const res = await fetch(`${endpoint}/models?key=${apiKey}`, {
+      const res = await fetch(`${endpoint}/models?pageSize=200&key=${encodeURIComponent(apiKey)}`, {
         method: 'GET',
         headers: {
           'x-goog-api-key': apiKey,
@@ -961,32 +1023,30 @@ async function executeProviderListModels(
       });
       if (!res.ok) return [];
       const json = (await res.json()) as any;
-      const raw = Array.isArray(json?.models) ? json.models : [];
-      return raw
-        .filter((item: any) => {
-          const rawId = (item.name || '').toLowerCase().replace(/^models\//, '');
-          if (
-            rawId.endsWith('-tts') ||
-            rawId.includes('-image') ||
-            rawId.includes('-transcribe') ||
-            rawId.includes('embedding') ||
-            rawId.includes('banana') ||
-            rawId.includes('aqa')
-          ) {
-            return false;
-          }
-          const methods = item.supportedGenerationMethods || [];
-          return rawId.includes('gemini') && (methods.length === 0 || methods.includes('generateContent'));
-        })
-        .map((item: any) => {
-          const id = (item.name || '').replace(/^models\//, '');
+      const raw: Array<{ name?: string; displayName?: string; supportedGenerationMethods?: string[] }> =
+        Array.isArray(json?.models) ? json.models : [];
+      const mapped = raw
+        .filter((item) =>
+          isSupportedGeminiChatModel(item?.name || '', item?.supportedGenerationMethods)
+        )
+        .map((item) => {
+          const id = normalizeGeminiModelId(item?.name || '');
           return {
             id,
-            name: item.displayName ? `${item.displayName} (${id})` : id,
+            name: item?.displayName ? `${item.displayName} (${id})` : id,
             provider: 'gemini',
             isLocal: false,
           };
         });
+      const sorted = sortGeminiModels(mapped);
+      if (sorted.length > 0) {
+        setGeminiDiscoveredModelsCache(
+          endpoint,
+          apiKey,
+          sorted.map((m) => m.id)
+        );
+      }
+      return sorted;
     } else if (isOpenAICompatibleProvider(normProvider)) {
       if (!apiKey) return [];
       const endpoint = resolveAIEndpoint(normProvider, options?.customEndpoint);
@@ -1018,6 +1078,114 @@ async function executeProviderListModels(
   }
 }
 
+interface MainProcessGeminiMeta {
+  groundingSources?: Array<{ title: string; url: string }>;
+}
+
+async function getGeminiModelIdsForFallback(
+  endpoint: string,
+  apiKey: string,
+  customEndpoint?: string
+): Promise<string[]> {
+  const cached = getGeminiDiscoveredModelsCache(endpoint, apiKey);
+  if (cached) return cached;
+  try {
+    const models = await executeProviderListModels('gemini', apiKey, {
+      customEndpoint,
+      timeoutMs: 4500,
+    });
+    return models.map((m) => m.id);
+  } catch {
+    return [];
+  }
+}
+
+async function executeMainProcessGeminiGenerate(params: {
+  apiKey: string;
+  customEndpoint?: string;
+  model?: string;
+  bodyPayload: Record<string, unknown>;
+  enableWebSearch: boolean;
+  outerSignal: AbortSignal;
+  perAttemptTimeoutMs: number;
+}): Promise<{
+  text: string;
+  model: string;
+  groundingSources?: Array<{ title: string; url: string }>;
+}> {
+  const { apiKey, customEndpoint, model, bodyPayload, enableWebSearch, outerSignal, perAttemptTimeoutMs } = params;
+  const endpoint = resolveAIEndpoint('gemini', customEndpoint);
+
+  const result = await runGeminiGenerateWithFallback<MainProcessGeminiMeta>({
+    requestedModel: model,
+    enableWebSearch,
+    signal: outerSignal,
+    fetchModels: () => getGeminiModelIdsForFallback(endpoint, apiKey, customEndpoint),
+    invokeModel: async (targetModel: string, useSearchTool: boolean): Promise<GeminiAttemptOutcome<MainProcessGeminiMeta>> => {
+      if (outerSignal.aborted) {
+        return { ok: false, error: 'AI request aborted' };
+      }
+      const subController = new AbortController();
+      const onOuterAbort = () => subController.abort(outerSignal.reason);
+      outerSignal.addEventListener('abort', onOuterAbort, { once: true });
+      const subTimer = setTimeout(
+        () => subController.abort(new Error(`Model ${targetModel} timed out after ${perAttemptTimeoutMs}ms`)),
+        perAttemptTimeoutMs
+      );
+      const payloadToSend = useSearchTool
+        ? { ...bodyPayload, tools: [{ google_search: {} }] }
+        : bodyPayload;
+      try {
+        const attemptRes = await fetch(
+          `${endpoint}/models/${encodeURIComponent(targetModel)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+          {
+            method: 'POST',
+            headers: {
+              'x-goog-api-key': apiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payloadToSend),
+            signal: subController.signal,
+          }
+        );
+        if (attemptRes.ok) {
+          const json = (await attemptRes.json()) as any;
+          const candidate = json?.candidates?.[0];
+          const text = candidate?.content?.parts?.map((p: any) => p?.text || '').join('') || '';
+          const rawChunks = candidate?.groundingMetadata?.groundingChunks;
+          const groundingSources: Array<{ title: string; url: string }> = Array.isArray(rawChunks)
+            ? rawChunks
+                .filter((c: any) => c?.web?.uri)
+                .map((c: any) => ({
+                  title: String(c.web.title || c.web.uri),
+                  url: String(c.web.uri),
+                }))
+                .slice(0, 6)
+            : [];
+          return { ok: true, text, meta: { groundingSources } };
+        }
+        const errBody = await attemptRes.text().catch(() => '');
+        return { ok: false, status: attemptRes.status, error: errBody || attemptRes.statusText };
+      } catch (err: any) {
+        return { ok: false, error: err?.message || String(err) };
+      } finally {
+        clearTimeout(subTimer);
+        outerSignal.removeEventListener('abort', onOuterAbort);
+      }
+    },
+  });
+
+  if (!result.ok) {
+    throw new Error(result.error);
+  }
+
+  return {
+    text: result.attempt.text || '',
+    model: result.model,
+    groundingSources: result.attempt.meta?.groundingSources,
+  };
+}
+
 // ─── Main-Process AI Text Generation ─────────────────────────────────────────
 async function executeProviderGenerateText(
   provider: string,
@@ -1030,8 +1198,16 @@ async function executeProviderGenerateText(
     maxTokens?: number;
     customEndpoint?: string;
     timeoutMs?: number;
+    enableWebSearch?: boolean;
   }
-): Promise<{ success: boolean; text: string; model?: string; provider: string; error?: string }> {
+): Promise<{
+  success: boolean;
+  text: string;
+  model?: string;
+  provider: string;
+  groundingSources?: Array<{ title: string; url: string }>;
+  error?: string;
+}> {
   const normProvider = provider.trim().toLowerCase();
   const timeoutMs = req.timeoutMs || (normProvider === 'ollama' ? 180000 : 60000);
   const controller = new AbortController();
@@ -1039,27 +1215,6 @@ async function executeProviderGenerateText(
 
   try {
     if (normProvider === 'gemini') {
-      const endpoint = resolveAIEndpoint('gemini', req.customEndpoint);
-      let rawModel = req.model?.trim() || 'gemini-3.5-flash-lite';
-      // Strip display parenthetical if present e.g. "Gemini 3.5 Flash-Lite (gemini-3.5-flash-lite)"
-      const parenMatch = rawModel.match(/\(([^)]+)\)$/);
-      if (parenMatch && parenMatch[1]) {
-        rawModel = parenMatch[1].trim();
-      }
-      if (
-        rawModel.endsWith('-tts') ||
-        rawModel.includes('-image') ||
-        rawModel.includes('-transcribe') ||
-        rawModel === 'gemini-1.5-flash' ||
-        rawModel === 'gemini-2.0-flash' ||
-        rawModel === 'gemini-2.5-flash' ||
-        rawModel === 'gemini-3.5-flash' ||
-        !rawModel
-      ) {
-        rawModel = 'gemini-3.5-flash-lite';
-      }
-      let cleanModel = rawModel.replace(/^models\//, '').trim();
-
       const bodyPayload: Record<string, unknown> = {
         contents: [{ role: 'user', parts: [{ text: req.prompt || '' }] }],
         generationConfig: {
@@ -1073,51 +1228,23 @@ async function executeProviderGenerateText(
         };
       }
 
-      // Helper for per-model fetch with sub-timeout to prevent hanging on preview models
-      const attemptGenerate = async (targetModel: string): Promise<{ ok: boolean; text?: string; status?: number; error?: string }> => {
-        const subController = new AbortController();
-        const subTimer = setTimeout(() => subController.abort(new Error(`Model ${targetModel} timed out after 18000ms`)), 18000);
-        try {
-          const attemptRes = await fetch(`${endpoint}/models/${targetModel}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: {
-              'x-goog-api-key': apiKey,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(bodyPayload),
-            signal: subController.signal,
-          });
-          if (attemptRes.ok) {
-            const fbJson = (await attemptRes.json()) as any;
-            const fbText = fbJson?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            return { ok: true, text: fbText };
-          }
-          const errBody = await attemptRes.text().catch(() => '');
-          return { ok: false, status: attemptRes.status, error: errBody || attemptRes.statusText };
-        } catch (err: any) {
-          return { ok: false, error: err?.message || String(err) };
-        } finally {
-          clearTimeout(subTimer);
-        }
+      const geminiResult = await executeMainProcessGeminiGenerate({
+        apiKey,
+        customEndpoint: req.customEndpoint,
+        model: req.model,
+        bodyPayload,
+        enableWebSearch: Boolean(req.enableWebSearch),
+        outerSignal: controller.signal,
+        perAttemptTimeoutMs: Math.min(35000, timeoutMs),
+      });
+
+      return {
+        success: true,
+        text: geminiResult.text,
+        model: geminiResult.model,
+        provider: 'gemini',
+        groundingSources: geminiResult.groundingSources,
       };
-
-      // 1. Try requested model first
-      const firstAttempt = await attemptGenerate(cleanModel);
-      if (firstAttempt.ok && firstAttempt.text) {
-        return { success: true, text: firstAttempt.text, model: cleanModel, provider: 'gemini' };
-      }
-
-      // 2. If first attempt was unavailable (503), timeout, deprecated (404), or rate-limited (429), try stable fallbacks!
-      const fallbacks = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-3.8-flash'];
-      for (const fbModel of fallbacks) {
-        if (cleanModel === fbModel) continue;
-        const fbAttempt = await attemptGenerate(fbModel);
-        if (fbAttempt.ok && fbAttempt.text) {
-          return { success: true, text: fbAttempt.text, model: fbModel, provider: 'gemini' };
-        }
-      }
-
-      throw new Error(`Google Gemini failed: ${firstAttempt.error || 'All fallback models unavailable'}`);
     } else if (isOpenAICompatibleProvider(normProvider)) {
       const endpoint = resolveAIEndpoint(normProvider, req.customEndpoint);
       const model = req.model?.trim() || (normProvider === 'kimi' ? 'moonshot-v1-8k' : normProvider === 'deepseek' ? 'deepseek-chat' : 'gpt-4o-mini');
@@ -1162,6 +1289,7 @@ async function executeProviderGenerateText(
       model = model.replace(/\s+•.*$/, '').trim();
 
       // Primary: Use /api/chat so Ollama applies the model's native chat template (Gemma, Llama, Qwen)
+      let chatHttpError: Error | null = null;
       try {
         const chatRes = await fetch(`${endpoint}/api/chat`, {
           method: 'POST',
@@ -1185,8 +1313,19 @@ async function executeProviderGenerateText(
           const text = chatJson?.message?.content || '';
           return { success: true, text, model, provider: 'ollama' };
         }
-      } catch {
-        // Fallback to /api/generate only if /api/chat fails
+        // Only fall back to /api/generate for older Ollama servers that don't expose /api/chat
+        if (chatRes.status !== 404 && chatRes.status !== 405 && chatRes.status !== 501) {
+          const errBody = await chatRes.text().catch(() => '');
+          chatHttpError = new Error(`Ollama returned status ${chatRes.status}${errBody ? `: ${errBody}` : ''}`);
+        }
+      } catch (chatErr) {
+        if (controller.signal.aborted) {
+          throw chatErr;
+        }
+        // Fallback to /api/generate only if /api/chat endpoint is unsupported or unreachable without abort
+      }
+      if (chatHttpError) {
+        throw chatHttpError;
       }
 
       // Fallback: /api/generate
@@ -1247,26 +1386,6 @@ async function executeProviderGenerateStructuredJson(
     let usedModel = req.model || '';
 
     if (provider === 'gemini') {
-      const endpoint = (req.customEndpoint?.trim() || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
-      let rawModel = req.model?.trim() || 'gemini-3.5-flash-lite';
-      const parenMatch = rawModel.match(/\(([^)]+)\)$/);
-      if (parenMatch && parenMatch[1]) {
-        rawModel = parenMatch[1].trim();
-      }
-      if (
-        rawModel.endsWith('-tts') ||
-        rawModel.includes('-image') ||
-        rawModel.includes('-transcribe') ||
-        rawModel === 'gemini-1.5-flash' ||
-        rawModel === 'gemini-2.0-flash' ||
-        rawModel === 'gemini-2.5-flash' ||
-        rawModel === 'gemini-3.5-flash' ||
-        !rawModel
-      ) {
-        rawModel = 'gemini-3.5-flash-lite';
-      }
-      usedModel = rawModel.replace(/^models\//, '').trim();
-
       const baseSystemPrompt = req.systemPrompt ? `${req.systemPrompt}\n\n` : '';
       const strictJsonPrompt = `${baseSystemPrompt}IMPORTANT: You must output ONLY a valid JSON object. Do not include markdown code blocks or explanations outside the JSON payload.`;
 
@@ -1282,51 +1401,17 @@ async function executeProviderGenerateStructuredJson(
         },
       };
 
-      const attemptGenerate = async (targetModel: string): Promise<string | null> => {
-        const subController = new AbortController();
-        const subTimer = setTimeout(() => subController.abort(new Error(`Timeout on ${targetModel}`)), 18000);
-        try {
-          const attemptRes = await fetch(`${endpoint}/models/${targetModel}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: {
-              'x-goog-api-key': apiKey,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(bodyPayload),
-            signal: subController.signal,
-          });
-          if (attemptRes.ok) {
-            const json = (await attemptRes.json()) as any;
-            return json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          }
-          return null;
-        } catch {
-          return null;
-        } finally {
-          clearTimeout(subTimer);
-        }
-      };
-
-      const firstText = await attemptGenerate(usedModel);
-      if (firstText) {
-        rawText = firstText;
-      } else {
-        const fallbacks = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-3.8-flash'];
-        let gotText = false;
-        for (const fbModel of fallbacks) {
-          if (usedModel === fbModel) continue;
-          const fbText = await attemptGenerate(fbModel);
-          if (fbText) {
-            rawText = fbText;
-            usedModel = fbModel;
-            gotText = true;
-            break;
-          }
-        }
-        if (!gotText) {
-          throw new Error(`Google Gemini generation failed for ${usedModel} and fallbacks.`);
-        }
-      }
+      const geminiResult = await executeMainProcessGeminiGenerate({
+        apiKey,
+        customEndpoint: req.customEndpoint,
+        model: req.model,
+        bodyPayload,
+        enableWebSearch: false,
+        outerSignal: controller.signal,
+        perAttemptTimeoutMs: Math.min(35000, timeoutMs),
+      });
+      rawText = geminiResult.text;
+      usedModel = geminiResult.model;
     } else if (provider === 'openai' || provider === 'custom-openai') {
       const endpoint = (req.customEndpoint?.trim() || 'https://api.openai.com/v1').replace(/\/+$/, '');
       usedModel = req.model?.trim() || 'gpt-4o-mini';
@@ -1413,12 +1498,261 @@ async function executeProviderGenerateStructuredJson(
       clean = clean.substring(firstBrace, lastBrace + 1);
     }
 
-    const data = JSON.parse(clean);
+    let data: any = null;
+    try {
+      data = JSON.parse(clean);
+    } catch {
+      // Repair unescaped backslashes inside JSON strings (common with LaTeX output from LLMs)
+      try {
+        const repaired = clean.replace(/\\([^"\\\/bfnrtu])/g, '\\\\$1');
+        data = JSON.parse(repaired);
+      } catch {
+        const fallbackRepaired = clean.replace(/\\/g, '\\\\');
+        data = JSON.parse(fallbackRepaired);
+      }
+    }
+
+    // Heal backspace / formfeed artifact characters in LaTeX strings
+    const healLatexControlChars = (val: any): any => {
+      if (typeof val === 'string') {
+        return val
+          .replace(/\x08ar\{/g, '\\bar{')
+          .replace(/(^|[^\\])\x08ar\b/g, '$1\\bar')
+          .replace(/\x0cac\{/g, '\\frac{')
+          .replace(/(^|[^\\])\x0cac\b/g, '$1\\frac');
+      }
+      if (Array.isArray(val)) return val.map(healLatexControlChars);
+      if (val && typeof val === 'object') {
+        const out: any = {};
+        for (const [k, v] of Object.entries(val)) out[k] = healLatexControlChars(v);
+        return out;
+      }
+      return val;
+    };
+    data = healLatexControlChars(data);
+
     return { success: true, data, rawText, model: usedModel, provider };
   } catch (err) {
     const rawMsg = err instanceof Error ? err.message : String(err);
     const sanitized = apiKey ? rawMsg.split(apiKey).join('[REDACTED]') : rawMsg;
     return { success: false, data: null, provider, error: sanitized };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ─── Web Image Fetch & Educational Image Search Helpers ──────────────────────
+
+function isDisallowedRemoteHost(hostname: string): boolean {
+  const h = hostname.trim().toLowerCase();
+  if (!h) return true;
+  if (h === 'localhost' || h === '0.0.0.0' || h === '::1' || h === '[::1]') return true;
+  if (/^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(h)) return true;
+  return false;
+}
+
+function sanitizeRemoteSvgString(svgText: string): string {
+  return svgText
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/\bon[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript:/gi, '');
+}
+
+async function fetchRemoteImageAsDataUrl(
+  rawUrl: unknown
+): Promise<{ success: boolean; dataUrl?: string; mimeType?: string; finalUrl?: string; error?: string }> {
+  if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
+    return { success: false, error: 'Image URL is required.' };
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(rawUrl.trim());
+  } catch {
+    return { success: false, error: 'Invalid image URL.' };
+  }
+
+  if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+    return { success: false, error: 'Only HTTP/HTTPS image URLs are supported.' };
+  }
+
+  if (isDisallowedRemoteHost(parsedUrl.hostname)) {
+    return { success: false, error: 'Local or private network URLs are blocked.' };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error('Image download timed out')), 15000);
+
+  try {
+    const res = await fetch(parsedUrl.toString(), {
+      method: 'GET',
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'SmartNoteAI/1.0 (Educational Whiteboard)',
+        Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      },
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      return { success: false, error: `HTTP ${res.status} while downloading image.` };
+    }
+
+    const arrayBuf = await res.arrayBuffer();
+    if (arrayBuf.byteLength === 0) {
+      return { success: false, error: 'Downloaded image is empty.' };
+    }
+    if (arrayBuf.byteLength > 15 * 1024 * 1024) {
+      return { success: false, error: 'Image exceeds 15 MB limit.' };
+    }
+
+    const buf = Buffer.from(arrayBuf);
+    const headerType = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const headText = buf.slice(0, 256).toString('utf8').trimStart();
+
+    if (headerType === 'text/html' || /^<!doctype\s+html/i.test(headText) || /^<html\b/i.test(headText)) {
+      return { success: false, error: 'URL points to a webpage rather than a direct image file.' };
+    }
+
+    const lowerPath = parsedUrl.pathname.toLowerCase();
+    let mimeType = headerType.startsWith('image/') ? headerType : '';
+    if (!mimeType) {
+      if (headText.includes('<svg') || lowerPath.endsWith('.svg')) mimeType = 'image/svg+xml';
+      else if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) mimeType = 'image/png';
+      else if (buf[0] === 0xff && buf[1] === 0xd8) mimeType = 'image/jpeg';
+      else if (headText.startsWith('GIF8')) mimeType = 'image/gif';
+      else if (buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WEBP') mimeType = 'image/webp';
+      else if (lowerPath.endsWith('.png')) mimeType = 'image/png';
+      else if (lowerPath.endsWith('.jpg') || lowerPath.endsWith('.jpeg')) mimeType = 'image/jpeg';
+      else if (lowerPath.endsWith('.webp')) mimeType = 'image/webp';
+      else if (lowerPath.endsWith('.gif')) mimeType = 'image/gif';
+      else mimeType = 'image/png';
+    }
+
+    if (mimeType === 'image/svg+xml') {
+      const cleanedSvg = sanitizeRemoteSvgString(buf.toString('utf8'));
+      const b64 = Buffer.from(cleanedSvg, 'utf8').toString('base64');
+      return { success: true, dataUrl: `data:image/svg+xml;base64,${b64}`, mimeType, finalUrl: res.url };
+    }
+
+    return {
+      success: true,
+      dataUrl: `data:${mimeType};base64,${buf.toString('base64')}`,
+      mimeType,
+      finalUrl: res.url,
+    };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+interface EducationalWebImage {
+  title: string;
+  imageUrl: string;
+  thumbUrl: string;
+  pageUrl: string;
+  source: string;
+}
+
+async function searchEducationalImagesOnWeb(
+  query: string,
+  limit: number = 4
+): Promise<{ success: boolean; images: EducationalWebImage[]; searchUrl: string; error?: string }> {
+  const cleanQuery = query.trim();
+  const googleImagesUrl = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(cleanQuery)}`;
+  if (!cleanQuery) {
+    return { success: false, images: [], searchUrl: googleImagesUrl, error: 'Empty search query.' };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error('Image search timed out')), 10000);
+  const results: EducationalWebImage[] = [];
+  const seenUrls = new Set<string>();
+  const supportedImageRe = /\.(png|jpe?g|webp|svg|gif)(?:$|\?)/i;
+
+  const pushUnique = (item: EducationalWebImage) => {
+    if (!item.imageUrl || !item.thumbUrl || seenUrls.has(item.imageUrl)) return;
+    seenUrls.add(item.imageUrl);
+    results.push(item);
+  };
+
+  try {
+    // 1. Wikipedia article pageimages (usually crisp diagrams & topic hero visuals)
+    try {
+      const wikiApi = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(
+        cleanQuery
+      )}&gsrlimit=5&prop=pageimages|info&piprop=thumbnail|original&pithumbsize=640&inprop=url&format=json`;
+      const wikiRes = await fetch(wikiApi, {
+        headers: { 'User-Agent': 'SmartNoteAI/1.0 (Educational Whiteboard)' },
+        signal: controller.signal,
+      });
+      if (wikiRes.ok) {
+        const wikiJson = (await wikiRes.json()) as any;
+        const pages = wikiJson?.query?.pages ? Object.values(wikiJson.query.pages) : [];
+        for (const p of pages as any[]) {
+          const orig = p?.original?.source as string | undefined;
+          const thumb = (p?.thumbnail?.source as string | undefined) || orig;
+          if (!orig || !thumb) continue;
+          if (!supportedImageRe.test(orig) && !orig.includes('upload.wikimedia.org')) continue;
+          pushUnique({
+            title: String(p?.title || cleanQuery),
+            imageUrl: orig,
+            thumbUrl: thumb,
+            pageUrl: String(p?.fullurl || orig),
+            source: 'Wikipedia',
+          });
+          if (results.length >= limit) break;
+        }
+      }
+    } catch {
+      // continue to Commons
+    }
+
+    // 2. Wikimedia Commons educational file search (diagrams, SVG charts, science illustrations)
+    if (results.length < limit) {
+      try {
+        const commonsApi = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(
+          cleanQuery
+        )}&gsrlimit=${Math.max(limit * 2, 8)}&prop=imageinfo&iiprop=url|mime|size&iiurlwidth=640&format=json`;
+        const commonsRes = await fetch(commonsApi, {
+          headers: { 'User-Agent': 'SmartNoteAI/1.0 (Educational Whiteboard)' },
+          signal: controller.signal,
+        });
+        if (commonsRes.ok) {
+          const commonsJson = (await commonsRes.json()) as any;
+          const pages = commonsJson?.query?.pages ? Object.values(commonsJson.query.pages) : [];
+          for (const p of pages as any[]) {
+            const info = Array.isArray(p?.imageinfo) ? p.imageinfo[0] : null;
+            if (!info?.url) continue;
+            const mime = String(info.mime || '').toLowerCase();
+            if (!['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'image/gif'].includes(mime)) continue;
+            if (typeof info.width === 'number' && info.width < 120) continue;
+            const rawTitle = String(p?.title || cleanQuery).replace(/^File:/i, '').replace(/\.[a-z0-9]+$/i, '').replace(/[_]+/g, ' ');
+            pushUnique({
+              title: rawTitle,
+              imageUrl: String(info.url),
+              thumbUrl: String(info.thumburl || info.url),
+              pageUrl: String(info.descriptionurl || info.url),
+              source: 'Wikimedia Commons',
+            });
+            if (results.length >= limit) break;
+          }
+        }
+      } catch {
+        // return what we have
+      }
+    }
+
+    return { success: true, images: results.slice(0, limit), searchUrl: googleImagesUrl };
+  } catch (err) {
+    return {
+      success: results.length > 0,
+      images: results.slice(0, limit),
+      searchUrl: googleImagesUrl,
+      error: err instanceof Error ? err.message : String(err),
+    };
   } finally {
     clearTimeout(timer);
   }

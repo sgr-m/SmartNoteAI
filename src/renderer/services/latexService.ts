@@ -94,7 +94,25 @@ export function isLatexSyntax(text: string): boolean {
 }
 
 /**
- * Checks whether text is strictly a pure mathematical formula (e.g. "x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}", "$$a^2+b^2=c^2$$", "E = mc^2")
+ * Strip LaTeX upright/text math formatting groups (e.g. \mathrm{CH}, \mathrm{NaOH}, \text{aq})
+ * when they contain compact math/chemistry tokens rather than multi-word English sentences.
+ */
+function stripCompactMathFontGroups(text: string): string {
+  return text.replace(
+    /\\(?:mathrm|mathbf|mathit|mathsf|mathtt|mathcal|mathbb|operatorname|text)\{([^{}]*)\}/g,
+    (_full, inner: string) => {
+      const trimmedInner = inner.trim();
+      const wordsInside = trimmedInner.match(/[a-zA-Z]{2,}/g) || [];
+      if (/\s/.test(trimmedInner) && wordsInside.length >= 2) {
+        return ` ${trimmedInner} `;
+      }
+      return ' ';
+    }
+  );
+}
+
+/**
+ * Checks whether text is strictly a pure mathematical or chemical formula (e.g. "x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}", "$$a^2+b^2=c^2$$", "\mathrm{CH}_{4} + 2 \mathrm{O}_{2} \longrightarrow \mathrm{CO}_{2} + 2 \mathrm{H}_{2}\mathrm{O}", "E = mc^2")
  * rather than an English prose sentence or Markdown notes containing inline math.
  * English sentences like "The sum of interior angles in any triangle is always $180^\circ$:" are NOT pure formulas.
  */
@@ -115,14 +133,17 @@ export function isPureLatexFormula(text: string): boolean {
   if ((trimmed.startsWith('$$') && trimmed.endsWith('$$') && trimmed.length > 2) ||
       (trimmed.startsWith('\\[') && trimmed.endsWith('\\]') && trimmed.length > 2)) {
     // If the content inside contains multiple plain English words, it is prose with math!
-    const inner = (trimmed.startsWith('$$') ? trimmed.slice(2, -2) : trimmed.slice(2, -2)).trim();
-    const innerWords = inner.replace(/\\[a-zA-Z]+/g, ' ').replace(/\$[^\$]+\$/g, ' ').match(/\b[a-zA-Z]{3,}\b/g) || [];
+    const inner = trimmed.slice(2, -2).trim();
+    const innerWords = stripCompactMathFontGroups(inner)
+      .replace(/\\[a-zA-Z]+/g, ' ')
+      .replace(/\$[^\$]+\$/g, ' ')
+      .match(/\b[a-zA-Z]{3,}\b/g) || [];
     if (innerWords.length >= 2) return false;
     return true;
   }
 
-  // Count standard English words (words with 2+ letters without backslashes)
-  const plainWords = trimmed
+  // Count standard English words (words with 2+ letters outside compact LaTeX formatting tokens)
+  const plainWords = stripCompactMathFontGroups(trimmed)
     .replace(/\\[a-zA-Z]+/g, ' ') // strip LaTeX commands
     .replace(/\$[^\$]+\$/g, ' ') // strip inline math
     .match(/\b[a-zA-Z]{2,}\b/g) || [];
@@ -137,8 +158,12 @@ export function isPureLatexFormula(text: string): boolean {
     return false;
   }
 
-  // Check if it's pure mathematical expression (starts with backslash or has math keywords/operators)
-  if (trimmed.startsWith('\\') && (trimmed.includes('\\frac') || trimmed.includes('\\sqrt') || trimmed.includes('\\int') || trimmed.includes('\\sum') || trimmed.includes('\\begin'))) {
+  // Check if it contains core LaTeX math / chemical reaction commands anywhere in the expression
+  if (
+    /\\(?:frac|sqrt|int|sum|prod|begin|mathrm|mathbf|mathit|longrightarrow|rightleftharpoons|leftrightarrow|xrightarrow|xleftarrow|rightarrow|leftarrow|to|left|right|vec|bar|hat|cdot|times|pm|approx|neq|leq|geq|infty|partial|nabla|lim|alpha|beta|gamma|theta|lambda|pi|sigma|omega|Delta)\b/.test(
+      trimmed
+    )
+  ) {
     return true;
   }
 

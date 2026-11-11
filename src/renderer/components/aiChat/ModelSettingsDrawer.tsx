@@ -5,6 +5,15 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import {
+  GEMINI_DEFAULT_MODEL,
+  GEMINI_LEGACY_PHANTOM_MODEL_IDS,
+  GEMINI_QUICK_PICK_MODELS,
+  isSupportedGeminiChatModel,
+  normalizeGeminiModelId,
+  pickBestGeminiDefaultModel,
+  sortGeminiModels,
+} from '../../../shared/geminiModelUtils';
 import './ModelSettingsDrawer.css';
 
 export type AIProviderId = 'gemini' | 'ollama' | 'kimi' | 'deepseek' | 'groq' | 'openai' | 'custom';
@@ -27,10 +36,10 @@ export const AI_PROVIDERS: ProviderConfig[] = [
     name: 'Google Gemini',
     icon: '✨',
     defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta',
-    defaultModel: 'gemini-3.5-flash-lite',
+    defaultModel: GEMINI_DEFAULT_MODEL,
     helpUrl: 'https://aistudio.google.com/app/apikey',
     helpLabel: 'Get free Gemini API Key',
-    description: 'Google Flagship & Flash models. Supports Gemini 3.5 Flash-Lite (Fastest & Verified), Gemini 3.6 Flash, Gemini 3.8 Flash, and Gemini Flash Latest.',
+    description: 'Google Flagship & Flash models. Supports Gemini 2.5 Flash (Recommended), Gemini 2.5 Flash-Lite, Gemini 2.0 Flash, and Gemini Flash Latest.',
   },
   {
     id: 'ollama',
@@ -133,7 +142,57 @@ export function ModelSettingsDrawer({
     const savedEndpoint = localStorage.getItem(`smartboard_endpoint_${selectedProvider}`) || '';
     const savedModel = localStorage.getItem(`smartboard_model_${selectedProvider}`) || '';
     setCustomEndpoint(savedEndpoint || (selectedProvider === 'custom' ? 'https://api.openai.com/v1' : ''));
-    setCustomModel(savedModel || activeProviderMeta.defaultModel);
+
+    let cleanDiscovered: Array<{ id: string; displayName: string; provider: string }> = [];
+    const cachedDiscovered = localStorage.getItem(`smartboard_discovered_models_${selectedProvider}`);
+    if (cachedDiscovered) {
+      try {
+        const parsed = JSON.parse(cachedDiscovered);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          cleanDiscovered = parsed
+            .map((m: any) => {
+              const rawId = typeof m === 'string' ? m : (m?.id || m?.name || '');
+              const cleanId = selectedProvider === 'gemini' ? normalizeGeminiModelId(rawId) : String(rawId).trim();
+              const rawDisplay = typeof m === 'object' && m?.displayName ? m.displayName : cleanId;
+              return {
+                id: cleanId,
+                displayName: rawDisplay.includes(cleanId) ? rawDisplay : `${rawDisplay} (${cleanId})`,
+                provider: selectedProvider,
+              };
+            })
+            .filter((item) => item.id && (selectedProvider !== 'gemini' || isSupportedGeminiChatModel(item.id)));
+          if (selectedProvider === 'gemini') {
+            cleanDiscovered = sortGeminiModels(cleanDiscovered);
+          }
+          if (cleanDiscovered.length > 0) {
+            setTestResult({
+              success: true,
+              message: `Verified models available for ${activeProviderMeta.name}. Click any model to activate it:`,
+              models: cleanDiscovered.map((m) => m.displayName),
+            });
+          }
+        }
+      } catch {}
+    }
+
+    let resolvedInitialModel = savedModel || activeProviderMeta.defaultModel;
+    if (selectedProvider === 'gemini') {
+      const normalizedSaved = normalizeGeminiModelId(savedModel);
+      const discoveredIds = cleanDiscovered.map((m) => m.id);
+      const isPhantomUnverified =
+        GEMINI_LEGACY_PHANTOM_MODEL_IDS.has(normalizedSaved.toLowerCase()) &&
+        (discoveredIds.length === 0 || !discoveredIds.includes(normalizedSaved));
+      if (!normalizedSaved || !isSupportedGeminiChatModel(normalizedSaved) || isPhantomUnverified) {
+        resolvedInitialModel =
+          discoveredIds.length > 0 ? pickBestGeminiDefaultModel(discoveredIds) : GEMINI_DEFAULT_MODEL;
+        if (savedModel) {
+          localStorage.setItem('smartboard_model_gemini', resolvedInitialModel);
+        }
+      } else {
+        resolvedInitialModel = normalizedSaved;
+      }
+    }
+    setCustomModel(resolvedInitialModel);
 
     // Check existing key in secure storage
     const electronAi = (window as any).electronAPI?.ai;
@@ -144,24 +203,70 @@ export function ModelSettingsDrawer({
     } else {
       setHasExistingKey(false);
     }
-
-    // Load any cached discovered models for this provider
-    const cachedDiscovered = localStorage.getItem(`smartboard_discovered_models_${selectedProvider}`);
-    if (cachedDiscovered) {
-      try {
-        const parsed = JSON.parse(cachedDiscovered);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setTestResult({
-            success: true,
-            message: `Verified models available for ${activeProviderMeta.name}. Click any model to activate it:`,
-            models: parsed.map((m: any) => typeof m === 'string' ? m : (m.displayName || m.id)),
-          });
-        }
-      } catch {}
-    }
   }, [isOpen, selectedProvider]);
 
   if (!isOpen) return null;
+
+  const normalizeAndFilterDiscovered = (
+    rawList: any[],
+    providerKey: AIProviderId
+  ): Array<{ id: string; displayName: string; provider: AIProviderId }> => {
+    const mapped = rawList
+      .map((m: any) => {
+        const rawId = typeof m === 'string' ? m : (m.id || m.name || '');
+        const cleanId =
+          providerKey === 'gemini' ? normalizeGeminiModelId(rawId) : rawId.replace(/^models\//, '').trim();
+
+        let displayName = cleanId;
+        if (typeof m === 'object' && m.displayName) {
+          displayName = m.displayName;
+        } else if (typeof m === 'object' && m.name && m.name !== cleanId) {
+          displayName = m.name;
+        }
+
+        return {
+          id: cleanId,
+          displayName: displayName.includes(cleanId) ? displayName : `${displayName} (${cleanId})`,
+          provider: providerKey,
+        };
+      })
+      .filter((item) => {
+        if (!item.id) return false;
+        if (providerKey === 'gemini') {
+          return isSupportedGeminiChatModel(item.id);
+        }
+        const idLower = item.id.toLowerCase();
+        return (
+          !idLower.endsWith('-tts') &&
+          !idLower.includes('-image') &&
+          !idLower.includes('-transcribe') &&
+          !idLower.includes('embedding') &&
+          !idLower.includes('aqa') &&
+          !idLower.includes('banana')
+        );
+      });
+    return providerKey === 'gemini' ? sortGeminiModels(mapped) : mapped;
+  };
+
+  const savePendingApiKeyIfEntered = async (
+    electronAi: any
+  ): Promise<{ ok: boolean; savedNewKey: boolean; rawKey?: string; error?: string }> => {
+    const trimmedKey = apiKeyInput.trim();
+    if (!trimmedKey || selectedProvider === 'ollama') {
+      return { ok: true, savedNewKey: false };
+    }
+    if (!electronAi?.saveApiKey) {
+      return { ok: false, savedNewKey: false, error: 'Credential saving is unavailable.' };
+    }
+    const saveRes = await electronAi.saveApiKey(selectedProvider, trimmedKey);
+    if (!saveRes?.success && saveRes?.error) {
+      return { ok: false, savedNewKey: false, error: saveRes.error };
+    }
+    setHasExistingKey(true);
+    setApiKeyInput('');
+    localStorage.removeItem(`smartboard_discovered_models_${selectedProvider}`);
+    return { ok: true, savedNewKey: true, rawKey: trimmedKey };
+  };
 
   const handleTestAndSave = async () => {
     setIsTesting(true);
@@ -179,21 +284,18 @@ export function ModelSettingsDrawer({
 
     const providerKey = selectedProvider;
     const finalEndpoint = customEndpoint.trim() || activeProviderMeta.defaultEndpoint;
-    const finalModel = customModel.trim() || activeProviderMeta.defaultModel;
+    let finalModel = customModel.trim() || activeProviderMeta.defaultModel;
 
     try {
-      // 1. If user entered a new key, save it first
-      if (apiKeyInput.trim().length > 0 && providerKey !== 'ollama') {
-        const saveRes = await electronAi.saveApiKey(providerKey, apiKeyInput.trim());
-        if (!saveRes?.success && saveRes?.error) {
-          setTestResult({
-            success: false,
-            message: `Failed to store API key: ${saveRes.error}`,
-          });
-          setIsTesting(false);
-          return;
-        }
-        setHasExistingKey(true);
+      // 1. If user entered a new key, save it first and invalidate old account's model cache
+      const keySave = await savePendingApiKeyIfEntered(electronAi);
+      if (!keySave.ok) {
+        setTestResult({
+          success: false,
+          message: `Failed to store API key: ${keySave.error}`,
+        });
+        setIsTesting(false);
+        return;
       }
 
       // 2. Persist custom endpoint and model
@@ -206,19 +308,40 @@ export function ModelSettingsDrawer({
         localStorage.setItem(`smartboard_model_${providerKey}`, customModel.trim());
       }
 
-      // 3. Test connection through main process
+      // 3. Test connection through main process (passing new key explicitly if just entered)
       const testRes = await electronAi.testConnection(providerKey, {
-        apiKey: apiKeyInput.trim() || undefined,
+        apiKey: keySave.rawKey || undefined,
         customEndpoint: finalEndpoint,
         model: finalModel,
         timeoutMs: 12000,
       });
 
       if (testRes?.success) {
+        const cleanModels = Array.isArray(testRes.models)
+          ? normalizeAndFilterDiscovered(testRes.models, providerKey)
+          : [];
+        if (cleanModels.length > 0) {
+          localStorage.setItem(`smartboard_discovered_models_${providerKey}`, JSON.stringify(cleanModels));
+          if (providerKey === 'gemini') {
+            const normModel = normalizeGeminiModelId(finalModel);
+            const discoveredIds = cleanModels.map((m) => m.id);
+            const shouldMigrate =
+              !normModel ||
+              !isSupportedGeminiChatModel(normModel) ||
+              (keySave.savedNewKey && !discoveredIds.includes(normModel)) ||
+              (GEMINI_LEGACY_PHANTOM_MODEL_IDS.has(normModel.toLowerCase()) && !discoveredIds.includes(normModel));
+            if (shouldMigrate) {
+              finalModel = pickBestGeminiDefaultModel(discoveredIds);
+              setCustomModel(finalModel);
+              localStorage.setItem(`smartboard_model_${providerKey}`, finalModel);
+              localStorage.setItem('smartboard_active_model_key', `${providerKey}:${finalModel}`);
+            }
+          }
+        }
         setTestResult({
           success: true,
           message: `Connected successfully! Latency: ${testRes.latencyMs || 0}ms`,
-          models: testRes.models || [],
+          models: cleanModels.length > 0 ? cleanModels.map((m) => m.displayName) : (testRes.models || []),
         });
         onConfigSaved?.();
         onModelConfigChanged?.();
@@ -249,52 +372,25 @@ export function ModelSettingsDrawer({
     }
 
     try {
+      const keySave = await savePendingApiKeyIfEntered(electronAi);
+      if (!keySave.ok) {
+        setTestResult({
+          success: false,
+          message: `Failed to store API key: ${keySave.error}`,
+        });
+        return;
+      }
+
       const finalEndpoint = customEndpoint.trim() || activeProviderMeta.defaultEndpoint;
       const res = await electronAi.listModels(selectedProvider, {
+        apiKey: keySave.rawKey || undefined,
         customEndpoint: finalEndpoint,
         timeoutMs: 12000,
       });
 
       const list = Array.isArray(res) ? res : (res?.models || []);
       if (list.length > 0) {
-        // Clean and filter models
-        const cleanModels = list
-          .map((m: any) => {
-            const rawId = typeof m === 'string' ? m : (m.id || m.name || '');
-            let cleanId = rawId;
-            const parenMatch = cleanId.match(/\(([^)]+)\)$/);
-            if (parenMatch && parenMatch[1]) {
-              cleanId = parenMatch[1].trim();
-            }
-            cleanId = cleanId.replace(/^models\//, '').trim();
-
-            let displayName = cleanId;
-            if (typeof m === 'object' && m.displayName) {
-              displayName = m.displayName;
-            } else if (typeof m === 'object' && m.name && m.name !== cleanId) {
-              displayName = m.name;
-            }
-
-            return {
-              id: cleanId,
-              displayName: displayName.includes(cleanId) ? displayName : `${displayName} (${cleanId})`,
-              provider: selectedProvider,
-            };
-          })
-          .filter((item: any) => {
-            const idLower = item.id.toLowerCase();
-            if (
-              idLower.endsWith('-tts') ||
-              idLower.includes('-image') ||
-              idLower.includes('-transcribe') ||
-              idLower.includes('embedding') ||
-              idLower.includes('aqa') ||
-              idLower.includes('banana')
-            ) {
-              return false;
-            }
-            return true;
-          });
+        const cleanModels = normalizeAndFilterDiscovered(list, selectedProvider);
 
         if (cleanModels.length > 0) {
           localStorage.setItem(`smartboard_discovered_models_${selectedProvider}`, JSON.stringify(cleanModels));
@@ -302,15 +398,24 @@ export function ModelSettingsDrawer({
           setTestResult({
             success: true,
             message: `Discovered ${cleanModels.length} verified chat models from ${activeProviderMeta.name}! Click any model below to activate it:`,
-            models: cleanModels.map((m: any) => m.displayName),
+            models: cleanModels.map((m) => m.displayName),
           });
 
-          // Auto-select recommended model if current is empty or default
-          const currentSaved = localStorage.getItem(`smartboard_model_${selectedProvider}`);
-          if (!currentSaved) {
-            const pick = cleanModels.find((m: any) => m.id === 'gemini-3.5-flash') || cleanModels[0];
-            setCustomModel(pick.id);
-            localStorage.setItem(`smartboard_model_${selectedProvider}`, pick.id);
+          const currentSaved = localStorage.getItem(`smartboard_model_${selectedProvider}`) || '';
+          const discoveredIds = cleanModels.map((m) => m.id);
+          const shouldAutoPick =
+            !currentSaved ||
+            keySave.savedNewKey ||
+            (selectedProvider === 'gemini' &&
+              (!isSupportedGeminiChatModel(currentSaved) || !discoveredIds.includes(normalizeGeminiModelId(currentSaved))));
+          if (shouldAutoPick) {
+            const pickId =
+              selectedProvider === 'gemini'
+                ? pickBestGeminiDefaultModel(discoveredIds)
+                : cleanModels[0].id;
+            setCustomModel(pickId);
+            localStorage.setItem(`smartboard_model_${selectedProvider}`, pickId);
+            localStorage.setItem('smartboard_active_model_key', `${selectedProvider}:${pickId}`);
           }
           onConfigSaved?.();
           onModelConfigChanged?.();
@@ -343,11 +448,14 @@ export function ModelSettingsDrawer({
     if (electronAi?.deleteApiKey) {
       await electronAi.deleteApiKey(selectedProvider);
     }
+    localStorage.removeItem(`smartboard_discovered_models_${selectedProvider}`);
+    localStorage.removeItem(`smartboard_model_${selectedProvider}`);
+    setCustomModel(activeProviderMeta.defaultModel);
     setHasExistingKey(false);
     setApiKeyInput('');
     setTestResult({
       success: true,
-      message: `Cleared saved API key for ${activeProviderMeta.name}.`,
+      message: `Cleared saved API key and model cache for ${activeProviderMeta.name}.`,
     });
     onConfigSaved?.();
     onModelConfigChanged?.();
@@ -482,13 +590,13 @@ export function ModelSettingsDrawer({
               onChange={(e) => setCustomModel(e.target.value)}
             />
             <span className="field-hint">
-              You can type any supported or experimental model ID (e.g. <code>gemini-3.8-flash</code>, <code>qwen2.5-coder:3b</code>, <code>kimi-k3</code>).
+              You can type any supported or experimental model ID (e.g. <code>gemini-2.5-flash</code>, <code>qwen2.5-coder:3b</code>, <code>kimi-k3</code>).
             </span>
 
             {/* Quick Model Recommendation Pills */}
             <div className="quick-model-pills-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
               {(selectedProvider === 'gemini'
-                ? ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-pro-latest']
+                ? [...GEMINI_QUICK_PICK_MODELS]
                 : selectedProvider === 'ollama'
                 ? ['qwen2.5-coder:3b', 'qwen2.5:3b', 'gemma3:4b', 'qwen2.5vl:3b', 'llama3.2']
                 : selectedProvider === 'kimi'
@@ -604,12 +712,30 @@ export function ModelSettingsDrawer({
             <button
               type="button"
               className="drawer-apply-btn"
-              onClick={() => {
-                const finalModel = customModel.trim() || activeProviderMeta.defaultModel;
+              onClick={async () => {
+                const electronAi = (window as any).electronAPI?.ai;
+                if (electronAi) {
+                  const keySave = await savePendingApiKeyIfEntered(electronAi);
+                  if (!keySave.ok) {
+                    setTestResult({
+                      success: false,
+                      message: `Failed to store API key: ${keySave.error}`,
+                    });
+                    return;
+                  }
+                }
+                if (customEndpoint.trim()) {
+                  localStorage.setItem(`smartboard_endpoint_${selectedProvider}`, customEndpoint.trim());
+                }
+                const finalModel =
+                  selectedProvider === 'gemini'
+                    ? normalizeGeminiModelId(customModel) || activeProviderMeta.defaultModel
+                    : customModel.trim() || activeProviderMeta.defaultModel;
+                const fullKey = `${selectedProvider}:${finalModel}`;
                 localStorage.setItem(`smartboard_model_${selectedProvider}`, finalModel);
-                localStorage.setItem('smartboard_active_model_key', `${selectedProvider}:${finalModel}`);
+                localStorage.setItem('smartboard_active_model_key', fullKey);
                 onConfigSaved?.();
-                onModelConfigChanged?.();
+                onModelConfigChanged?.(fullKey);
                 onClose();
               }}
               style={{
@@ -626,7 +752,28 @@ export function ModelSettingsDrawer({
             >
               ✓ Use Model & Start Chatting
             </button>
-            <button type="button" className="drawer-done-btn" onClick={onClose}>
+            <button
+              type="button"
+              className="drawer-done-btn"
+              onClick={async () => {
+                const electronAi = (window as any).electronAPI?.ai;
+                if (electronAi) {
+                  const keySave = await savePendingApiKeyIfEntered(electronAi);
+                  if (!keySave.ok) {
+                    setTestResult({
+                      success: false,
+                      message: `Failed to store API key: ${keySave.error}`,
+                    });
+                    return;
+                  }
+                  if (keySave.savedNewKey) {
+                    onConfigSaved?.();
+                    onModelConfigChanged?.();
+                  }
+                }
+                onClose();
+              }}
+            >
               Done
             </button>
           </div>

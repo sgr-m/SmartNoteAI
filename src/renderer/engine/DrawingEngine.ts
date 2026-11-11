@@ -36,6 +36,7 @@ import { renderSubjectShape, isSubjectShape } from './subjectShapeRenderer';
 import { isGeoShapeType } from '../services/geography/types';
 import { hitTestGeoFeature, getGeoMapTransform } from './geographyShapeRenderer';
 import { GeoAnnotationItem } from '../services/geography/types';
+import { recognizeShapeGesture, RecognizedShapeResult } from '../services/shapeRecognitionService';
 
 
 export interface ShapeStyle {
@@ -698,8 +699,21 @@ export class DrawingEngine {
       case 'line': {
         const shapeType = this.activeTool === 'line' ? 'line' : this.currentShapeStyle.shapeType;
         if (shapeType === 'recognition' && this.recognitionPoints.length > 0) {
-          const rec = this.recognizeGesture(this.recognitionPoints);
-          this.finalizeRecognizedShape(rec.shapeType, rec.origin, rec.current);
+          const endPt = this.currentPointerPos || this.eventToDocPoint(e);
+          const lastPt = this.recognitionPoints[this.recognitionPoints.length - 1];
+          if (Math.hypot(endPt.x - lastPt.x, endPt.y - lastPt.y) >= 0.5) {
+            this.recognitionPoints.push(endPt);
+          }
+          let spanSq = 0;
+          const firstPt = this.recognitionPoints[0];
+          for (const p of this.recognitionPoints) {
+            const dSq = (p.x - firstPt.x) ** 2 + (p.y - firstPt.y) ** 2;
+            if (dSq > spanSq) spanSq = dSq;
+          }
+          if (this.recognitionPoints.length >= 2 && spanSq >= 16) {
+            const rec = this.recognizeGesture(this.recognitionPoints);
+            this.finalizeRecognizedShape(rec.shapeType, rec.origin, rec.current, rec.rotation ?? 0);
+          }
           this.recognitionPoints = [];
           this.clearActiveCanvas();
         } else if (this.shapeOrigin && this.currentPointerPos) {
@@ -1430,120 +1444,15 @@ export class DrawingEngine {
 
   // ─── Intelligent Gesture Recognition ──────────────────────────────────────
 
-  private recognizeGesture(pts: Point[]): { shapeType: ShapeType; origin: Point; current: Point } {
-    if (pts.length < 3) {
-      return { shapeType: 'line', origin: pts[0], current: pts[pts.length - 1] };
-    }
-
-    const start = pts[0];
-    const end = pts[pts.length - 1];
-
-    let totalLength = 0;
-    let minX = pts[0].x,
-      maxX = pts[0].x,
-      minY = pts[0].y,
-      maxY = pts[0].y;
-    for (let i = 0; i < pts.length; i++) {
-      minX = Math.min(minX, pts[i].x);
-      maxX = Math.max(maxX, pts[i].x);
-      minY = Math.min(minY, pts[i].y);
-      maxY = Math.max(maxY, pts[i].y);
-      if (i > 0) {
-        totalLength += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-      }
-    }
-
-    const width = Math.max(10, maxX - minX);
-    const height = Math.max(10, maxY - minY);
-    const diag = Math.hypot(width, height);
-    const chordDist = Math.hypot(end.x - start.x, end.y - start.y);
-    const straightness = totalLength > 0 ? chordDist / totalLength : 1;
-
-    // Open gesture: start and end are far apart
-    const isOpen = chordDist > 0.22 * diag;
-
-    if (isOpen) {
-      // Check for arrow: last 30% of gesture turns back or creates a barb
-      let isArrow = false;
-      const endSliceStart = Math.floor(pts.length * 0.7);
-      if (pts.length >= 6) {
-        const vMain = { x: pts[endSliceStart].x - start.x, y: pts[endSliceStart].y - start.y };
-        const vHead = { x: end.x - pts[endSliceStart].x, y: end.y - pts[endSliceStart].y };
-        const dot = vMain.x * vHead.x + vMain.y * vHead.y;
-        const mag1 = Math.hypot(vMain.x, vMain.y);
-        const mag2 = Math.hypot(vHead.x, vHead.y);
-        if (mag1 > 0 && mag2 > 0) {
-          const cosAngle = dot / (mag1 * mag2);
-          if (cosAngle < 0.25) {
-            isArrow = true;
-          }
-        }
-      }
-
-      if (isArrow) {
-        return { shapeType: 'arrow', origin: start, current: end };
-      }
-
-      if (straightness > 0.7) {
-        return { shapeType: 'line', origin: start, current: end };
-      }
-
-      return { shapeType: 'arc', origin: start, current: end };
-    }
-
-    // Closed gesture: circle, ellipse, triangle, or rectangle
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    const radii = pts.map((p) => Math.hypot(p.x - cx, p.y - cy));
-    const meanR = radii.reduce((a, b) => a + b, 0) / radii.length;
-    const varianceR =
-      radii.reduce((sum, r) => sum + Math.pow(r - meanR, 2), 0) / radii.length;
-    const stdDevR = Math.sqrt(varianceR);
-    const circularity = meanR > 0 ? stdDevR / meanR : 1;
-    const aspectRatio = width / height;
-
-    if (circularity < 0.22 && aspectRatio >= 0.75 && aspectRatio <= 1.33) {
-      return { shapeType: 'circle', origin: { x: minX, y: minY }, current: { x: maxX, y: maxY } };
-    }
-
-    if (circularity < 0.28 && (aspectRatio < 0.75 || aspectRatio > 1.33)) {
-      return { shapeType: 'ellipse', origin: { x: minX, y: minY }, current: { x: maxX, y: maxY } };
-    }
-
-    const corners = this.detectCorners(pts);
-    if (corners.length === 3) {
-      return { shapeType: 'triangle', origin: { x: minX, y: minY }, current: { x: maxX, y: maxY } };
-    }
-
-    return { shapeType: 'rect', origin: { x: minX, y: minY }, current: { x: maxX, y: maxY } };
-  }
-
-  private detectCorners(pts: Point[]): Point[] {
-    const corners: Point[] = [];
-    const step = Math.max(2, Math.floor(pts.length / 14));
-    for (let i = step; i < pts.length - step; i += step) {
-      const pPrev = pts[i - step];
-      const pCurr = pts[i];
-      const pNext = pts[i + step];
-      const v1 = { x: pCurr.x - pPrev.x, y: pCurr.y - pPrev.y };
-      const v2 = { x: pNext.x - pCurr.x, y: pNext.y - pCurr.y };
-      const dot = v1.x * v2.x + v1.y * v2.y;
-      const m1 = Math.hypot(v1.x, v1.y);
-      const m2 = Math.hypot(v2.x, v2.y);
-      if (m1 > 3 && m2 > 3) {
-        const cos = dot / (m1 * m2);
-        if (cos < 0.5) {
-          corners.push(pCurr);
-        }
-      }
-    }
-    return corners;
+  private recognizeGesture(pts: Point[]): RecognizedShapeResult {
+    return recognizeShapeGesture(pts);
   }
 
   private finalizeRecognizedShape(
     recognizedType: ShapeType,
     origin: Point,
-    current: Point
+    current: Point,
+    rotation = 0
   ): void {
     const isLinear = recognizedType === 'line' || recognizedType === 'arrow' || recognizedType === 'arc';
     const x = isLinear ? origin.x : Math.min(origin.x, current.x);
@@ -1559,7 +1468,7 @@ export class DrawingEngine {
       y,
       width,
       height,
-      rotation: 0,
+      rotation: isLinear ? 0 : rotation,
       fillColor: this.currentShapeStyle.fillColor,
       fillOpacity: isLinear ? 0 : this.currentShapeStyle.fillOpacity,
       strokeColor: this.currentShapeStyle.strokeColor,
@@ -2635,65 +2544,53 @@ export class DrawingEngine {
       const initFontSize = t.fontSize || (isLatex ? 36 : 24);
 
       if (isLatex) {
-        const aspect = initW / Math.max(1, initH);
         let width = initW;
         let height = initH;
         let x = t.x;
         let y = t.y;
-        let scale = 1;
 
-        if (handle === 'se') {
-          scale = Math.max(0.2, (initW + deltaX) / initW);
-          width = Math.max(40, Math.round(initW * scale));
-          height = Math.max(20, Math.round(width / aspect));
-        } else if (handle === 'sw') {
-          scale = Math.max(0.2, (initW - deltaX) / initW);
-          const newW = Math.max(40, Math.round(initW * scale));
-          const newH = Math.max(20, Math.round(newW / aspect));
-          x = t.x + (initW - newW);
-          width = newW;
-          height = newH;
-        } else if (handle === 'ne') {
-          scale = Math.max(0.2, (initW + deltaX) / initW);
-          const newW = Math.max(40, Math.round(initW * scale));
-          const newH = Math.max(20, Math.round(newW / aspect));
-          y = t.y + (initH - newH);
-          width = newW;
-          height = newH;
-        } else if (handle === 'nw') {
-          scale = Math.max(0.2, (initW - deltaX) / initW);
-          const newW = Math.max(40, Math.round(initW * scale));
-          const newH = Math.max(20, Math.round(newW / aspect));
-          x = t.x + (initW - newW);
-          y = t.y + (initH - newH);
-          width = newW;
-          height = newH;
-        } else if (handle === 'e') {
-          scale = Math.max(0.2, (initW + deltaX) / initW);
-          width = Math.max(40, Math.round(initW * scale));
-          height = Math.max(20, Math.round(width / aspect));
+        // Edge handles: Adjust boundary / padding ONLY without modifying font size
+        if (handle === 'e') {
+          width = Math.max(40, initW + deltaX);
+          return { ...t, width, height: initH, fontSize: initFontSize };
         } else if (handle === 'w') {
-          scale = Math.max(0.2, (initW - deltaX) / initW);
-          const newW = Math.max(40, Math.round(initW * scale));
-          const newH = Math.max(20, Math.round(newW / aspect));
-          x = t.x + (initW - newW);
-          width = newW;
-          height = newH;
+          width = Math.max(40, initW - deltaX);
+          x = t.x + (initW - width);
+          return { ...t, x, width, height: initH, fontSize: initFontSize };
         } else if (handle === 's') {
-          scale = Math.max(0.2, (initH + deltaY) / initH);
-          height = Math.max(20, Math.round(initH * scale));
-          width = Math.max(40, Math.round(height * aspect));
+          height = Math.max(20, initH + deltaY);
+          return { ...t, width: initW, height, fontSize: initFontSize };
         } else if (handle === 'n') {
-          scale = Math.max(0.2, (initH - deltaY) / initH);
-          const newH = Math.max(20, Math.round(initH * scale));
-          const newW = Math.max(40, Math.round(newH * aspect));
-          y = t.y + (initH - newH);
-          width = newW;
-          height = newH;
+          height = Math.max(20, initH - deltaY);
+          y = t.y + (initH - height);
+          return { ...t, y, width: initW, height, fontSize: initFontSize };
         }
 
-        const fontSize = Math.max(12, Math.min(160, Math.round(initFontSize * scale)));
-        return { ...t, x, y, width, height, fontSize };
+        // Corner handles: Proportionally scale font size and re-measure snug bounds
+        let scale = 1;
+        if (handle === 'se') {
+          scale = Math.max(0.3, Math.min(4.0, (initW + deltaX) / Math.max(20, initW)));
+        } else if (handle === 'sw') {
+          scale = Math.max(0.3, Math.min(4.0, (initW - deltaX) / Math.max(20, initW)));
+        } else if (handle === 'ne') {
+          scale = Math.max(0.3, Math.min(4.0, (initW + deltaX) / Math.max(20, initW)));
+        } else if (handle === 'nw') {
+          scale = Math.max(0.3, Math.min(4.0, (initW - deltaX) / Math.max(20, initW)));
+        }
+
+        const fontSize = Math.max(14, Math.min(140, Math.round(initFontSize * scale)));
+        const measured = measureLatexSize(t.content, fontSize);
+        const newW = Math.max(40, Math.round(measured.width + 24));
+        const newH = Math.max(20, Math.round(measured.height + 16));
+
+        if (handle === 'sw' || handle === 'nw') {
+          x = t.x + (initW - newW);
+        }
+        if (handle === 'ne' || handle === 'nw') {
+          y = t.y + (initH - newH);
+        }
+
+        return { ...t, x, y, width: newW, height: newH, fontSize };
       }
 
       let width = t.width || 200;
@@ -4272,6 +4169,12 @@ export class DrawingEngine {
         ctx.restore();
         return;
       }
+      // If HTML image is still rasterizing, render clean text preview so canvas is never blank
+      ctx.fillStyle = text.color || '#ffffff';
+      ctx.font = `${Math.round((text.fontSize || 24) * s)}px ${text.fontFamily || 'Inter, sans-serif'}`;
+      ctx.textBaseline = 'top';
+      const cleanPlain = text.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      ctx.fillText(cleanPlain.slice(0, 90), x + 4, y + 4);
       ctx.restore();
       return;
     }
@@ -4280,10 +4183,10 @@ export class DrawingEngine {
     if (mode.isLatex) {
       const fontSize = text.fontSize || 36;
       const measured = measureLatexSize(text.content, fontSize);
-      const targetW = Math.max(text.width || 0, measured.width + 32);
-      const targetH = Math.max(text.height || 0, measured.height + 16);
-      const drawTw = Math.max(tw, (measured.width + 32) * s);
-      const drawTh = Math.max(th, (measured.height + 16) * s);
+      const targetW = text.width || Math.round(measured.width + 24);
+      const targetH = text.height || Math.round(measured.height + 16);
+      const drawTw = targetW * s;
+      const drawTh = targetH * s;
 
       const img = getCachedLatexImage(
         text.id,
@@ -4315,6 +4218,12 @@ export class DrawingEngine {
         ctx.restore();
         return;
       }
+      // If formula image is still rasterizing, render clean text preview so canvas is never blank
+      ctx.fillStyle = text.color || '#ffffff';
+      ctx.font = `${Math.round((text.fontSize || 32) * s)}px KaTeX_Main, serif`;
+      ctx.textBaseline = 'middle';
+      const cleanFormula = text.content.replace(/^\$\$|\$\$$/g, '').trim();
+      ctx.fillText(cleanFormula.slice(0, 60), x + 4, y + drawTh / 2);
       ctx.restore();
       return;
     }

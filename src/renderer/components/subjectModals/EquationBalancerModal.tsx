@@ -3,10 +3,11 @@
  * Stoichiometric balancer with equation parser, verified matrix search, and KaTeX rendering
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { balanceChemicalEquation, BalancedEquationResult } from '../../services/subjectModules/chemistryModule';
 import { createFormula, executeAddObject } from '../../services/subjectModules/commonHelpers';
+import { renderLatexHtml } from '../../services/latexService';
 import './SubjectModals.css';
 
 interface EquationBalancerModalProps {
@@ -32,6 +33,24 @@ export function EquationBalancerModal({ onClose, onInsertSuccess }: EquationBala
 
   const currentPageIndex = docState.currentPageIndex;
 
+  const isLightBoardBackground = useMemo(() => {
+    const bgHex = docState.lesson?.pages[currentPageIndex]?.background?.color || '#1b4332';
+    const clean = bgHex.replace('#', '');
+    if (clean.length === 6) {
+      const r = parseInt(clean.slice(0, 2), 16);
+      const g = parseInt(clean.slice(2, 4), 16);
+      const b = parseInt(clean.slice(4, 6), 16);
+      const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      return lum > 0.6;
+    }
+    return false;
+  }, [docState.lesson?.pages, currentPageIndex]);
+
+  const previewHtml = useMemo(() => {
+    const res = renderLatexHtml(result.latex, false);
+    return res.success && res.html ? res.html : null;
+  }, [result.latex]);
+
   const handleInputChange = (val: string) => {
     setEquationInput(val);
     setResult(balanceChemicalEquation(val));
@@ -43,7 +62,8 @@ export function EquationBalancerModal({ onClose, onInsertSuccess }: EquationBala
   };
 
   const insertBalancedEquation = () => {
-    const formulaObj = createFormula(result.latex, 260, 220, 32);
+    const formulaColor = isLightBoardBackground ? '#0f172a' : '#ffffff';
+    const formulaObj = createFormula(result.latex, 260, 220, 32, formulaColor);
     executeAddObject(
       {
         pageIndex: currentPageIndex,
@@ -103,7 +123,14 @@ export function EquationBalancerModal({ onClose, onInsertSuccess }: EquationBala
         {/* Result Card */}
         <div className="eq-result-card">
           <div className="eq-result-label">Balanced Reaction Result:</div>
-          <div className="eq-balanced-string">{result.balancedString}</div>
+          {previewHtml ? (
+            <div
+              className="eq-balanced-string"
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
+            />
+          ) : (
+            <div className="eq-balanced-string">{result.balancedString}</div>
+          )}
 
           <div className="eq-stoichiometry-breakdown">
             <div className="side-breakdown">

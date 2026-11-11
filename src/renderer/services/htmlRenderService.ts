@@ -220,6 +220,132 @@ export function getCachedHtmlImage(
 }
 
 /**
+ * Strips fixed CSS font-size declarations from generated HTML so SmartNoteAI's
+ * TextObject.fontSize (A- / A+ controls) always remains in full control of text size.
+ */
+export function stripFixedFontSizesFromHtml(html: string): string {
+  if (!html) return '';
+
+  // Protect embedded <svg>...</svg> blocks so vector text attributes aren't altered
+  const svgTokens: string[] = [];
+  let protectedHtml = html.replace(/<svg\b[\s\S]*?<\/svg>/gi, (m) => {
+    const idx = svgTokens.length;
+    svgTokens.push(m);
+    return `__SVG_BLOCK_TOKEN_${idx}__`;
+  });
+
+  // 1. Strip font-size properties inside inline style="..." attributes
+  protectedHtml = protectedHtml.replace(/\bstyle\s*=\s*(["'])([\s\S]*?)\1/gi, (_m, quote, styleBody) => {
+    const cleanedDecls = String(styleBody)
+      .split(';')
+      .map((decl) => decl.trim())
+      .filter((decl) => decl.length > 0 && !/^font-size\s*:/i.test(decl));
+    if (cleanedDecls.length === 0) {
+      return '';
+    }
+    return `style=${quote}${cleanedDecls.join('; ')};${quote}`;
+  });
+
+  // 2. Strip font-size rules inside <style>...</style> blocks
+  protectedHtml = protectedHtml.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (full, cssBody) => {
+    const cleanedCss = String(cssBody).replace(/(^|[;{\s])font-size\s*:\s*[^;{}]+;?/gi, '$1');
+    return full.replace(cssBody, cleanedCss);
+  });
+
+  // 3. Remove legacy <font size="..."> attributes
+  protectedHtml = protectedHtml.replace(/(<font\b[^>]*?)\s+\bsize\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '$1');
+
+  // Tidy spaces before tag close created by empty style removal
+  protectedHtml = protectedHtml.replace(/\s+>/g, '>');
+
+  return protectedHtml.replace(/__SVG_BLOCK_TOKEN_(\d+)__/g, (_m, idx) => svgTokens[Number(idx)] ?? '');
+}
+
+/**
+ * Converts lingering Markdown syntax (**, *, headings #, `code`, -- / ---, - bullets)
+ * inside HTML-mode strings into clean semantic HTML while protecting HTML tags & LaTeX ($...$).
+ */
+export function cleanMarkdownInHtml(html: string): string {
+  if (!html) return '';
+
+  const protectedTokens: string[] = [];
+  const protect = (raw: string): string => {
+    const idx = protectedTokens.length;
+    protectedTokens.push(raw);
+    return `\u0001MDHTML${idx}\u0002`;
+  };
+
+  // 1. Protect LaTeX display/inline blocks and HTML tags/comments first
+  let work = html
+    .replace(/\$\$[\s\S]*?\$\$/g, (m) => protect(m))
+    .replace(/\\\[[\s\S]*?\\\]/g, (m) => protect(m))
+    .replace(/\$(?!\d)([^\n$]{1,220}?)\$/g, (m) => protect(m))
+    .replace(/<style\b[\s\S]*?<\/style>/gi, (m) => protect(m))
+    .replace(/<svg\b[\s\S]*?<\/svg>/gi, (m) => protect(m))
+    .replace(/<[^>]+>/g, (m) => {
+      // If it's a tag, check if it's opening block so headings/bullets directly inside tags are still recognized cleanly
+      return protect(m);
+    });
+
+  // 2. Clean/convert Markdown tokens line by line across unprotected visible text segments
+  const cleanTextSegment = (seg: string): string => {
+    if (!seg.trim()) return seg;
+    let out = seg;
+
+    // Replace standalone markdown horizontal rules (---, ***, ___, --)
+    out = out.replace(/^[ \t]*(?:-{2,}|\*{3,}|_{3,})[ \t]*$/gm, '<hr style="border: none; border-top: 1px solid rgba(148, 163, 184, 0.35); margin: 8px 0;" />');
+
+    // Strip leading markdown heading hashes (# Title, ### Subtitle)
+    out = out.replace(/(^|\n)[ \t]*#{1,6}[ \t]+/g, '$1');
+
+    // Bold **...** and __...__
+    out = out.replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>');
+    out = out.replace(/__([^_\n]+?)__/g, '<strong>$1</strong>');
+
+    // Italic *...* (avoid breaking arithmetic spacing like 2 * 3)
+    out = out.replace(/(^|[^\w*])\*([^\s*](?:[^*\n]*?[^\s*])?)\*(?=[^\w*]|$)/g, '$1<em>$2</em>');
+
+    // Inline code `...`
+    out = out.replace(/`([^`\n]+?)`/g, '<code style="background: rgba(148, 163, 184, 0.16); padding: 1px 5px; border-radius: 4px; font-family: monospace;">$1</code>');
+
+    // Bullet prefixes (- item or * item) at start of lines inside HTML blocks
+    out = out.replace(/(^|\n)[ \t]*[-*][ \t]+(?=\S)/g, '$1• ');
+
+    // Stray double dashes used as separators (` -- `) or trailing/leading `--`
+    out = out.replace(/([ \t])--([ \t]|$)/g, '$1—$2');
+    out = out.replace(/(^|\n)[ \t]*--[ \t]*/g, '$1');
+
+    // Remove leftover unmatched ** artifacts if an AI truncated bold tags
+    out = out.replace(/\*\*/g, '');
+
+    return out;
+  };
+
+  // Split by placeholders so line-start checks apply inside each visible text chunk
+  const parts = work.split(/(\u0001MDHTML\d+\u0002)/g);
+  work = parts
+    .map((part) => {
+      if (part.startsWith('\u0001MDHTML') && part.endsWith('\u0002')) {
+        return part;
+      }
+      return cleanTextSegment(part);
+    })
+    .join('');
+
+  // Restore protected tokens
+  return work.replace(/\u0001MDHTML(\d+)\u0002/g, (_m, idx) => protectedTokens[Number(idx)] ?? '');
+}
+
+/**
+ * Full sanitizer for AI/Enhance-generated HTML:
+ * 1) Converts any Markdown artifacts (**, --, #, `code`, -) into clean HTML
+ * 2) Strips fixed CSS font-size declarations so board fontSize controls scale proportionally
+ */
+export function normalizeGeneratedHtml(html: string): string {
+  return stripFixedFontSizesFromHtml(cleanMarkdownInHtml(html));
+}
+
+/**
  * Clear cached HTML images
  */
 export function clearHtmlImageCache(): void {

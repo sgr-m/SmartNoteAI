@@ -17,6 +17,11 @@ import {
   AITextGenerationResponse,
 } from '../../../shared/aiPresentationTypes';
 import {
+  GEMINI_LEGACY_PHANTOM_MODEL_IDS,
+  isSupportedGeminiChatModel,
+  normalizeGeminiModelId,
+} from '../../../shared/geminiModelUtils';
+import {
   AIConnectionTestOptions,
   AIProviderAdapter,
   GeminiAdapter,
@@ -97,6 +102,19 @@ export class AIProviderManager {
   // ─── Provider & Model Settings ─────────────────────────────────────────────
 
   getActiveProvider(): AIProviderType {
+    if (typeof localStorage !== 'undefined') {
+      const activeKey = localStorage.getItem('smartboard_active_model_key');
+      if (activeKey && activeKey !== 'offline:default') {
+        const prov = activeKey.split(':')[0] as AIProviderType;
+        if (['ollama', 'gemini', 'openai', 'custom-openai'].includes(prov)) {
+          return prov;
+        }
+      }
+      const savedOllama = localStorage.getItem('smartboard_model_ollama');
+      if (savedOllama) return 'ollama';
+      const savedGemini = localStorage.getItem('smartboard_model_gemini');
+      if (savedGemini) return 'gemini';
+    }
     return this.settings.activeProvider;
   }
 
@@ -105,8 +123,43 @@ export class AIProviderManager {
   }
 
   getSelectedModel(provider?: AIProviderType): string {
-    const p = provider || this.settings.activeProvider;
-    return this.settings.selectedModels[p] || (p === 'gemini' ? GEMINI_DEFAULT_MODEL : OPENAI_DEFAULT_MODEL);
+    const p = provider || this.getActiveProvider();
+    const sanitizeGeminiCandidate = (candidate: string): string | null => {
+      const cleanId = normalizeGeminiModelId(candidate);
+      if (!cleanId || !isSupportedGeminiChatModel(cleanId)) return null;
+      if (GEMINI_LEGACY_PHANTOM_MODEL_IDS.has(cleanId.toLowerCase())) {
+        try {
+          const cachedRaw = localStorage.getItem('smartboard_discovered_models_gemini');
+          if (cachedRaw) {
+            const parsed = JSON.parse(cachedRaw);
+            if (Array.isArray(parsed) && parsed.some((m: any) => normalizeGeminiModelId(typeof m === 'string' ? m : m?.id) === cleanId)) {
+              return cleanId;
+            }
+          }
+        } catch {}
+        return null;
+      }
+      return cleanId;
+    };
+
+    if (typeof localStorage !== 'undefined') {
+      const activeKey = localStorage.getItem('smartboard_active_model_key');
+      if (activeKey && activeKey.startsWith(`${p}:`)) {
+        const candidate = activeKey.slice(p.length + 1);
+        if (p === 'gemini') {
+          return sanitizeGeminiCandidate(candidate) || GEMINI_DEFAULT_MODEL;
+        }
+        return candidate;
+      }
+      const savedM = localStorage.getItem(`smartboard_model_${p}`);
+      if (savedM) {
+        if (p === 'gemini') {
+          return sanitizeGeminiCandidate(savedM) || GEMINI_DEFAULT_MODEL;
+        }
+        return savedM;
+      }
+    }
+    return this.settings.selectedModels[p] || (p === 'gemini' ? GEMINI_DEFAULT_MODEL : p === 'ollama' ? 'llama3.2' : OPENAI_DEFAULT_MODEL);
   }
 
   setSelectedModel(model: string, provider?: AIProviderType): void {
@@ -166,7 +219,11 @@ export class AIProviderManager {
     }
 
     if (typeof window !== 'undefined' && (window as any).electronAPI?.ai?.saveApiKey) {
-      return (window as any).electronAPI.ai.saveApiKey(provider, cleanKey);
+      const res = await (window as any).electronAPI.ai.saveApiKey(provider, cleanKey);
+      if (res?.success && typeof localStorage !== 'undefined') {
+        localStorage.removeItem(`smartboard_discovered_models_${provider}`);
+      }
+      return res;
     }
 
     return {
@@ -192,7 +249,12 @@ export class AIProviderManager {
   async deleteApiKey(provider?: AIProviderType): Promise<boolean> {
     const p = provider || this.settings.activeProvider;
     if (typeof window !== 'undefined' && (window as any).electronAPI?.ai?.deleteApiKey) {
-      return (window as any).electronAPI.ai.deleteApiKey(p);
+      const deleted = await (window as any).electronAPI.ai.deleteApiKey(p);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(`smartboard_discovered_models_${p}`);
+        localStorage.removeItem(`smartboard_model_${p}`);
+      }
+      return deleted;
     }
     return false;
   }
@@ -330,7 +392,7 @@ export class AIProviderManager {
    * Direct text generation dispatcher.
    */
   async generateText(request: AITextGenerationRequest): Promise<AITextGenerationResponse> {
-    const p = request.provider || this.settings.activeProvider;
+    const p = request.provider || this.getActiveProvider();
 
     // Route through Electron main-process IPC if no direct key is supplied
     if (!request.apiKey && typeof window !== 'undefined' && (window as any).electronAPI?.ai?.generateText) {
@@ -344,6 +406,7 @@ export class AIProviderManager {
           maxTokens: request.maxTokens,
           customEndpoint: request.endpoint || this.getCustomEndpoint(p),
           timeoutMs: request.timeoutMs || this.settings.timeoutMs,
+          enableWebSearch: request.enableWebSearch,
         });
         if (res && (res.success || res.error)) {
           return {
@@ -351,6 +414,7 @@ export class AIProviderManager {
             text: res.text || '',
             model: res.model || request.model || this.getSelectedModel(p),
             provider: p,
+            groundingSources: Array.isArray(res.groundingSources) ? res.groundingSources : undefined,
             error: res.error,
           };
         }
@@ -385,7 +449,7 @@ export class AIProviderManager {
   async generateStructuredJson<T = unknown>(
     request: AIStructuredGenerationRequest
   ): Promise<AIStructuredGenerationResponse<T>> {
-    const p = request.provider || this.settings.activeProvider;
+    const p = request.provider || this.getActiveProvider();
 
     // Route through Electron main-process IPC if no direct key is supplied
     if (!request.apiKey && typeof window !== 'undefined' && (window as any).electronAPI?.ai?.generateStructuredJson) {

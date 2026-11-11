@@ -339,7 +339,7 @@ Hope this helps!`;
 
       manager.setActiveProvider('gemini');
       expect(manager.getActiveProvider()).toBe('gemini');
-      expect(manager.getSelectedModel()).toBe('gemini-3.8-flash');
+      expect(manager.getSelectedModel()).toBe('gemini-2.5-flash');
 
       manager.setSelectedModel('gemini-1.5-pro');
       expect(manager.getSelectedModel('gemini')).toBe('gemini-1.5-pro');

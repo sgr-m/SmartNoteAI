@@ -546,6 +546,7 @@ export interface AITextGenerationRequest {
   timeoutMs?: number;
   signal?: AbortSignal;
   onChunk?: (token: string, accumulated: string) => void;
+  enableWebSearch?: boolean;
 }
 
 export interface AITextGenerationResponse {
@@ -555,6 +556,7 @@ export interface AITextGenerationResponse {
   provider: AIProviderType;
   finishReason?: string;
   usage?: AITokenUsage;
+  groundingSources?: Array<{ title: string; url: string }>;
   error?: string;
 }
 

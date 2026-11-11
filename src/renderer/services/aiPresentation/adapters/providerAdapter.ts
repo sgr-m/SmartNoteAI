@@ -41,6 +41,7 @@ export interface AITextGenerationRequest {
   timeoutMs?: number;
   signal?: AbortSignal;
   onChunk?: (token: string, accumulated: string) => void;
+  enableWebSearch?: boolean;
 }
 
 export interface AITokenUsage {
@@ -56,6 +57,7 @@ export interface AITextGenerationResponse {
   provider: AIProviderType;
   finishReason?: string;
   usage?: AITokenUsage;
+  groundingSources?: Array<{ title: string; url: string }>;
   error?: string;
 }
 
@@ -158,6 +160,49 @@ export function sanitizeErrorMessage(error: unknown, apiKey?: string): string {
  * Resilient JSON extractor that parses raw model outputs, handling markdown fences,
  * preamble conversational text, and JSON embedded in text.
  */
+function tryParseWithLatexRepair<T>(str: string): T | null {
+  try {
+    return JSON.parse(str) as T;
+  } catch {
+    try {
+      const repaired = str.replace(/\\([^"\\\/bfnrtu])/g, '\\\\$1');
+      return JSON.parse(repaired) as T;
+    } catch {
+      try {
+        const aggressive = str.replace(/\\/g, '\\\\');
+        return JSON.parse(aggressive) as T;
+      } catch {
+        return null;
+      }
+    }
+  }
+}
+
+function healLatexControlChars<T>(val: T): T {
+  if (typeof val === 'string') {
+    return val
+      .replace(/\x08ar\{/g, '\\bar{')
+      .replace(/(^|[^\\])\x08ar\b/g, '$1\\bar')
+      .replace(/\x0cac\{/g, '\\frac{')
+      .replace(/(^|[^\\])\x0cac\b/g, '$1\\frac') as unknown as T;
+  }
+  if (Array.isArray(val)) {
+    return val.map(healLatexControlChars) as unknown as T;
+  }
+  if (val && typeof val === 'object') {
+    const out: any = {};
+    for (const [k, v] of Object.entries(val)) {
+      out[k] = healLatexControlChars(v);
+    }
+    return out as T;
+  }
+  return val;
+}
+
+/**
+ * Extracts and parses a JSON payload from a model response string.
+ * Supports raw JSON, Markdown code fences (```json ... ```), and embedded objects.
+ */
 export function extractJsonFromResponse<T = unknown>(rawText: string): { data: T | null; error?: string } {
   if (!rawText || typeof rawText !== 'string') {
     return { data: null, error: 'Empty model response' };
@@ -166,22 +211,18 @@ export function extractJsonFromResponse<T = unknown>(rawText: string): { data: T
   const trimmed = rawText.trim();
 
   // 1. Try direct parse
-  try {
-    const parsed = JSON.parse(trimmed) as T;
-    return { data: parsed };
-  } catch {
-    // Continue to fallback extraction
+  const direct = tryParseWithLatexRepair<T>(trimmed);
+  if (direct) {
+    return { data: healLatexControlChars(direct) };
   }
 
   // 2. Extract from markdown code fences: ```json ... ``` or ``` ... ```
   const fenceRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
   const fenceMatch = trimmed.match(fenceRegex);
   if (fenceMatch && fenceMatch[1]) {
-    try {
-      const parsed = JSON.parse(fenceMatch[1].trim()) as T;
-      return { data: parsed };
-    } catch {
-      // Continue to bracket matching
+    const fenced = tryParseWithLatexRepair<T>(fenceMatch[1].trim());
+    if (fenced) {
+      return { data: healLatexControlChars(fenced) };
     }
   }
 
@@ -190,11 +231,9 @@ export function extractJsonFromResponse<T = unknown>(rawText: string): { data: T
   const lastBrace = trimmed.lastIndexOf('}');
   if (firstBrace !== -1 && lastBrace > firstBrace) {
     const candidate = trimmed.substring(firstBrace, lastBrace + 1);
-    try {
-      const parsed = JSON.parse(candidate) as T;
-      return { data: parsed };
-    } catch {
-      // Continue
+    const parsedObj = tryParseWithLatexRepair<T>(candidate);
+    if (parsedObj) {
+      return { data: healLatexControlChars(parsedObj) };
     }
   }
 
@@ -202,11 +241,9 @@ export function extractJsonFromResponse<T = unknown>(rawText: string): { data: T
   const lastBracket = trimmed.lastIndexOf(']');
   if (firstBracket !== -1 && lastBracket > firstBracket) {
     const candidate = trimmed.substring(firstBracket, lastBracket + 1);
-    try {
-      const parsed = JSON.parse(candidate) as T;
-      return { data: parsed };
-    } catch {
-      // Continue
+    const parsedArr = tryParseWithLatexRepair<T>(candidate);
+    if (parsedArr) {
+      return { data: healLatexControlChars(parsedArr) };
     }
   }
 

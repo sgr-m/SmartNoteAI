@@ -44,8 +44,11 @@ import {
   detectDiagramType,
   renderDiagramToSvg,
   diagramSvgToDataUrl,
+  isSupportedDiagramCode,
 } from '../services/vectorDiagramService';
 import { measureMarkdownSize } from '../services/markdownRenderService';
+import { normalizeGeneratedHtml } from '../services/htmlRenderService';
+import { detectTextFormatMode } from '../services/formatDetectionService';
 import { createImageObject, sanitizeSvg } from '../services/documentImportService';
 import { isTypingOrInputFocused } from '../utils/keyboardUtils';
 import { enhanceSlideContent, enhanceSlideContentWithAI } from '../services/boardEnhanceService';
@@ -127,6 +130,7 @@ export function Shell(): React.ReactElement {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showVectorDiagramModal, setShowVectorDiagramModal] = useState(false);
   const [vectorDiagramInitialCode, setVectorDiagramInitialCode] = useState<string | undefined>(undefined);
+  const [browserInitialUrl, setBrowserInitialUrl] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
   // Presentation Mode (Full-screen teaching)
@@ -323,10 +327,19 @@ export function Shell(): React.ReactElement {
     const dataUrl = diagramSvgToDataUrl(svg);
     let width = 640;
     let height = 400;
-    const wMatch = svg.match(/width="(\d+)"/);
-    const hMatch = svg.match(/height="(\d+)"/);
-    if (wMatch) width = parseInt(wMatch[1], 10);
-    if (hMatch) height = parseInt(hMatch[1], 10);
+    const vbMatch = svg.match(/viewBox="([^"]+)"/i);
+    const wMatch = svg.match(/<svg[^>]*\bwidth="([\d.]+)"/i);
+    const hMatch = svg.match(/<svg[^>]*\bheight="([\d.]+)"/i);
+    if (wMatch && hMatch) {
+      width = Math.max(120, Math.round(parseFloat(wMatch[1])));
+      height = Math.max(80, Math.round(parseFloat(hMatch[1])));
+    } else if (vbMatch) {
+      const parts = vbMatch[1].trim().split(/[\s,]+/).map(Number);
+      if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+        width = Math.max(120, Math.round(parts[2]));
+        height = Math.max(80, Math.round(parts[3]));
+      }
+    }
 
     const canvasW = 1920;
     const canvasH = 1080;
@@ -382,15 +395,9 @@ export function Shell(): React.ReactElement {
       page.layers?.find((l) => !l.locked)?.id ||
       'objects';
 
-    // 1. Check if this content is a Code-to-Vector diagram (Mermaid, Graph, Geometry, Circuit, Timing, TikZ)
+    // 1. Check if this content is a Code-to-Vector diagram (Mermaid, Graph, Geometry, Circuit, Timing, Chart, TikZ)
     const trimmed = rawContent.trim();
-    const isDiagramCode =
-      (trimmed.startsWith('{') && (trimmed.includes('"type": "graph"') || trimmed.includes('"type":"graph"') || trimmed.includes('"type": "geometry"') || trimmed.includes('"type":"geometry"') || trimmed.includes('"type": "circuit"') || trimmed.includes('"type":"circuit"') || trimmed.includes('"signal"'))) ||
-      trimmed.startsWith('```mermaid') ||
-      trimmed.startsWith('graph TD') ||
-      trimmed.startsWith('graph LR') ||
-      trimmed.startsWith('sequenceDiagram') ||
-      trimmed.startsWith('\\begin{tikzpicture}');
+    const isDiagramCode = isSupportedDiagramCode(trimmed);
 
     if (isDiagramCode) {
       const diagType = detectDiagramType(rawContent);
@@ -471,6 +478,15 @@ export function Shell(): React.ReactElement {
       posY = Math.max(0, posY);
     }
 
+    const mode = isFormula
+      ? { isHtml: false, isLatex: true, isMarkdown: false }
+      : detectTextFormatMode(rawContent);
+    const finalContent = isFormula
+      ? cleanFormula
+      : mode.isHtml
+      ? normalizeGeneratedHtml(rawContent)
+      : rawContent;
+
     const newTextObj: TextObject = {
       id: `ai-chat-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       type: 'text',
@@ -478,7 +494,7 @@ export function Shell(): React.ReactElement {
       y: posY,
       width: targetW,
       height: targetH,
-      content: isFormula ? cleanFormula : rawContent,
+      content: finalContent,
       fontFamily: isFormula ? "KaTeX_Main, 'Cambria Math', serif" : 'Inter, sans-serif',
       fontSize: 36,
       fontWeight: 400,
@@ -493,8 +509,9 @@ export function Shell(): React.ReactElement {
       locked: false,
       visible: true,
       layerId: unlockedLayerId,
-      isLatex: isFormula,
-      isMarkdown: !isFormula,
+      isLatex: mode.isLatex,
+      isHtml: mode.isHtml,
+      isMarkdown: mode.isMarkdown,
     };
 
     docDispatch({
@@ -508,7 +525,7 @@ export function Shell(): React.ReactElement {
     setToastMessage(isFormula ? '📐 Math Formula placed on board!' : '✨ Lesson notes placed on board!');
   }, [docState.currentPageIndex, docState.lesson?.pages, docDispatch, setSelectedObject, setActiveTool, setToastMessage]);
 
-  const handleInsertImageToBoard = useCallback((dataUrl: string, title?: string) => {
+  const handleInsertImageToBoard = useCallback((dataUrl: string, title?: string, targetPos?: { x: number; y: number }) => {
     const pageIndex = docState.currentPageIndex;
     const page = docState.lesson?.pages[pageIndex];
     if (!page) return;
@@ -527,11 +544,14 @@ export function Shell(): React.ReactElement {
         displayW = maxH * aspect;
       }
 
+      const posX = targetPos ? Math.max(0, Math.round(targetPos.x - displayW / 2)) : 180;
+      const posY = targetPos ? Math.max(0, Math.round(targetPos.y - displayH / 2)) : 140;
+
       const imgObj = createImageObject(
         dataUrl,
         title || `Web_Capture_${Date.now()}.png`,
-        180,
-        140,
+        posX,
+        posY,
         Math.round(displayW),
         Math.round(displayH),
         naturalW,
@@ -550,6 +570,41 @@ export function Shell(): React.ReactElement {
     };
     img.src = dataUrl;
   }, [docState.currentPageIndex, docState.lesson?.pages, docDispatch, setSelectedObject, setActiveTool, setToastMessage]);
+
+  const handleInsertRemoteImageToBoard = useCallback(async (imageUrl: string, title?: string, targetPos?: { x: number; y: number }) => {
+    const cleanUrl = (imageUrl || '').trim();
+    if (!cleanUrl) return;
+    if (cleanUrl.startsWith('data:image/')) {
+      handleInsertImageToBoard(cleanUrl, title, targetPos);
+      return;
+    }
+
+    setToastMessage('⬇️ Downloading image to SmartBoard...');
+    try {
+      if (window.electronAPI?.invoke) {
+        const res = (await window.electronAPI.invoke('net:fetchImageAsDataUrl', cleanUrl)) as {
+          success: boolean;
+          dataUrl?: string;
+          error?: string;
+        };
+        if (res?.success && res.dataUrl) {
+          handleInsertImageToBoard(res.dataUrl, title, targetPos);
+          return;
+        }
+        setToastMessage(`⚠️ Could not download image: ${res?.error || 'Remote server blocked fetch'}`);
+        return;
+      }
+      handleInsertImageToBoard(cleanUrl, title, targetPos);
+    } catch (err) {
+      setToastMessage(`⚠️ Image download failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, [handleInsertImageToBoard, setToastMessage]);
+
+  const handleOpenUrlInBrowser = useCallback((url: string) => {
+    if (!url || !url.trim()) return;
+    setBrowserInitialUrl(url.trim());
+    setShowBrowser(true);
+  }, []);
 
 
 
@@ -707,6 +762,35 @@ export function Shell(): React.ReactElement {
     e.stopPropagation();
     setIsDragOver(false);
 
+    const getCanvasDropPoint = (): { x: number; y: number } => {
+      const canvas = (document.querySelector('.active-canvas') ||
+                      document.querySelector('.whiteboard-canvas') ||
+                      document.querySelector('.whiteboard-canvas-wrapper')) as HTMLElement | null;
+      if (!canvas) return { x: 180, y: 160 };
+      const rect = canvas.getBoundingClientRect();
+      const z = toolState?.zoom || 1;
+      const px = toolState?.panX || 0;
+      const py = toolState?.panY || 0;
+      return {
+        x: Math.round((e.clientX - rect.left) / z - px),
+        y: Math.round((e.clientY - rect.top) / z - py),
+      };
+    };
+
+    // 0. Check for dragged remote/web image from AI Chat or Web Browser
+    const smartImageRaw = e.dataTransfer.getData('application/x-smartboard-image');
+    if (smartImageRaw) {
+      try {
+        const parsed = JSON.parse(smartImageRaw);
+        if (parsed?.imageUrl) {
+          await handleInsertRemoteImageToBoard(parsed.imageUrl, parsed.title, getCanvasDropPoint());
+          return;
+        }
+      } catch {
+        // continue checking other payload formats
+      }
+    }
+
     // 1. Check for Drag-and-Drop from AI Teaching Assistant Chatbox
     const chatDataRaw = e.dataTransfer.getData('application/x-smartboard-chat');
     const plainText = e.dataTransfer.getData('text/plain');
@@ -717,6 +801,10 @@ export function Shell(): React.ReactElement {
       if (chatDataRaw) {
         try {
           const parsed = JSON.parse(chatDataRaw);
+          if (parsed?.isImage && parsed?.imageUrl) {
+            await handleInsertRemoteImageToBoard(parsed.imageUrl, parsed.title, getCanvasDropPoint());
+            return;
+          }
           content = parsed.text || content;
           title = parsed.title;
           isFormulaHint = Boolean(parsed.isFormula);
@@ -724,22 +812,18 @@ export function Shell(): React.ReactElement {
           // ignore
         }
       }
+      // Also detect direct dragged image URLs or dragged <img src="https://...">
+      const uriList = e.dataTransfer.getData('text/uri-list')?.trim();
+      const htmlData = e.dataTransfer.getData('text/html') || '';
+      const imgSrcMatch = htmlData.match(/<img[^>]+src=["'](https?:\/\/[^"']+)["']/i);
+      const urlCandidate = uriList?.split('\n').find((u) => /^https?:\/\//i.test(u.trim())) || (/^https?:\/\/\S+\.(?:png|jpe?g|webp|gif|svg)(?:\?\S*)?$/i.test((content || '').trim()) ? content.trim() : '') || imgSrcMatch?.[1] || '';
+      if (urlCandidate && !chatDataRaw) {
+        await handleInsertRemoteImageToBoard(urlCandidate, title, getCanvasDropPoint());
+        return;
+      }
+
       if (content && content.trim()) {
-        const canvas = (document.querySelector('.active-canvas') ||
-                        document.querySelector('.whiteboard-canvas') ||
-                        document.querySelector('.whiteboard-canvas-wrapper')) as HTMLElement;
-        let dropX = 180;
-        let dropY = 160;
-        if (canvas) {
-          const rect = canvas.getBoundingClientRect();
-          // Map viewport coordinates precisely into internal document canvas coordinates using zoom and pan
-          const z = toolState?.zoom || 1;
-          const px = toolState?.panX || 0;
-          const py = toolState?.panY || 0;
-          dropX = Math.round((e.clientX - rect.left) / z - px);
-          dropY = Math.round((e.clientY - rect.top) / z - py);
-        }
-        handleInsertChatContentToBoard(content, title, { x: dropX, y: dropY }, isFormulaHint);
+        handleInsertChatContentToBoard(content, title, getCanvasDropPoint(), isFormulaHint);
         return;
       }
     }
@@ -986,6 +1070,8 @@ export function Shell(): React.ReactElement {
             isOpen={showAIChat}
             onClose={() => setShowAIChat(false)}
             onInsertToBoard={handleInsertChatContentToBoard}
+            onInsertImageUrlToBoard={handleInsertRemoteImageToBoard}
+            onOpenInBrowser={handleOpenUrlInBrowser}
             onOpenVectorStudio={(code) => {
               setVectorDiagramInitialCode(code);
               setShowVectorDiagramModal(true);
@@ -1069,6 +1155,8 @@ export function Shell(): React.ReactElement {
         isOpen={showBrowser}
         onClose={() => setShowBrowser(false)}
         onInsertImageToBoard={handleInsertImageToBoard}
+        initialUrl={browserInitialUrl}
+        onClearInitialUrl={() => setBrowserInitialUrl(null)}
       />
     </div>
   );

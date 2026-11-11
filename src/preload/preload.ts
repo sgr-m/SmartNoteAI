@@ -70,6 +70,8 @@ const ALLOWED_INVOKE = new Set([
   'ai:listModels',
   'ai:generateText',
   'ai:generateStructuredJson',
+  'net:fetchImageAsDataUrl',
+  'net:searchEducationalImages',
 ]);
 
 // Whitelist of allowed channels the renderer may listen on (from main)
@@ -110,6 +112,7 @@ const ALLOWED_LISTEN = new Set([
   'desktop:resetMode',
   'window:setPresentationMode',
   'app:request-save-and-close',
+  'browser:open-in-new-tab',
 ]);
 
 // The API surface exposed to the renderer via window.electronAPI

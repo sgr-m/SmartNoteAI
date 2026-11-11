@@ -227,8 +227,8 @@ export function InlineTextEditor({
       estimatedHeight = measured.height;
     } else if (isLatex) {
       const measured = measureLatexSize(normalizedContent, fontSize);
-      estimatedWidth = measured.width;
-      estimatedHeight = measured.height;
+      estimatedWidth = Math.round(measured.width + 24);
+      estimatedHeight = Math.round(measured.height + 16);
     } else if (isMarkdown) {
       const measured = measureMarkdownSize(normalizedContent, fontSize, fontFamily, maxAvailableWidth);
       estimatedWidth = Math.min(maxAvailableWidth, measured.width);
@@ -252,8 +252,8 @@ export function InlineTextEditor({
       textAlign,
       color,
       backgroundColor,
-      width: isLatex ? Math.max(initialText?.width || 0, estimatedWidth) : (initialText?.width || estimatedWidth),
-      height: isLatex ? Math.max(initialText?.height || 0, estimatedHeight) : (initialText?.height || estimatedHeight),
+      width: isLatex ? estimatedWidth : (initialText?.width || estimatedWidth),
+      height: isLatex ? estimatedHeight : (initialText?.height || estimatedHeight),
       lineHeight,
       opacity: 1,
       rotation: initialText?.rotation || 0,
